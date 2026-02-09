@@ -10,7 +10,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('api', '0022_add_login_attempt_tracking'),
+        ('api', '0021_add_login_attempt_tracking'),
     ]
 
     operations = [
