@@ -11,7 +11,8 @@ COPY Interfaz /app
 
 RUN pip install --no-cache-dir \
     django djangorestframework django-cors-headers \
-    psycopg2-binary gunicorn
+    djangorestframework-simplejwt \
+    psycopg2-binary gunicorn reportlab
 
 EXPOSE 8000
 CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]
