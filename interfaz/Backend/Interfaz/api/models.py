@@ -48,7 +48,7 @@ class User(AbstractUser):
         ('Cajero', 'Cajero'),
     )
     # Quitar default='Cajero' para que sea obligatorio
-    role = models.ForeignKey(Role, on_delete=models.SET_NULL, null=True, blank=True)
+    role = models.CharField(max_length=50, null=True, blank=True)
     # Añadimos la columna `is_active` por defecto
     is_active = models.BooleanField(default=True)
     # Campos para tracking de intentos de login
