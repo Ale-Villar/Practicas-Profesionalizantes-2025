@@ -19,6 +19,7 @@ import Movimientos_De_Caja from './components/Movimientos_De_Caja';
 import Pedidos from './components/Pedidos';
 import PedDialogo from './components/PedDialogo';
 import Edicion from './components/Edicion';
+import Dialogo_interfaz_Consultar_Datos from './components/Dialogo_interfaz_Consultar_Datos';
 import DialogoHistorialDePerdidas from './components/dialogoHistorialDePerdidas';
 import Ver_Reportes_De_Faltantes from './components/Ver_Reportes_De_Faltantes';
 import CrearNuevoProducto from './components/crearNuevoProducto';
@@ -640,6 +641,9 @@ const App = () => {
     const [isPedDialogoMinimized, setIsPedDialogoMinimized] = useState(false);
     const [isPedDialogoFullscreen, setIsPedDialogoFullscreen] = useState(false);
     
+    // Estado para el diálogo de consultas fullscreen
+    const [isConsultasFullscreen, setIsConsultasFullscreen] = useState(false);
+    
     // Detectar parámetro URL para modo fullscreen
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
@@ -649,6 +653,13 @@ const App = () => {
             // Si el usuario ya tiene sesión activa, evitar mostrar login
             if (isLoggedIn) {
                 setCurrentPage('pedidos');
+            }
+        }
+        // Detectar parámetro URL para diálogo de consultas fullscreen
+        if (params.get('consultas-fullscreen') === 'true') {
+            setIsConsultasFullscreen(true);
+            if (isLoggedIn) {
+                setCurrentPage('consultas');
             }
         }
     }, [isLoggedIn]);
@@ -719,6 +730,9 @@ const App = () => {
                         id: o.id,
                         fecha_para_la_que_se_quiere_el_pedido: o.fecha_para_la_que_se_quiere_el_pedido,
                         fecha_de_orden_del_pedido: o.fecha_de_orden_del_pedido,
+                        // Mapear fecha de creación para que DataConsultation pueda filtrar correctamente
+                        created_at: o.fecha_de_orden_del_pedido || o.created_at,
+                        date: o.fecha_de_orden_del_pedido || o.created_at,
                         customerName: o.customer_name || o.customerName || '',
                         paymentMethod: o.payment_method || o.paymentMethod || '',
                         items: Array.isArray(o.items) ? o.items.map(it => ({
@@ -2775,7 +2789,11 @@ const PurchaseRequests = () => {
             'totalMovements': 'Total de Movimientos',
             'totalIncome': 'Ingresos Totales',
             'totalExpenses': 'Gastos Totales',
-            'period': 'Período'
+            'period': 'Período',
+            'inPreparationOrders': 'Órdenes en Preparación',
+            'readyOrders': 'Pedidos Listos',
+            'deliveredOrders': 'Pedidos Entregados',
+            'canceledOrders': 'Pedidos Cancelados'
         };
 
     
@@ -3297,6 +3315,26 @@ const PurchaseRequests = () => {
                     isMinimized={isPedDialogoMinimized}
                     onOpenNewTab={handleOpenPedDialogoNewTab}
                     isFullscreen={isPedDialogoFullscreen}
+                />
+            )}
+
+            {/* Diálogo de Consulta de Datos (fullscreen) */}
+            {isConsultasFullscreen && (
+                <Dialogo_interfaz_Consultar_Datos
+                    api={api}
+                    getInMemoryToken={getInMemoryToken}
+                    inventory={inventory}
+                    suppliers={suppliers}
+                    purchases={purchaseHistory}
+                    orders={orders}
+                    cashMovements={cashMovements}
+                    sales={sales}
+                    headerTranslationMap={headerTranslationMap}
+                    safeToFixed={safeToFixed}
+                    loadSales={loadSales}
+                    loadCashMovements={loadCashMovements}
+                    isFullscreen={true}
+                    onClose={() => window.close()}
                 />
             )}
         </div>

@@ -156,6 +156,9 @@ const Pedidos = ({ orders, setOrders, products }) => {
                     id: created.id,
                     fecha_para_la_que_se_quiere_el_pedido: created.fecha_para_la_que_se_quiere_el_pedido,
                     fecha_de_orden_del_pedido: created.fecha_de_orden_del_pedido,
+                    // Mapear fecha de creación para que DataConsultation pueda filtrar correctamente
+                    created_at: created.fecha_de_orden_del_pedido || created.created_at,
+                    date: created.fecha_de_orden_del_pedido || created.created_at,
                     customerName: created.customer_name || '',
                     paymentMethod: created.payment_method || '',
                     items: Array.isArray(created.items) ? created.items.map(it => ({ 
