@@ -1,12 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { api } from './services/api';
 import { formatMovementDate } from './utils/date';
-import { 
-    Search, Calendar, Download, Filter, 
-    Package, Users, TrendingUp, ShoppingCart, 
-    DollarSign, Truck, ChevronDown, ChevronUp, SlidersHorizontal,
-    FileText, AlertCircle, List, ExternalLink
-} from 'lucide-react';
 
 // DataConsultation: componente extracto para evitar remounts por cambios en App
 // Recibe como props los estados y funciones que necesita para no depender de clausuras
@@ -28,9 +22,6 @@ export default function DataConsultation(props) {
 
     // mount/unmount side-effects intentionally silent in production UI
     useEffect(() => { return () => {}; }, []);
-
-    // Estado para UI de filtros avanzados
-    const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
 
     const [selectedQuery, setSelectedQuery] = useState('');
     const [startDate, setStartDate] = useState('');
@@ -1887,872 +1878,1069 @@ export default function DataConsultation(props) {
         finally { setIsLoading(false); isRunningQueryRef.current = false; }
     };
 
-    // Función para renderizar valores de celda
-    const renderCellValue = (value, key) => {
-        if (value === null || value === undefined) return '';
-        if (key === 'date') { try { return formatMovementDate(value); } catch (e) { /* fallback */ } }
-        if (Array.isArray(value)) {
-            if (value.length === 0) return '';
-            if (value.every(v => v === null || ['string','number','boolean'].includes(typeof v))) return value.filter(v => v !== null && v !== undefined).join(', ');
-            return value.map(item => {
-                if (item === null || item === undefined) return '';
-                if (typeof item === 'string' || typeof item === 'number') return String(item);
-                const name = item.productName || item.product_name || item.product || item.name || item.productName;
-                const qty = item.quantity ?? item.cantidad ?? item.qty ?? '';
-                const unit = item.unitPrice ?? item.unit_price ?? item.price ?? '';
-                const total = item.total ?? item.totalAmount ?? item.total_amount ?? '';
-                const parts = [];
-                if (name) parts.push(String(name));
-                if (qty !== '') parts.push(String(qty));
-                if (unit !== '') parts.push(`x ${safeToFixed(unit)}`);
-                if (total !== '') parts.push(`= ${safeToFixed(total)}`);
-                return parts.join(' ');
-            }).filter(Boolean).join('; ');
-        }
-        if (typeof value === 'object') {
-            const name = value.productName || value.product_name || value.name;
-            if (name) {
-                const qty = value.quantity ?? value.cantidad ?? value.qty ?? '';
-                const unit = value.unitPrice ?? value.unit_price ?? value.price ?? '';
-                const total = value.total ?? value.totalAmount ?? value.total_amount ?? '';
-                const parts = [String(name)];
-                if (qty !== '') parts.push(String(qty));
-                if (unit !== '') parts.push(`x ${safeToFixed(unit)}`);
-                if (total !== '') parts.push(`= ${safeToFixed(total)}`);
-                return parts.join(' ');
-            }
-            try { return JSON.stringify(value); } catch (e) { return String(value); }
-        }
-        return String(value);
-    };
-
-    // Función para abrir el diálogo de consulta en una ventana/pestaña aparte
-    const handleOpenInNewTab = () => {
-        const url = `${window.location.origin}${window.location.pathname}?consultas-fullscreen=true`;
-        window.open(url, '_blank', 'noopener,noreferrer');
-    };
-
-    // --- RENDERIZADO ---
     return (
-        <>
-            {/* === PANTALLAS >= 1857px: Solo botón para abrir diálogo === */}
-            <div className="hidden wide:flex h-full flex-col items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 p-8">
-                <div className="bg-white rounded-2xl shadow-xl p-12 text-center max-w-lg border border-slate-200">
-                    <div className="bg-blue-100 p-4 rounded-full w-20 h-20 mx-auto mb-6 flex items-center justify-center">
-                        <Search size={40} className="text-blue-600" />
+        <div className="management-container">
+            <h2>Consultar Datos</h2>
+            {message && <p className="message">{message}</p>}
+            <div className="query-form">
+                <h3>Seleccionar Consulta</h3>
+                <select value={selectedQuery} onChange={e => setSelectedQuery(e.target.value)} className="query-select">
+                    <option value="">Seleccionar tipo de consulta</option>
+                    <option value="stock">Estado de Stock</option>
+                    <option value="proveedores">Información de Proveedores</option>
+                    <option value="ventas">Reporte de Ventas</option>
+                    <option value="compras">Reporte de Compras</option>
+                    <option value="pedidos">Reporte de Pedidos</option>
+                    <option value="movimientos_caja">Movimientos de Caja</option>
+                </select>
+                <div className="date-filters">
+                    <div className="date-input">
+                        <label>Fecha de inicio:</label>
+                        <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} />
                     </div>
-                    <h2 className="text-2xl font-bold text-slate-800 mb-3">Consultar Datos</h2>
-                    <p className="text-slate-500 mb-8 text-sm leading-relaxed">
-                        Para una mejor experiencia en pantallas grandes, utiliza la vista ampliada 
-                        que se abrirá en una nueva pestaña con todas las funcionalidades de consulta.
-                    </p>
-                    <button 
-                        onClick={handleOpenInNewTab}
-                        className="inline-flex items-center gap-3 px-8 py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transition-all transform hover:scale-105 active:scale-95"
-                    >
-                        <ExternalLink size={22} />
-                        Abrir Vista Ampliada
-                    </button>
-                    <p className="text-xs text-slate-400 mt-6">
-                        Se abrirá en una nueva pestaña del navegador
-                    </p>
+                    <div className="date-input">
+                        <label>Fecha de fin:</label>
+                        <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} />
+                    </div>
                 </div>
-            </div>
-
-            {/* === PANTALLAS < 1857px: Interfaz completa responsiva === */}
-            <div className="wide:hidden h-full flex flex-col bg-slate-50 overflow-hidden font-sans text-slate-800">
-                
-                {/* Header Fijo */}
-                <div className="bg-white border-b border-slate-200 px-4 sm:px-6 py-3 sm:py-4 flex justify-between items-center flex-shrink-0 z-30 shadow-sm">
-                    <div className="flex items-center gap-2">
-                        <div className="bg-blue-600 p-1.5 rounded text-white">
-                            <Search size={18} className="sm:w-5 sm:h-5" />
+                {selectedQuery === 'stock' && (
+                    <div className="stock-filters">
+                        <h4>Filtros de Stock</h4>
+                        
+                        {/* Filtro por ID */}
+                        <div className="filter-row">
+                            <label>ID del Producto:</label>
+                            <select value={stockIdFilterOp} 
+                                    onChange={e => setStockIdFilterOp(e.target.value)}
+                                    style={{padding: '8px', marginLeft: '10px', marginRight: '5px'}}>
+                                <option value="equals">=</option>
+                                <option value="greater">&gt;</option>
+                                <option value="greaterOrEqual">&gt;=</option>
+                                <option value="less">&lt;</option>
+                                <option value="lessOrEqual">&lt;=</option>
+                            </select>
+                            <input type="text" value={stockIdFilter} 
+                                   onChange={e => setStockIdFilter(e.target.value)} 
+                                   placeholder="ID del producto" 
+                                   style={{flex: 1, padding: '8px'}} />
                         </div>
-                        <h2 className="text-lg sm:text-xl font-bold">Consultar Datos</h2>
-                    </div>
-                    <button 
-                        onClick={exportData}
-                        disabled={!queryResults}
-                        className="flex items-center gap-1 sm:gap-2 bg-slate-800 hover:bg-slate-700 text-white px-3 sm:px-4 py-2 rounded font-bold text-xs shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                        <Download size={14} />
-                        <span className="hidden xs:inline">Exportar PDF</span>
-                    </button>
-                </div>
 
-                {/* Mensajes */}
-                {message && (
-                    <div className={`px-4 py-2 text-xs font-bold text-center ${message.includes('🚫') ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
-                        {message}
+                        {/* Filtro por Nombre */}
+                        <div className="filter-row">
+                            <label>Nombre del Producto / Insumo:</label>
+                            <input type="text" value={stockNameFilter}
+                                   onChange={e => setStockNameFilter(e.target.value)}
+                                   placeholder="Buscar por nombre..." 
+                                   style={{flex: 1, padding: '8px', marginLeft: '10px'}} />
+                        </div>
+
+                        {/* Filtro por Cantidad/Stock */}
+                        <div className="filter-row">
+                            <label>Cantidad en Stock:</label>
+                            <select value={stockQuantityOp} onChange={e => setStockQuantityOp(e.target.value)} style={{minWidth: '80px'}}>
+                                <option value="equals">Es igual</option>
+                                <option value="gt">&gt;</option>
+                                <option value="gte">&ge;</option>
+                                <option value="lt">&lt;</option>
+                                <option value="lte">&le;</option>
+                            </select>
+                            <input type="number" value={stockQuantityFilter}
+                                   onChange={e => setStockQuantityFilter(e.target.value)}
+                                   placeholder="Cantidad..." 
+                                   style={{width: '120px', padding: '8px', marginLeft: '10px'}} />
+                            <select value={stockQuantityUnit} onChange={e => setStockQuantityUnit(e.target.value)} style={{minWidth: '60px', marginLeft: '10px'}}>
+                                <option value="Kg">Kg</option>
+                                <option value="L">L</option>
+                                <option value="U">U</option>
+                            </select>
+                        </div>
+
+                        {/* Filtro por Precio */}
+                        <div className="filter-row">
+                            <label>Precio:</label>
+                            <select value={stockPriceOp} onChange={e => setStockPriceOp(e.target.value)} style={{minWidth: '80px'}}>
+                                <option value="equals">Es igual</option>
+                                <option value="gt">&gt;</option>
+                                <option value="gte">&ge;</option>
+                                <option value="lt">&lt;</option>
+                                <option value="lte">&le;</option>
+                            </select>
+                            <input type="number" value={stockPriceFilter}
+                                   onChange={e => setStockPriceFilter(e.target.value)}
+                                   placeholder="Precio..." 
+                                   step="0.01"
+                                   style={{flex: 1, padding: '8px', marginLeft: '10px'}} />
+                        </div>
+
+                        {/* Filtro por Tipo */}
+                        <div className="filter-row">
+                            <label>Tipo de Producto:</label>
+                            <select value={stockTypeFilter} onChange={e => setStockTypeFilter(e.target.value)} style={{flex: 1, padding: '8px', marginLeft: '10px'}}>
+                                <option value="">-- Todos los tipos --</option>
+                                <option value="Producto">Producto</option>
+                                <option value="Insumo">Insumo</option>
+                            </select>
+                        </div>
+
+                        {/* Filtro por Estado (checkboxes múltiples) */}
+                        <div className="filter-row">
+                            <label>Estado del Stock:</label>
+                            <div className="status-checkboxes" style={{display: 'flex', gap: '15px', marginLeft: '10px', flexWrap: 'wrap'}}>
+                                <label style={{display: 'flex', alignItems: 'center', gap: '5px'}}>
+                                    <input type="checkbox" 
+                                           checked={stockStatusFilter.includes('Stock Alto')} 
+                                           onChange={e => {
+                                               const checked = e.target.checked;
+                                               setStockStatusFilter(prev => checked ? Array.from(new Set([...prev, 'Stock Alto'])) : prev.filter(x => x !== 'Stock Alto'))
+                                           }} />
+                                    Stock Alto
+                                </label>
+                                <label style={{display: 'flex', alignItems: 'center', gap: '5px'}}>
+                                    <input type="checkbox" 
+                                           checked={stockStatusFilter.includes('Stock Medio')} 
+                                           onChange={e => {
+                                               const checked = e.target.checked;
+                                               setStockStatusFilter(prev => checked ? Array.from(new Set([...prev, 'Stock Medio'])) : prev.filter(x => x !== 'Stock Medio'))
+                                           }} />
+                                    Stock Medio
+                                </label>
+                                <label style={{display: 'flex', alignItems: 'center', gap: '5px'}}>
+                                    <input type="checkbox" 
+                                           checked={stockStatusFilter.includes('Stock Bajo')} 
+                                           onChange={e => {
+                                               const checked = e.target.checked;
+                                               setStockStatusFilter(prev => checked ? Array.from(new Set([...prev, 'Stock Bajo'])) : prev.filter(x => x !== 'Stock Bajo'))
+                                           }} />
+                                    Stock Bajo
+                                </label>
+                            </div>
+                        </div>
                     </div>
                 )}
-
-                {/* Área Principal */}
-                <div className="flex-1 flex flex-col overflow-hidden p-3 sm:p-4 lg:p-6 gap-3 sm:gap-4">
-                    
-                    {/* TARJETA DE CONTROLES */}
-                    <div className="bg-white border border-slate-200 rounded-xl shadow-sm flex-shrink-0">
+                
+                {selectedQuery === 'ventas' && (
+                    <div className="sales-filters">
+                        <h4>Filtros de Ventas</h4>
                         
-                        {/* Controles Básicos */}
-                        <div className="p-3 sm:p-4 lg:p-5 flex flex-col gap-3 sm:gap-4">
-                            
-                            {/* Selector de Consulta */}
-                            <div className="w-full">
-                                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Consulta *</label>
-                                <div className="relative">
-                                    <select 
-                                        value={selectedQuery} 
-                                        onChange={e => { setSelectedQuery(e.target.value); setShowAdvancedFilters(true); }} 
-                                        className="w-full appearance-none pl-9 pr-8 py-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500"
-                                    >
-                                        <option value="">-- Elige una consulta --</option>
-                                        <option value="stock">Estado de Stock</option>
-                                        <option value="proveedores">Información de Proveedores</option>
-                                        <option value="ventas">Reporte de Ventas</option>
-                                        <option value="compras">Reporte de Compras</option>
-                                        <option value="pedidos">Reporte de Pedidos</option>
-                                        <option value="movimientos_caja">Movimientos de Caja</option>
-                                    </select>
-                                    <FileText size={16} className="absolute left-3 top-3 text-blue-600 pointer-events-none" />
-                                    <ChevronDown size={14} className="absolute right-3 top-3 text-slate-400 pointer-events-none" />
-                                </div>
-                            </div>
+                        {/* Filtro por ID */}
+                        <div className="filter-row">
+                            <label>ID de Venta:</label>
+                            <select value={salesIdFilterOp} 
+                                    onChange={e => setSalesIdFilterOp(e.target.value)}
+                                    style={{padding: '8px', marginLeft: '10px', marginRight: '5px'}}>
+                                <option value="equals">=</option>
+                                <option value="greater">&gt;</option>
+                                <option value="greaterOrEqual">&gt;=</option>
+                                <option value="less">&lt;</option>
+                                <option value="lessOrEqual">&lt;=</option>
+                            </select>
+                            <input type="text" value={salesIdFilter} 
+                                   onChange={e => setSalesIdFilter(e.target.value)} 
+                                   placeholder="ID de la venta" 
+                                   style={{flex: 1, padding: '8px'}} />
+                        </div>
 
-                            {/* Fechas y Botones */}
-                            <div className="flex flex-col sm:flex-row gap-3">
-                                <div className="flex-1 grid grid-cols-2 gap-2 sm:gap-3">
-                                    <div>
-                                        <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Fecha Inicio</label>
-                                        <div className="relative">
-                                            <Calendar size={14} className="absolute left-2 sm:left-3 top-3 text-slate-400" />
-                                            <input 
-                                                type="date" 
-                                                value={startDate} 
-                                                onChange={e => setStartDate(e.target.value)} 
-                                                className="w-full pl-7 sm:pl-8 pr-2 sm:pr-3 py-2 bg-white border border-slate-300 rounded-lg text-sm text-slate-700 outline-none focus:ring-2 focus:ring-blue-500"
-                                            />
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Fecha Fin</label>
-                                        <div className="relative">
-                                            <Calendar size={14} className="absolute left-2 sm:left-3 top-3 text-slate-400" />
-                                            <input 
-                                                type="date" 
-                                                value={endDate} 
-                                                onChange={e => setEndDate(e.target.value)} 
-                                                className="w-full pl-7 sm:pl-8 pr-2 sm:pr-3 py-2 bg-white border border-slate-300 rounded-lg text-sm text-slate-700 outline-none focus:ring-2 focus:ring-blue-500"
-                                            />
-                                        </div>
-                                    </div>
+                        {/* Filtro por fechas granular */}
+                        <div className="filter-row"> 
+                         { // <label>Filtro por fechas (opcional):</label> 
+                         }
+                            <div className="granular-date-filters">
+                                <p style={{margin: '0 0 10px', fontSize: '14px', color: '#6c757d', fontStyle: 'italic'}}>
+                                    💡 <strong>Filtro inteligente:</strong> Puedes filtrar por cualquier combinación de componentes de fecha.
+                                </p>
+                                <h5>Desde:</h5>
+                                <div className="date-components" style={{display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap'}}>
+                                    <label style={{margin: '0', minWidth: '35px', fontWeight: '500'}}>Año:</label>
+                                    <input type="number" placeholder="Ej: 2024" min="2020" max="2030" 
+                                           value={salesDateFromYear} onChange={e => setSalesDateFromYear(e.target.value)} 
+                                           style={{padding: '6px 8px', width: '80px', margin: '0'}} />
+                                    <label style={{margin: '0', minWidth: '35px', fontWeight: '500'}}>Mes:</label>
+                                    <input type="number" placeholder="1-12" min="1" max="12" 
+                                           value={salesDateFromMonth} onChange={e => setSalesDateFromMonth(e.target.value)} 
+                                           style={{padding: '6px 8px', width: '60px', margin: '0'}} />
+                                    <label style={{margin: '0', minWidth: '35px', fontWeight: '500'}}>Día:</label>
+                                    <input type="number" placeholder="1-31" min="1" max="31" 
+                                           value={salesDateFromDay} onChange={e => setSalesDateFromDay(e.target.value)} 
+                                           style={{padding: '6px 8px', width: '60px', margin: '0'}} />
+                                    <label style={{margin: '0', minWidth: '40px', fontWeight: '500'}}>Hora:</label>
+                                    <input type="number" placeholder="0-23" min="0" max="23" 
+                                           value={salesDateFromHour} onChange={e => setSalesDateFromHour(e.target.value)} 
+                                           style={{padding: '6px 8px', width: '60px', margin: '0'}} />
+                                    <label style={{margin: '0', minWidth: '30px', fontWeight: '500'}}>Min:</label>
+                                    <input type="number" placeholder="0-59" min="0" max="59" 
+                                           value={salesDateFromMinute} onChange={e => setSalesDateFromMinute(e.target.value)} 
+                                           style={{padding: '6px 8px', width: '60px', margin: '0'}} />
                                 </div>
-
-                                <div className="flex gap-2 sm:self-end">
-                                    {selectedQuery && (
-                                        <button 
-                                            type="button" 
-                                            onClick={() => setShowAdvancedFilters(!showAdvancedFilters)} 
-                                            className="flex-1 sm:flex-none flex items-center justify-center gap-1 bg-slate-100 hover:bg-slate-200 text-slate-600 px-3 sm:px-4 py-2.5 rounded-lg text-xs font-bold transition-colors"
-                                        >
-                                            <SlidersHorizontal size={14} />
-                                            <span className="hidden xs:inline">Filtros</span>
-                                        </button>
-                                    )}
-                                    <button 
-                                        onClick={executeQuery} 
-                                        disabled={isLoading} 
-                                        className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 sm:px-6 py-2.5 rounded-lg font-bold text-sm shadow-md transition-all active:scale-95 disabled:opacity-70 min-h-[42px]"
-                                    >
-                                        {isLoading ? (
-                                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                                        ) : (
-                                            <>
-                                                <Search size={16} />
-                                                <span className="hidden xs:inline">Consultar</span>
-                                            </>
-                                        )}
-                                    </button>
+                                
+                                <h5>Hasta (opcional):</h5>
+                                <div className="date-components" style={{display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap'}}>
+                                    <label style={{margin: '0', minWidth: '35px', fontWeight: '500'}}>Año:</label>
+                                    <input type="number" placeholder="Ej: 2024" min="2020" max="2030" 
+                                           value={salesDateToYear} onChange={e => setSalesDateToYear(e.target.value)} 
+                                           style={{padding: '6px 8px', width: '80px', margin: '0'}} />
+                                    <label style={{margin: '0', minWidth: '35px', fontWeight: '500'}}>Mes:</label>
+                                    <input type="number" placeholder="1-12" min="1" max="12" 
+                                           value={salesDateToMonth} onChange={e => setSalesDateToMonth(e.target.value)} 
+                                           style={{padding: '6px 8px', width: '60px', margin: '0'}} />
+                                    <label style={{margin: '0', minWidth: '35px', fontWeight: '500'}}>Día:</label>
+                                    <input type="number" placeholder="1-31" min="1" max="31" 
+                                           value={salesDateToDay} onChange={e => setSalesDateToDay(e.target.value)} 
+                                           style={{padding: '6px 8px', width: '60px', margin: '0'}} />
+                                    <label style={{margin: '0', minWidth: '40px', fontWeight: '500'}}>Hora:</label>
+                                    <input type="number" placeholder="0-23" min="0" max="23" 
+                                           value={salesDateToHour} onChange={e => setSalesDateToHour(e.target.value)} 
+                                           style={{padding: '6px 8px', width: '60px', margin: '0'}} />
+                                    <label style={{margin: '0', minWidth: '30px', fontWeight: '500'}}>Min:</label>
+                                    <input type="number" placeholder="0-59" min="0" max="59" 
+                                           value={salesDateToMinute} onChange={e => setSalesDateToMinute(e.target.value)} 
+                                           style={{padding: '6px 8px', width: '60px', margin: '0'}} />
                                 </div>
                             </div>
                         </div>
 
-                        {/* FILTROS AVANZADOS COLAPSABLES */}
-                        {selectedQuery && showAdvancedFilters && (
-                            <div className="border-t border-slate-200 bg-slate-50/50 p-3 sm:p-4 lg:p-6">
-                                <h4 className="text-xs font-bold text-slate-400 uppercase mb-3 sm:mb-4">Filtros Específicos</h4>
+                        {/* Filtro por Producto */}
+                        <div className="filter-row">
+                            <label>Producto:</label>
+                            <input type="text" value={salesProductFilter}
+                                   onChange={e => setSalesProductFilter(e.target.value)}
+                                   placeholder="Buscar por nombre de producto..." 
+                                   style={{flex: 1, padding: '8px', marginLeft: '10px'}} />
+                        </div>
+
+                        {/* Filtro por Usuario */}
+                        <div className="filter-row">
+                            <label>Usuario:</label>
+                            <input type="text" value={salesUserFilter}
+                                   onChange={e => setSalesUserFilter(e.target.value)}
+                                   placeholder="Buscar por usuario..." 
+                                   style={{flex: 1, padding: '8px', marginLeft: '10px'}} />
+                        </div>
+
+                        {/* Filtro por Total */}
+                        <div className="filter-row">
+                            <label>Total:</label>
+                            <select value={salesTotalOp} onChange={e => setSalesTotalOp(e.target.value)} style={{minWidth: '80px'}}>
+                                <option value="equals">Es igual</option>
+                                <option value="gt">&gt;</option>
+                                <option value="gte">&ge;</option>
+                                <option value="lt">&lt;</option>
+                                <option value="lte">&le;</option>
+                            </select>
+                            <input type="number" value={salesTotalFilter}
+                                   onChange={e => setSalesTotalFilter(e.target.value)}
+                                   placeholder="Monto total..." 
+                                   style={{flex: 1, padding: '8px', marginLeft: '10px'}} />
+                        </div>
+
+                        {/* Filtro por Cantidad */}
+                        <div className="filter-row">
+                            <label>Cantidad:</label>
+                            <select value={salesQuantityOp} onChange={e => setSalesQuantityOp(e.target.value)} style={{minWidth: '80px'}}>
+                                <option value="equals">Es igual</option>
+                                <option value="gt">&gt;</option>
+                                <option value="gte">&ge;</option>
+                                <option value="lt">&lt;</option>
+                                <option value="lte">&le;</option>
+                            </select>
+                            <input type="number" value={salesQuantityFilter}
+                                   onChange={e => setSalesQuantityFilter(e.target.value)}
+                                   placeholder="Cantidad vendida..." 
+                                   style={{flex: 1, padding: '8px', marginLeft: '10px'}} />
+                        </div>
+                    </div>
+                )}
+                
+                {selectedQuery === 'movimientos_caja' && (
+                    <div className="cash-filters">
+                        <h4>Filtros de Movimientos de Caja</h4>
+                        
+                        {/* Filtro de ID */}
+                        <div className="filter-row">
+                            <label>ID:</label>
+                            <select value={cashIdFilterOp} onChange={e => setCashIdFilterOp(e.target.value)}>
+                                <option value="equals">Es igual</option>
+                                <option value="lt">&lt;</option>
+                                <option value="lte">&le;</option>
+                                <option value="gt">&gt;</option>
+                                <option value="gte">&ge;</option>
+                            </select>
+                            <input 
+                                type="number" 
+                                value={cashIdFilter} 
+                                onChange={e => setCashIdFilter(e.target.value)} 
+                                placeholder="ID del movimiento..." 
+                            />
+                        </div>
+
+                        {/* Filtro de Monto */}
+                        <div className="filter-row">
+                            <label>Monto:</label>
+                            <select value={cashAmountFilterOp} onChange={e => setCashAmountFilterOp(e.target.value)}>
+                                <option value="equals">Es igual</option>
+                                <option value="lt">&lt;</option>
+                                <option value="lte">&le;</option>
+                                <option value="gt">&gt;</option>
+                                <option value="gte">&ge;</option>
+                            </select>
+                            <input 
+                                type="number" 
+                                step="0.01" 
+                                value={cashAmountFilter} 
+                                onChange={e => setCashAmountFilter(e.target.value)} 
+                                placeholder="Monto del movimiento..." 
+                            />
+                        </div>
+
+                        {/* Filtro de Descripción */}
+                        <div className="filter-row">
+                            <label>Descripción:</label>
+                            <select value={cashDescriptionFilterOp} onChange={e => setCashDescriptionFilterOp(e.target.value)}>
+                                <option value="contains">Contiene</option>
+                                <option value="equals">Es igual</option>
+                            </select>
+                            <input 
+                                type="text" 
+                                value={cashDescriptionFilter} 
+                                onChange={e => setCashDescriptionFilter(e.target.value)} 
+                                placeholder="Descripción del movimiento..." 
+                            />
+                        </div>
+
+                        {/* Filtro de Usuario */}
+                        <div className="filter-row">
+                            <label>Usuario:</label>
+                            <select value={cashUserFilterOp} onChange={e => setCashUserFilterOp(e.target.value)}>
+                                <option value="contains">Contiene</option>
+                                <option value="equals">Es igual</option>
+                            </select>
+                            <input 
+                                type="text" 
+                                value={cashUserFilter} 
+                                onChange={e => setCashUserFilter(e.target.value)} 
+                                placeholder="Nombre del usuario..." 
+                            />
+                        </div>
+
+                        {/* Filtros de fecha granular */}
+                        <div className="filter-row">
+                            <label>Fecha (granular):</label>
+                            <div className="granular-date-filters">
+                                <p style={{margin: '0 0 10px', fontSize: '14px', color: '#6c757d', fontStyle: 'italic'}}>
+                                    💡 <strong>Filtro inteligente:</strong> Si completas solo "Desde", filtra exactamente ese período (ej: Mes 11 = solo noviembre). Si completas "Hasta", filtra como rango.
+                                </p>
+                                <h5>Desde:</h5>
+                                <div className="date-components" style={{display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap'}}>
+                                    <label style={{margin: '0', minWidth: '35px', fontWeight: '500'}}>Año:</label>
+                                    <input type="number" placeholder="Ej: 2024" min="2020" max="2030" 
+                                           value={cashDateFromYear} onChange={e => setCashDateFromYear(e.target.value)} 
+                                           style={{padding: '6px 8px', width: '80px', margin: '0'}} />
+                                    <label style={{margin: '0', minWidth: '35px', fontWeight: '500'}}>Mes:</label>
+                                    <input type="number" placeholder="1-12" min="1" max="12" 
+                                           value={cashDateFromMonth} onChange={e => setCashDateFromMonth(e.target.value)} 
+                                           style={{padding: '6px 8px', width: '60px', margin: '0'}} />
+                                    <label style={{margin: '0', minWidth: '35px', fontWeight: '500'}}>Día:</label>
+                                    <input type="number" placeholder="1-31" min="1" max="31" 
+                                           value={cashDateFromDay} onChange={e => setCashDateFromDay(e.target.value)} 
+                                           style={{padding: '6px 8px', width: '60px', margin: '0'}} />
+                                    <label style={{margin: '0', minWidth: '40px', fontWeight: '500'}}>Hora:</label>
+                                    <input type="number" placeholder="0-23" min="0" max="23" 
+                                           value={cashDateFromHour} onChange={e => setCashDateFromHour(e.target.value)} 
+                                           style={{padding: '6px 8px', width: '60px', margin: '0'}} />
+                                    <label style={{margin: '0', minWidth: '30px', fontWeight: '500'}}>Min:</label>
+                                    <input type="number" placeholder="0-59" min="0" max="59" 
+                                           value={cashDateFromMinute} onChange={e => setCashDateFromMinute(e.target.value)} 
+                                           style={{padding: '6px 8px', width: '60px', margin: '0'}} />
+                                </div>
                                 
-                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
-                                    
-                                    {/* === FILTROS DE STOCK === */}
-                                    {selectedQuery === 'stock' && (
-                                        <>
-                                            <div className="bg-white p-3 rounded border border-slate-200 space-y-3 shadow-sm">
-                                                <div>
-                                                    <label className="text-[10px] font-bold text-slate-500 uppercase">ID Producto</label>
-                                                    <div className="flex gap-1 mt-1">
-                                                        <select value={stockIdFilterOp} onChange={e => setStockIdFilterOp(e.target.value)} className="w-14 sm:w-16 text-xs p-1.5 border rounded bg-slate-50 outline-none">
-                                                            <option value="equals">=</option>
-                                                            <option value="greater">&gt;</option>
-                                                            <option value="greaterOrEqual">≥</option>
-                                                            <option value="less">&lt;</option>
-                                                            <option value="lessOrEqual">≤</option>
-                                                        </select>
-                                                        <input type="text" value={stockIdFilter} onChange={e => setStockIdFilter(e.target.value)} className="flex-1 text-xs p-1.5 border rounded outline-none min-w-0" placeholder="ID..." />
-                                                    </div>
-                                                </div>
-                                                <div>
-                                                    <label className="text-[10px] font-bold text-slate-500 uppercase">Nombre</label>
-                                                    <input type="text" value={stockNameFilter} onChange={e => setStockNameFilter(e.target.value)} className="w-full text-xs p-1.5 mt-1 border rounded outline-none" placeholder="Buscar nombre..." />
-                                                </div>
-                                            </div>
-
-                                            <div className="bg-white p-3 rounded border border-slate-200 space-y-3 shadow-sm">
-                                                <div>
-                                                    <label className="text-[10px] font-bold text-slate-500 uppercase">Cantidad</label>
-                                                    <div className="flex gap-1 mt-1">
-                                                        <select value={stockQuantityOp} onChange={e => setStockQuantityOp(e.target.value)} className="w-14 sm:w-16 text-xs p-1.5 border rounded bg-slate-50 outline-none">
-                                                            <option value="equals">=</option>
-                                                            <option value="gt">&gt;</option>
-                                                            <option value="gte">≥</option>
-                                                            <option value="lt">&lt;</option>
-                                                            <option value="lte">≤</option>
-                                                        </select>
-                                                        <input type="number" value={stockQuantityFilter} onChange={e => setStockQuantityFilter(e.target.value)} className="flex-1 text-xs p-1.5 border rounded outline-none min-w-0" placeholder="Cant..." />
-                                                        <select value={stockQuantityUnit} onChange={e => setStockQuantityUnit(e.target.value)} className="w-12 sm:w-14 text-xs p-1.5 border rounded bg-slate-50 outline-none">
-                                                            <option value="Kg">Kg</option>
-                                                            <option value="L">L</option>
-                                                            <option value="U">U</option>
-                                                        </select>
-                                                    </div>
-                                                </div>
-                                                <div>
-                                                    <label className="text-[10px] font-bold text-slate-500 uppercase">Precio</label>
-                                                    <div className="flex gap-1 mt-1">
-                                                        <select value={stockPriceOp} onChange={e => setStockPriceOp(e.target.value)} className="w-14 sm:w-16 text-xs p-1.5 border rounded bg-slate-50 outline-none">
-                                                            <option value="equals">=</option>
-                                                            <option value="gt">&gt;</option>
-                                                            <option value="gte">≥</option>
-                                                            <option value="lt">&lt;</option>
-                                                            <option value="lte">≤</option>
-                                                        </select>
-                                                        <input type="number" value={stockPriceFilter} onChange={e => setStockPriceFilter(e.target.value)} className="flex-1 text-xs p-1.5 border rounded outline-none min-w-0" placeholder="Monto..." />
-                                                    </div>
-                                                </div>
-                                            </div>
-
-                                            <div className="bg-white p-3 rounded border border-slate-200 space-y-3 shadow-sm">
-                                                <div>
-                                                    <label className="text-[10px] font-bold text-slate-500 uppercase">Tipo</label>
-                                                    <select value={stockTypeFilter} onChange={e => setStockTypeFilter(e.target.value)} className="w-full text-xs p-1.5 mt-1 border rounded outline-none">
-                                                        <option value="">Todos</option>
-                                                        <option value="Producto">Producto</option>
-                                                        <option value="Insumo">Insumo</option>
-                                                    </select>
-                                                </div>
-                                                <div>
-                                                    <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">Estado</label>
-                                                    <div className="flex flex-wrap gap-2 sm:gap-3 text-xs">
-                                                        {['Stock Alto', 'Stock Medio', 'Stock Bajo'].map(st => (
-                                                            <label key={st} className="flex items-center gap-1 cursor-pointer">
-                                                                <input type="checkbox" checked={stockStatusFilter.includes(st)} onChange={e => { const chk = e.target.checked; setStockStatusFilter(p => chk ? [...p, st] : p.filter(x => x !== st)); }} />
-                                                                <span className="text-[10px] sm:text-xs">{st.replace('Stock ', '')}</span>
-                                                            </label>
-                                                        ))}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </>
-                                    )}
-
-                                    {/* === FILTROS DE VENTAS === */}
-                                    {selectedQuery === 'ventas' && (
-                                        <>
-                                            <div className="bg-white p-3 rounded border border-slate-200 space-y-3 shadow-sm">
-                                                <div>
-                                                    <label className="text-[10px] font-bold text-slate-500 uppercase">ID Venta</label>
-                                                    <div className="flex gap-1 mt-1">
-                                                        <select value={salesIdFilterOp} onChange={e => setSalesIdFilterOp(e.target.value)} className="w-14 sm:w-16 text-xs p-1.5 border rounded bg-slate-50 outline-none">
-                                                            <option value="equals">=</option>
-                                                            <option value="greater">&gt;</option>
-                                                            <option value="greaterOrEqual">≥</option>
-                                                            <option value="less">&lt;</option>
-                                                            <option value="lessOrEqual">≤</option>
-                                                        </select>
-                                                        <input type="text" value={salesIdFilter} onChange={e => setSalesIdFilter(e.target.value)} className="flex-1 text-xs p-1.5 border rounded outline-none min-w-0" placeholder="ID..." />
-                                                    </div>
-                                                </div>
-                                                <div>
-                                                    <label className="text-[10px] font-bold text-slate-500 uppercase">Producto</label>
-                                                    <input type="text" value={salesProductFilter} onChange={e => setSalesProductFilter(e.target.value)} className="w-full text-xs p-1.5 mt-1 border rounded outline-none" placeholder="Nombre..." />
-                                                </div>
-                                                <div>
-                                                    <label className="text-[10px] font-bold text-slate-500 uppercase">Usuario</label>
-                                                    <input type="text" value={salesUserFilter} onChange={e => setSalesUserFilter(e.target.value)} className="w-full text-xs p-1.5 mt-1 border rounded outline-none" placeholder="Usuario..." />
-                                                </div>
-                                            </div>
-
-                                            <div className="bg-white p-3 rounded border border-slate-200 space-y-3 shadow-sm">
-                                                <div>
-                                                    <label className="text-[10px] font-bold text-slate-500 uppercase">Total Venta</label>
-                                                    <div className="flex gap-1 mt-1">
-                                                        <select value={salesTotalOp} onChange={e => setSalesTotalOp(e.target.value)} className="w-14 sm:w-16 text-xs p-1.5 border rounded bg-slate-50 outline-none">
-                                                            <option value="equals">=</option>
-                                                            <option value="gt">&gt;</option>
-                                                            <option value="gte">≥</option>
-                                                            <option value="lt">&lt;</option>
-                                                            <option value="lte">≤</option>
-                                                        </select>
-                                                        <input type="number" value={salesTotalFilter} onChange={e => setSalesTotalFilter(e.target.value)} className="flex-1 text-xs p-1.5 border rounded outline-none min-w-0" placeholder="Monto..." />
-                                                    </div>
-                                                </div>
-                                                <div>
-                                                    <label className="text-[10px] font-bold text-slate-500 uppercase">Cantidad Items</label>
-                                                    <div className="flex gap-1 mt-1">
-                                                        <select value={salesQuantityOp} onChange={e => setSalesQuantityOp(e.target.value)} className="w-14 sm:w-16 text-xs p-1.5 border rounded bg-slate-50 outline-none">
-                                                            <option value="equals">=</option>
-                                                            <option value="gt">&gt;</option>
-                                                            <option value="gte">≥</option>
-                                                            <option value="lt">&lt;</option>
-                                                            <option value="lte">≤</option>
-                                                        </select>
-                                                        <input type="number" value={salesQuantityFilter} onChange={e => setSalesQuantityFilter(e.target.value)} className="flex-1 text-xs p-1.5 border rounded outline-none min-w-0" placeholder="Cant..." />
-                                                    </div>
-                                                </div>
-                                            </div>
-
-                                            <div className="bg-blue-50/50 p-3 rounded border border-blue-100 space-y-3 shadow-sm sm:col-span-2 lg:col-span-1">
-                                                <h5 className="text-[10px] font-bold text-blue-600 uppercase flex items-center gap-1"><Calendar size={12}/> Rango Fechas Exacto</h5>
-                                                <div>
-                                                    <label className="text-[9px] text-slate-500 mb-0.5 block">Desde:</label>
-                                                    <div className="flex gap-1 flex-wrap">
-                                                        <input type="number" placeholder="YYYY" value={salesDateFromYear} onChange={e => setSalesDateFromYear(e.target.value)} className="w-[52px] sm:w-14 p-1 border rounded bg-white text-xs text-center" />
-                                                        <input type="number" placeholder="MM" value={salesDateFromMonth} onChange={e => setSalesDateFromMonth(e.target.value)} className="w-9 sm:w-10 p-1 border rounded bg-white text-xs text-center" />
-                                                        <input type="number" placeholder="DD" value={salesDateFromDay} onChange={e => setSalesDateFromDay(e.target.value)} className="w-9 sm:w-10 p-1 border rounded bg-white text-xs text-center" />
-                                                        <span className="text-slate-300 self-center text-xs">:</span>
-                                                        <input type="number" placeholder="HH" value={salesDateFromHour} onChange={e => setSalesDateFromHour(e.target.value)} className="w-9 sm:w-10 p-1 border rounded bg-white text-xs text-center" />
-                                                        <input type="number" placeholder="mm" value={salesDateFromMinute} onChange={e => setSalesDateFromMinute(e.target.value)} className="w-9 sm:w-10 p-1 border rounded bg-white text-xs text-center" />
-                                                    </div>
-                                                </div>
-                                                <div>
-                                                    <label className="text-[9px] text-slate-500 mb-0.5 block">Hasta:</label>
-                                                    <div className="flex gap-1 flex-wrap">
-                                                        <input type="number" placeholder="YYYY" value={salesDateToYear} onChange={e => setSalesDateToYear(e.target.value)} className="w-[52px] sm:w-14 p-1 border rounded bg-white text-xs text-center" />
-                                                        <input type="number" placeholder="MM" value={salesDateToMonth} onChange={e => setSalesDateToMonth(e.target.value)} className="w-9 sm:w-10 p-1 border rounded bg-white text-xs text-center" />
-                                                        <input type="number" placeholder="DD" value={salesDateToDay} onChange={e => setSalesDateToDay(e.target.value)} className="w-9 sm:w-10 p-1 border rounded bg-white text-xs text-center" />
-                                                        <span className="text-slate-300 self-center text-xs">:</span>
-                                                        <input type="number" placeholder="HH" value={salesDateToHour} onChange={e => setSalesDateToHour(e.target.value)} className="w-9 sm:w-10 p-1 border rounded bg-white text-xs text-center" />
-                                                        <input type="number" placeholder="mm" value={salesDateToMinute} onChange={e => setSalesDateToMinute(e.target.value)} className="w-9 sm:w-10 p-1 border rounded bg-white text-xs text-center" />
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </>
-                                    )}
-
-                                    {/* === FILTROS MOVIMIENTOS CAJA === */}
-                                    {selectedQuery === 'movimientos_caja' && (
-                                        <>
-                                            <div className="bg-white p-3 rounded border border-slate-200 space-y-3 shadow-sm">
-                                                <div>
-                                                    <label className="text-[10px] font-bold text-slate-500 uppercase">ID Movimiento</label>
-                                                    <div className="flex gap-1 mt-1">
-                                                        <select value={cashIdFilterOp} onChange={e => setCashIdFilterOp(e.target.value)} className="w-14 sm:w-16 text-xs p-1.5 border rounded bg-slate-50 outline-none">
-                                                            <option value="equals">=</option>
-                                                            <option value="lt">&lt;</option>
-                                                            <option value="lte">≤</option>
-                                                            <option value="gt">&gt;</option>
-                                                            <option value="gte">≥</option>
-                                                        </select>
-                                                        <input type="text" value={cashIdFilter} onChange={e => setCashIdFilter(e.target.value)} className="flex-1 text-xs p-1.5 border rounded outline-none min-w-0" placeholder="ID..." />
-                                                    </div>
-                                                </div>
-                                                <div>
-                                                    <label className="text-[10px] font-bold text-slate-500 uppercase">Monto</label>
-                                                    <div className="flex gap-1 mt-1">
-                                                        <select value={cashAmountFilterOp} onChange={e => setCashAmountFilterOp(e.target.value)} className="w-14 sm:w-16 text-xs p-1.5 border rounded bg-slate-50 outline-none">
-                                                            <option value="equals">=</option>
-                                                            <option value="lt">&lt;</option>
-                                                            <option value="lte">≤</option>
-                                                            <option value="gt">&gt;</option>
-                                                            <option value="gte">≥</option>
-                                                        </select>
-                                                        <input type="number" value={cashAmountFilter} onChange={e => setCashAmountFilter(e.target.value)} className="flex-1 text-xs p-1.5 border rounded outline-none min-w-0" placeholder="Monto..." />
-                                                    </div>
-                                                </div>
-                                                <div>
-                                                    <label className="text-[10px] font-bold text-slate-500 uppercase">Tipo</label>
-                                                    <select value={cashTypeFilter} onChange={e => setCashTypeFilter(e.target.value)} className="w-full text-xs p-1.5 mt-1 border rounded outline-none">
-                                                        <option value="">Todos</option>
-                                                        <option value="Entrada">Entrada</option>
-                                                        <option value="Salida">Salida</option>
-                                                    </select>
-                                                </div>
-                                            </div>
-                                            
-                                            <div className="bg-white p-3 rounded border border-slate-200 space-y-3 shadow-sm">
-                                                <div>
-                                                    <label className="text-[10px] font-bold text-slate-500 uppercase">Descripción</label>
-                                                    <div className="flex gap-1 mt-1">
-                                                        <select value={cashDescriptionFilterOp} onChange={e => setCashDescriptionFilterOp(e.target.value)} className="w-[85px] sm:w-[95px] lg:w-[100px] text-xs p-1.5 border rounded bg-slate-50 outline-none">
-                                                            <option value="contains">Contiene</option>
-                                                            <option value="equals">Igual</option>
-                                                        </select>
-                                                        <input type="text" value={cashDescriptionFilter} onChange={e => setCashDescriptionFilter(e.target.value)} className="flex-1 text-xs p-1.5 border rounded outline-none min-w-0" placeholder="Texto..." />
-                                                    </div>
-                                                </div>
-                                                <div>
-                                                    <label className="text-[10px] font-bold text-slate-500 uppercase">Usuario</label>
-                                                    <div className="flex gap-1 mt-1">
-                                                        <select value={cashUserFilterOp} onChange={e => setCashUserFilterOp(e.target.value)} className="w-[85px] sm:w-[95px] lg:w-[100px] text-xs p-1.5 border rounded bg-slate-50 outline-none">
-                                                            <option value="contains">Contiene</option>
-                                                            <option value="equals">Igual</option>
-                                                        </select>
-                                                        <input type="text" value={cashUserFilter} onChange={e => setCashUserFilter(e.target.value)} className="flex-1 text-xs p-1.5 border rounded outline-none min-w-0" placeholder="Usuario..." />
-                                                    </div>
-                                                </div>
-                                                <div>
-                                                    <label className="text-[10px] font-bold text-slate-500 uppercase">Orden Fecha</label>
-                                                    <select value={cashSortOrder} onChange={e => setCashSortOrder(e.target.value)} className="w-full text-xs p-1.5 mt-1 border rounded outline-none">
-                                                        <option value="desc">Más recientes primero</option>
-                                                        <option value="asc">Más antiguos primero</option>
-                                                    </select>
-                                                </div>
-                                            </div>
-
-                                            <div className="bg-white p-3 rounded border border-slate-200 space-y-3 shadow-sm">
-                                                <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">Método de Pago</label>
-                                                <div className="grid grid-cols-2 gap-2 text-xs">
-                                                    {['debito', 'credito', 'transferencia', 'efectivo'].map(method => (
-                                                        <label key={method} className="flex items-center gap-1 cursor-pointer">
-                                                            <input type="checkbox" checked={cashPaymentMethodFilter.includes(method)} onChange={e => { const chk = e.target.checked; setCashPaymentMethodFilter(p => chk ? [...p, method] : p.filter(x => x !== method)); }} />
-                                                            <span className="text-[10px] sm:text-xs">{method.charAt(0).toUpperCase() + method.slice(1)}</span>
-                                                        </label>
-                                                    ))}
-                                                </div>
-                                            </div>
-
-                                            <div className="bg-blue-50/50 p-3 rounded border border-blue-100 space-y-3 shadow-sm sm:col-span-2 lg:col-span-1">
-                                                <h5 className="text-[10px] font-bold text-blue-600 uppercase flex items-center gap-1"><Calendar size={12}/> Fecha Exacta</h5>
-                                                <div>
-                                                    <label className="text-[9px] text-slate-500 mb-0.5 block">Desde:</label>
-                                                    <div className="flex gap-1 flex-wrap">
-                                                        <input type="number" placeholder="YYYY" value={cashDateFromYear} onChange={e => setCashDateFromYear(e.target.value)} className="w-[52px] sm:w-14 p-1 border rounded bg-white text-xs text-center" />
-                                                        <input type="number" placeholder="MM" value={cashDateFromMonth} onChange={e => setCashDateFromMonth(e.target.value)} className="w-9 sm:w-10 p-1 border rounded bg-white text-xs text-center" />
-                                                        <input type="number" placeholder="DD" value={cashDateFromDay} onChange={e => setCashDateFromDay(e.target.value)} className="w-9 sm:w-10 p-1 border rounded bg-white text-xs text-center" />
-                                                        <span className="text-slate-300 self-center text-xs">:</span>
-                                                        <input type="number" placeholder="HH" value={cashDateFromHour} onChange={e => setCashDateFromHour(e.target.value)} className="w-9 sm:w-10 p-1 border rounded bg-white text-xs text-center" />
-                                                        <input type="number" placeholder="mm" value={cashDateFromMinute} onChange={e => setCashDateFromMinute(e.target.value)} className="w-9 sm:w-10 p-1 border rounded bg-white text-xs text-center" />
-                                                    </div>
-                                                </div>
-                                                <div>
-                                                    <label className="text-[9px] text-slate-500 mb-0.5 block">Hasta:</label>
-                                                    <div className="flex gap-1 flex-wrap">
-                                                        <input type="number" placeholder="YYYY" value={cashDateToYear} onChange={e => setCashDateToYear(e.target.value)} className="w-[52px] sm:w-14 p-1 border rounded bg-white text-xs text-center" />
-                                                        <input type="number" placeholder="MM" value={cashDateToMonth} onChange={e => setCashDateToMonth(e.target.value)} className="w-9 sm:w-10 p-1 border rounded bg-white text-xs text-center" />
-                                                        <input type="number" placeholder="DD" value={cashDateToDay} onChange={e => setCashDateToDay(e.target.value)} className="w-9 sm:w-10 p-1 border rounded bg-white text-xs text-center" />
-                                                        <span className="text-slate-300 self-center text-xs">:</span>
-                                                        <input type="number" placeholder="HH" value={cashDateToHour} onChange={e => setCashDateToHour(e.target.value)} className="w-9 sm:w-10 p-1 border rounded bg-white text-xs text-center" />
-                                                        <input type="number" placeholder="mm" value={cashDateToMinute} onChange={e => setCashDateToMinute(e.target.value)} className="w-9 sm:w-10 p-1 border rounded bg-white text-xs text-center" />
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </>
-                                    )}
-
-                                    {/* === FILTROS PEDIDOS === */}
-                                    {selectedQuery === 'pedidos' && (
-                                        <>
-                                            <div className="bg-white p-3 rounded border border-slate-200 space-y-3 shadow-sm">
-                                                <div>
-                                                    <label className="text-[10px] font-bold text-slate-500 uppercase">ID Pedido</label>
-                                                    <div className="flex gap-1 mt-1">
-                                                        <select value={ordersIdFilterOp} onChange={e => setOrdersIdFilterOp(e.target.value)} className="w-14 sm:w-16 text-xs p-1.5 border rounded bg-slate-50 outline-none">
-                                                            <option value="equals">=</option>
-                                                            <option value="lt">&lt;</option>
-                                                            <option value="lte">≤</option>
-                                                            <option value="gt">&gt;</option>
-                                                            <option value="gte">≥</option>
-                                                        </select>
-                                                        <input type="text" value={ordersIdFilter} onChange={e => setOrdersIdFilter(e.target.value)} className="flex-1 text-xs p-1.5 border rounded outline-none min-w-0" placeholder="ID..." />
-                                                    </div>
-                                                </div>
-                                                <div>
-                                                    <label className="text-[10px] font-bold text-slate-500 uppercase">Cliente</label>
-                                                    <div className="flex gap-1 mt-1">
-                                                        <select value={ordersCustomerFilterOp} onChange={e => setOrdersCustomerFilterOp(e.target.value)} className="w-[85px] sm:w-[95px] lg:w-[100px] text-xs p-1.5 border rounded bg-slate-50 outline-none">
-                                                            <option value="contains">Contiene</option>
-                                                            <option value="equals">Igual</option>
-                                                        </select>
-                                                        <input type="text" value={ordersCustomerFilter} onChange={e => setOrdersCustomerFilter(e.target.value)} className="flex-1 text-xs p-1.5 border rounded outline-none min-w-0" placeholder="Cliente..." />
-                                                    </div>
-                                                </div>
-                                                <div>
-                                                    <label className="text-[10px] font-bold text-slate-500 uppercase">Producto</label>
-                                                    <input type="text" value={ordersProductFilter} onChange={e => setOrdersProductFilter(e.target.value)} className="w-full text-xs p-1.5 mt-1 border rounded outline-none" placeholder="Nombre prod..." />
-                                                </div>
-                                            </div>
-
-                                            <div className="bg-white p-3 rounded border border-slate-200 space-y-3 shadow-sm">
-                                                <div>
-                                                    <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">Estado</label>
-                                                    <div className="grid grid-cols-2 gap-1 sm:gap-2 text-xs">
-                                                        {['Pendiente', 'En Preparación', 'Listo', 'Entregado', 'Cancelado'].map(st => (
-                                                            <label key={st} className="flex items-center gap-1 cursor-pointer">
-                                                                <input type="checkbox" checked={ordersStatusFilter.includes(st)} onChange={e => { const chk = e.target.checked; setOrdersStatusFilter(p => chk ? [...p, st] : p.filter(x => x !== st)); }} />
-                                                                <span className="truncate text-[10px] sm:text-xs">{st}</span>
-                                                            </label>
-                                                        ))}
-                                                    </div>
-                                                </div>
-                                                <div className="pt-2 border-t border-slate-100">
-                                                    <label className="text-[10px] font-bold text-slate-500 uppercase">Unidades</label>
-                                                    <div className="flex gap-1 mt-1">
-                                                        <select value={ordersUnitsFilterOp} onChange={e => setOrdersUnitsFilterOp(e.target.value)} className="w-14 sm:w-16 text-xs p-1.5 border rounded bg-slate-50 outline-none">
-                                                            <option value="equals">=</option>
-                                                            <option value="greater">&gt;</option>
-                                                            <option value="greaterOrEqual">≥</option>
-                                                            <option value="less">&lt;</option>
-                                                            <option value="lessOrEqual">≤</option>
-                                                        </select>
-                                                        <input type="number" value={ordersUnitsFilter} onChange={e => setOrdersUnitsFilter(e.target.value)} className="flex-1 text-xs p-1.5 border rounded outline-none min-w-0" placeholder="Cant..." />
-                                                    </div>
-                                                </div>
-                                            </div>
-
-                                            <div className="bg-white p-3 rounded border border-slate-200 space-y-3 shadow-sm">
-                                                <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">Método de Pago</label>
-                                                <div className="grid grid-cols-2 gap-2 text-xs">
-                                                    {['efectivo', 'debito', 'credito', 'transferencia'].map(method => (
-                                                        <label key={method} className="flex items-center gap-1 cursor-pointer">
-                                                            <input type="checkbox" checked={ordersPaymentMethodFilter.includes(method)} onChange={e => { const chk = e.target.checked; setOrdersPaymentMethodFilter(p => chk ? [...p, method] : p.filter(x => x !== method)); }} />
-                                                            <span className="text-[10px] sm:text-xs">{method.charAt(0).toUpperCase() + method.slice(1)}</span>
-                                                        </label>
-                                                    ))}
-                                                </div>
-                                            </div>
-
-                                            <div className="bg-blue-50/50 p-3 rounded border border-blue-100 space-y-3 shadow-sm sm:col-span-2 lg:col-span-1">
-                                                <h5 className="text-[10px] font-bold text-blue-600 uppercase flex items-center gap-1"><Calendar size={12}/> Fechas</h5>
-                                                <div>
-                                                    <label className="text-[9px] text-slate-500 mb-0.5 block">Desde:</label>
-                                                    <div className="flex gap-1 flex-wrap">
-                                                        <input type="number" placeholder="YYYY" value={ordersDateFromYear} onChange={e => setOrdersDateFromYear(e.target.value)} className="w-[52px] sm:w-14 p-1 border rounded bg-white text-xs text-center" />
-                                                        <input type="number" placeholder="MM" value={ordersDateFromMonth} onChange={e => setOrdersDateFromMonth(e.target.value)} className="w-9 sm:w-10 p-1 border rounded bg-white text-xs text-center" />
-                                                        <input type="number" placeholder="DD" value={ordersDateFromDay} onChange={e => setOrdersDateFromDay(e.target.value)} className="w-9 sm:w-10 p-1 border rounded bg-white text-xs text-center" />
-                                                        <span className="text-slate-300 self-center text-xs">:</span>
-                                                        <input type="number" placeholder="HH" value={ordersDateFromHour} onChange={e => setOrdersDateFromHour(e.target.value)} className="w-9 sm:w-10 p-1 border rounded bg-white text-xs text-center" />
-                                                        <input type="number" placeholder="mm" value={ordersDateFromMinute} onChange={e => setOrdersDateFromMinute(e.target.value)} className="w-9 sm:w-10 p-1 border rounded bg-white text-xs text-center" />
-                                                    </div>
-                                                </div>
-                                                <div>
-                                                    <label className="text-[9px] text-slate-500 mb-0.5 block">Hasta:</label>
-                                                    <div className="flex gap-1 flex-wrap">
-                                                        <input type="number" placeholder="YYYY" value={ordersDateToYear} onChange={e => setOrdersDateToYear(e.target.value)} className="w-[52px] sm:w-14 p-1 border rounded bg-white text-xs text-center" />
-                                                        <input type="number" placeholder="MM" value={ordersDateToMonth} onChange={e => setOrdersDateToMonth(e.target.value)} className="w-9 sm:w-10 p-1 border rounded bg-white text-xs text-center" />
-                                                        <input type="number" placeholder="DD" value={ordersDateToDay} onChange={e => setOrdersDateToDay(e.target.value)} className="w-9 sm:w-10 p-1 border rounded bg-white text-xs text-center" />
-                                                        <span className="text-slate-300 self-center text-xs">:</span>
-                                                        <input type="number" placeholder="HH" value={ordersDateToHour} onChange={e => setOrdersDateToHour(e.target.value)} className="w-9 sm:w-10 p-1 border rounded bg-white text-xs text-center" />
-                                                        <input type="number" placeholder="mm" value={ordersDateToMinute} onChange={e => setOrdersDateToMinute(e.target.value)} className="w-9 sm:w-10 p-1 border rounded bg-white text-xs text-center" />
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </>
-                                    )}
-
-                                    {/* === FILTROS COMPRAS === */}
-                                    {selectedQuery === 'compras' && (
-                                        <>
-                                            <div className="bg-white p-3 rounded border border-slate-200 space-y-3 shadow-sm">
-                                                <div>
-                                                    <label className="text-[10px] font-bold text-slate-500 uppercase">ID Compra</label>
-                                                    <div className="flex gap-1 mt-1">
-                                                        <select value={purchasesIdFilterOp} onChange={e => setPurchasesIdFilterOp(e.target.value)} className="w-14 sm:w-16 text-xs p-1.5 border rounded bg-slate-50 outline-none">
-                                                            <option value="equals">=</option>
-                                                            <option value="lt">&lt;</option>
-                                                            <option value="lte">≤</option>
-                                                            <option value="gt">&gt;</option>
-                                                            <option value="gte">≥</option>
-                                                        </select>
-                                                        <input type="text" value={purchasesIdFilter} onChange={e => setPurchasesIdFilter(e.target.value)} className="flex-1 text-xs p-1.5 border rounded outline-none min-w-0" placeholder="ID..." />
-                                                    </div>
-                                                </div>
-                                                <div>
-                                                    <label className="text-[10px] font-bold text-slate-500 uppercase">Proveedor</label>
-                                                    <div className="flex gap-1 mt-1">
-                                                        <select value={purchasesSupplierFilterOp} onChange={e => setPurchasesSupplierFilterOp(e.target.value)} className="w-[85px] sm:w-[95px] lg:w-[100px] text-xs p-1.5 border rounded bg-slate-50 outline-none">
-                                                            <option value="contains">Contiene</option>
-                                                            <option value="equals">Igual</option>
-                                                        </select>
-                                                        <input type="text" value={purchasesSupplierFilter} onChange={e => setPurchasesSupplierFilter(e.target.value)} className="flex-1 text-xs p-1.5 border rounded outline-none min-w-0" placeholder="Proveedor..." />
-                                                    </div>
-                                                </div>
-                                                <div>
-                                                    <label className="text-[10px] font-bold text-slate-500 uppercase">Producto/Insumo</label>
-                                                    <input type="text" value={purchasesProductFilter} onChange={e => setPurchasesProductFilter(e.target.value)} className="w-full text-xs p-1.5 mt-1 border rounded outline-none" placeholder="Buscar..." />
-                                                </div>
-                                            </div>
-
-                                            <div className="bg-white p-3 rounded border border-slate-200 space-y-3 shadow-sm">
-                                                <div>
-                                                    <label className="text-[10px] font-bold text-slate-500 uppercase">Total</label>
-                                                    <div className="flex gap-1 mt-1">
-                                                        <select value={purchasesTotalFilterOp} onChange={e => setPurchasesTotalFilterOp(e.target.value)} className="w-14 sm:w-16 text-xs p-1.5 border rounded bg-slate-50 outline-none">
-                                                            <option value="equals">=</option>
-                                                            <option value="lt">&lt;</option>
-                                                            <option value="lte">≤</option>
-                                                            <option value="gt">&gt;</option>
-                                                            <option value="gte">≥</option>
-                                                        </select>
-                                                        <input type="number" value={purchasesTotalFilter} onChange={e => setPurchasesTotalFilter(e.target.value)} className="flex-1 text-xs p-1.5 border rounded outline-none min-w-0" placeholder="Monto..." />
-                                                    </div>
-                                                </div>
-                                                <div>
-                                                    <label className="text-[10px] font-bold text-slate-500 uppercase">Cantidad (Items)</label>
-                                                    <div className="flex gap-1 mt-1">
-                                                        <select value={purchasesQuantityFilterOp} onChange={e => setPurchasesQuantityFilterOp(e.target.value)} className="w-14 sm:w-16 text-xs p-1.5 border rounded bg-slate-50 outline-none">
-                                                            <option value="equals">=</option>
-                                                            <option value="greater">&gt;</option>
-                                                            <option value="greaterOrEqual">≥</option>
-                                                            <option value="less">&lt;</option>
-                                                            <option value="lessOrEqual">≤</option>
-                                                        </select>
-                                                        <input type="number" value={purchasesQuantityFilter} onChange={e => setPurchasesQuantityFilter(e.target.value)} className="flex-1 text-xs p-1.5 border rounded outline-none min-w-0" placeholder="Cant..." />
-                                                        <select value={purchasesQuantityUnit} onChange={e => setPurchasesQuantityUnit(e.target.value)} className="w-12 sm:w-14 text-xs p-1.5 border rounded bg-slate-50 outline-none">
-                                                            <option value="Kg">Kg</option>
-                                                            <option value="L">L</option>
-                                                            <option value="U">U</option>
-                                                        </select>
-                                                    </div>
-                                                </div>
-                                                <div>
-                                                    <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">Tipos</label>
-                                                    <div className="flex gap-3 text-xs">
-                                                        {['Producto', 'Insumo'].map(t => (
-                                                            <label key={t} className="flex items-center gap-1 cursor-pointer">
-                                                                <input type="checkbox" checked={purchasesTypeFilter.includes(t)} onChange={e => { const chk = e.target.checked; setPurchasesTypeFilter(p => chk ? [...p, t] : p.filter(x => x !== t)); }} />
-                                                                <span className="text-[10px] sm:text-xs">{t}</span>
-                                                            </label>
-                                                        ))}
-                                                    </div>
-                                                </div>
-                                            </div>
-
-                                            <div className="bg-blue-50/50 p-3 rounded border border-blue-100 space-y-3 shadow-sm sm:col-span-2 lg:col-span-1">
-                                                <h5 className="text-[10px] font-bold text-blue-600 uppercase flex items-center gap-1"><Calendar size={12}/> Fechas</h5>
-                                                <div>
-                                                    <label className="text-[9px] text-slate-500 mb-0.5 block">Desde:</label>
-                                                    <div className="flex gap-1 flex-wrap">
-                                                        <input type="number" placeholder="YYYY" value={purchasesDateFromYear} onChange={e => setPurchasesDateFromYear(e.target.value)} className="w-[52px] sm:w-14 p-1 border rounded bg-white text-xs text-center" />
-                                                        <input type="number" placeholder="MM" value={purchasesDateFromMonth} onChange={e => setPurchasesDateFromMonth(e.target.value)} className="w-9 sm:w-10 p-1 border rounded bg-white text-xs text-center" />
-                                                        <input type="number" placeholder="DD" value={purchasesDateFromDay} onChange={e => setPurchasesDateFromDay(e.target.value)} className="w-9 sm:w-10 p-1 border rounded bg-white text-xs text-center" />
-                                                        <span className="text-slate-300 self-center text-xs">:</span>
-                                                        <input type="number" placeholder="HH" value={purchasesDateFromHour} onChange={e => setPurchasesDateFromHour(e.target.value)} className="w-9 sm:w-10 p-1 border rounded bg-white text-xs text-center" />
-                                                        <input type="number" placeholder="mm" value={purchasesDateFromMinute} onChange={e => setPurchasesDateFromMinute(e.target.value)} className="w-9 sm:w-10 p-1 border rounded bg-white text-xs text-center" />
-                                                    </div>
-                                                </div>
-                                                <div>
-                                                    <label className="text-[9px] text-slate-500 mb-0.5 block">Hasta:</label>
-                                                    <div className="flex gap-1 flex-wrap">
-                                                        <input type="number" placeholder="YYYY" value={purchasesDateToYear} onChange={e => setPurchasesDateToYear(e.target.value)} className="w-[52px] sm:w-14 p-1 border rounded bg-white text-xs text-center" />
-                                                        <input type="number" placeholder="MM" value={purchasesDateToMonth} onChange={e => setPurchasesDateToMonth(e.target.value)} className="w-9 sm:w-10 p-1 border rounded bg-white text-xs text-center" />
-                                                        <input type="number" placeholder="DD" value={purchasesDateToDay} onChange={e => setPurchasesDateToDay(e.target.value)} className="w-9 sm:w-10 p-1 border rounded bg-white text-xs text-center" />
-                                                        <span className="text-slate-300 self-center text-xs">:</span>
-                                                        <input type="number" placeholder="HH" value={purchasesDateToHour} onChange={e => setPurchasesDateToHour(e.target.value)} className="w-9 sm:w-10 p-1 border rounded bg-white text-xs text-center" />
-                                                        <input type="number" placeholder="mm" value={purchasesDateToMinute} onChange={e => setPurchasesDateToMinute(e.target.value)} className="w-9 sm:w-10 p-1 border rounded bg-white text-xs text-center" />
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </>
-                                    )}
-
-                                    {/* === FILTROS PROVEEDORES === */}
-                                    {selectedQuery === 'proveedores' && (
-                                        <>
-                                            <div className="bg-white p-3 rounded border border-slate-200 space-y-3 shadow-sm">
-                                                <div>
-                                                    <label className="text-[10px] font-bold text-slate-500 uppercase">ID Proveedor</label>
-                                                    <div className="flex gap-1 mt-1">
-                                                        <select value={suppliersIdFilterOp} onChange={e => setSuppliersIdFilterOp(e.target.value)} className="w-14 sm:w-16 text-xs p-1.5 border rounded bg-slate-50 outline-none">
-                                                            <option value="equals">=</option>
-                                                            <option value="lt">&lt;</option>
-                                                            <option value="lte">≤</option>
-                                                            <option value="gt">&gt;</option>
-                                                            <option value="gte">≥</option>
-                                                        </select>
-                                                        <input type="text" value={suppliersIdFilter} onChange={e => setSuppliersIdFilter(e.target.value)} className="flex-1 text-xs p-1.5 border rounded outline-none min-w-0" placeholder="ID..." />
-                                                    </div>
-                                                </div>
-                                                <div>
-                                                    <label className="text-[10px] font-bold text-slate-500 uppercase">Nombre</label>
-                                                    <div className="flex gap-1 mt-1">
-                                                        <select value={suppliersNameFilterOp} onChange={e => setSuppliersNameFilterOp(e.target.value)} className="w-[85px] sm:w-[95px] lg:w-[100px] text-xs p-1.5 border rounded bg-slate-50 outline-none">
-                                                            <option value="contains">Contiene</option>
-                                                            <option value="equals">Igual</option>
-                                                        </select>
-                                                        <input type="text" value={suppliersNameFilter} onChange={e => setSuppliersNameFilter(e.target.value)} className="flex-1 text-xs p-1.5 border rounded outline-none min-w-0" placeholder="Nombre..." />
-                                                    </div>
-                                                </div>
-                                                <div>
-                                                    <label className="text-[10px] font-bold text-slate-500 uppercase">CUIT</label>
-                                                    <div className="flex gap-1 mt-1">
-                                                        <select value={suppliersCuitFilterOp} onChange={e => setSuppliersCuitFilterOp(e.target.value)} className="w-[85px] sm:w-[95px] lg:w-[100px] text-xs p-1.5 border rounded bg-slate-50 outline-none">
-                                                            <option value="contains">Contiene</option>
-                                                            <option value="equals">Igual</option>
-                                                        </select>
-                                                        <input type="text" value={suppliersCuitFilter} onChange={e => setSuppliersCuitFilter(e.target.value)} className="flex-1 text-xs p-1.5 border rounded outline-none min-w-0" placeholder="CUIT..." />
-                                                    </div>
-                                                </div>
-                                            </div>
-
-                                            <div className="bg-white p-3 rounded border border-slate-200 space-y-3 shadow-sm">
-                                                <div>
-                                                    <label className="text-[10px] font-bold text-slate-500 uppercase">Teléfono</label>
-                                                    <div className="flex gap-1 mt-1">
-                                                        <select value={suppliersPhoneFilterOp} onChange={e => setSuppliersPhoneFilterOp(e.target.value)} className="w-[85px] sm:w-[95px] lg:w-[100px] text-xs p-1.5 border rounded bg-slate-50 outline-none">
-                                                            <option value="contains">Contiene</option>
-                                                            <option value="equals">Igual</option>
-                                                        </select>
-                                                        <input type="text" value={suppliersPhoneFilter} onChange={e => setSuppliersPhoneFilter(e.target.value)} className="flex-1 text-xs p-1.5 border rounded outline-none min-w-0" placeholder="Teléfono..." />
-                                                    </div>
-                                                </div>
-                                                <div>
-                                                    <label className="text-[10px] font-bold text-slate-500 uppercase">Dirección</label>
-                                                    <div className="flex gap-1 mt-1">
-                                                        <select value={suppliersAddressFilterOp} onChange={e => setSuppliersAddressFilterOp(e.target.value)} className="w-[85px] sm:w-[95px] lg:w-[100px] text-xs p-1.5 border rounded bg-slate-50 outline-none">
-                                                            <option value="contains">Contiene</option>
-                                                            <option value="equals">Igual</option>
-                                                        </select>
-                                                        <input type="text" value={suppliersAddressFilter} onChange={e => setSuppliersAddressFilter(e.target.value)} className="flex-1 text-xs p-1.5 border rounded outline-none min-w-0" placeholder="Dirección..." />
-                                                    </div>
-                                                </div>
-                                                <div>
-                                                    <label className="text-[10px] font-bold text-slate-500 uppercase">Producto/Insumo que vende</label>
-                                                    <div className="flex gap-1 mt-1">
-                                                        <select value={suppliersProductFilterOp} onChange={e => setSuppliersProductFilterOp(e.target.value)} className="w-[85px] sm:w-[95px] lg:w-[100px] text-xs p-1.5 border rounded bg-slate-50 outline-none">
-                                                            <option value="contains">Contiene</option>
-                                                            <option value="equals">Igual</option>
-                                                        </select>
-                                                        <input type="text" value={suppliersProductFilter} onChange={e => setSuppliersProductFilter(e.target.value)} className="flex-1 text-xs p-1.5 border rounded outline-none min-w-0" placeholder="Producto..." />
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </>
-                                    )}
-
+                                <h5>Hasta (opcional):</h5>
+                                <div className="date-components" style={{display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap'}}>
+                                    <label style={{margin: '0', minWidth: '35px', fontWeight: '500'}}>Año:</label>
+                                    <input type="number" placeholder="Ej: 2024" min="2020" max="2030" 
+                                           value={cashDateToYear} onChange={e => setCashDateToYear(e.target.value)} 
+                                           style={{padding: '6px 8px', width: '80px', margin: '0'}} />
+                                    <label style={{margin: '0', minWidth: '35px', fontWeight: '500'}}>Mes:</label>
+                                    <input type="number" placeholder="1-12" min="1" max="12" 
+                                           value={cashDateToMonth} onChange={e => setCashDateToMonth(e.target.value)} 
+                                           style={{padding: '6px 8px', width: '60px', margin: '0'}} />
+                                    <label style={{margin: '0', minWidth: '35px', fontWeight: '500'}}>Día:</label>
+                                    <input type="number" placeholder="1-31" min="1" max="31" 
+                                           value={cashDateToDay} onChange={e => setCashDateToDay(e.target.value)} 
+                                           style={{padding: '6px 8px', width: '60px', margin: '0'}} />
+                                    <label style={{margin: '0', minWidth: '40px', fontWeight: '500'}}>Hora:</label>
+                                    <input type="number" placeholder="0-23" min="0" max="23" 
+                                           value={cashDateToHour} onChange={e => setCashDateToHour(e.target.value)} 
+                                           style={{padding: '6px 8px', width: '60px', margin: '0'}} />
+                                    <label style={{margin: '0', minWidth: '30px', fontWeight: '500'}}>Min:</label>
+                                    <input type="number" placeholder="0-59" min="0" max="59" 
+                                           value={cashDateToMinute} onChange={e => setCashDateToMinute(e.target.value)} 
+                                           style={{padding: '6px 8px', width: '60px', margin: '0'}} />
                                 </div>
                             </div>
-                        )}
+                        </div>
+                        
+                        {/* Filtro de Tipo (Entrada/Salida) */}
+                        <div className="filter-row">
+                            <label>Tipo:</label>
+                            <select value={cashTypeFilter} onChange={e => setCashTypeFilter(e.target.value)}>
+                                <option value="">-- Todos --</option>
+                                <option value="Entrada">Entrada</option>
+                                <option value="Salida">Salida</option>
+                            </select>
+                        </div>
+                        
+                        {/* Filtro de Método de Pago (múltiple selección) */}
+                        <div className="filter-row">
+                            <label>Métodos de Pago:</label>
+                            <div className="payment-method-checkboxes">
+                                {['debito', 'credito', 'transferencia', 'efectivo'].map(method => (
+                                    <label key={method}>
+                                        <input 
+                                            type="checkbox" 
+                                            checked={cashPaymentMethodFilter.includes(method)} 
+                                            onChange={e => {
+                                                const checked = e.target.checked;
+                                                setCashPaymentMethodFilter(prev => 
+                                                    checked 
+                                                        ? Array.from(new Set([...prev, method])) 
+                                                        : prev.filter(x => x !== method)
+                                                );
+                                            }} 
+                                        />
+                                        {method.charAt(0).toUpperCase() + method.slice(1)}
+                                    </label>
+                                ))}
+                            </div>
+                        </div>
+                        
+                        {/* Ordenamiento */}
+                        <div className="filter-row">
+                            <label>Ordenar por fecha:</label>
+                            <select value={cashSortOrder} onChange={e => setCashSortOrder(e.target.value)} style={{minWidth: '150px'}}>
+                                <option value="desc">Más recientes primero</option>
+                                <option value="asc">Más antiguos primero</option>
+                            </select>
+                        </div>
                     </div>
+                )}
+                
+                {selectedQuery === 'pedidos' && (
+                    <div className="orders-filters">
+                        <h4>Filtros de Pedidos</h4>
+                        
+                        {/* Filtro de ID */}
+                        <div className="filter-row">
+                            <label>ID:</label>
+                            <select value={ordersIdFilterOp} onChange={e => setOrdersIdFilterOp(e.target.value)}>
+                                <option value="equals">Es igual</option>
+                                <option value="lt">&lt;</option>
+                                <option value="lte">&le;</option>
+                                <option value="gt">&gt;</option>
+                                <option value="gte">&ge;</option>
+                            </select>
+                            <input 
+                                type="number" 
+                                value={ordersIdFilter} 
+                                onChange={e => setOrdersIdFilter(e.target.value)} 
+                                placeholder="ID del pedido..." 
+                            />
+                        </div>
 
-                    {/* TARJETAS KPI (Resumen) */}
-                    {queryResults && queryResults.summary && (
-                        <div className="flex flex-wrap gap-2 sm:gap-3 lg:gap-4">
-                            {Object.entries(queryResults.summary).map(([key, value]) => {
-                                if (key === 'byType' && typeof value === 'object' && value !== null) {
-                                    return (
-                                        <div key={key} className="bg-white p-2 sm:p-3 rounded-lg border border-slate-200 shadow-sm min-w-[120px] sm:min-w-[150px] flex-1">
-                                            <span className="text-[9px] sm:text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1 block">Por Tipo</span>
-                                            <div className="text-xs sm:text-sm font-bold text-slate-700">
-                                                {Object.entries(value).map(([tKey, tVal]) => (
-                                                    <div key={tKey} className="flex justify-between border-b border-slate-50 last:border-0 py-0.5">
-                                                        <span className="text-slate-500">{tKey}:</span>
-                                                        <span>{tVal}</span>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    );
-                                }
+                        {/* Filtro de Cliente */}
+                        <div className="filter-row">
+                            <label>Cliente:</label>
+                            <select value={ordersCustomerFilterOp} onChange={e => setOrdersCustomerFilterOp(e.target.value)}>
+                                <option value="contains">Contiene</option>
+                                <option value="equals">Es igual</option>
+                            </select>
+                            <input 
+                                type="text" 
+                                value={ordersCustomerFilter} 
+                                onChange={e => setOrdersCustomerFilter(e.target.value)} 
+                                placeholder="Nombre del cliente..." 
+                            />
+                        </div>
+
+                        {/* Filtros de fecha granular */}
+                        <div className="filter-row">
+                            <label>Fecha (granular):</label>
+                            <div className="granular-date-filters">
+                                <p style={{margin: '0 0 10px', fontSize: '14px', color: '#6c757d', fontStyle: 'italic'}}>
+                                    💡 <strong>Filtro inteligente:</strong> Si completas solo "Desde", filtra exactamente ese período (ej: Mes 11 = solo noviembre). Si completas "Hasta", filtra como rango.
+                                </p>
+                                <h5>Desde:</h5>
+                                <div className="date-components" style={{display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap'}}>
+                                    <label style={{margin: '0', minWidth: '35px', fontWeight: '500'}}>Año:</label>
+                                    <input type="number" placeholder="Ej: 2024" min="2020" max="2030" 
+                                           value={ordersDateFromYear} onChange={e => setOrdersDateFromYear(e.target.value)} 
+                                           style={{padding: '6px 8px', width: '80px', margin: '0'}} />
+                                    <label style={{margin: '0', minWidth: '35px', fontWeight: '500'}}>Mes:</label>
+                                    <input type="number" placeholder="1-12" min="1" max="12" 
+                                           value={ordersDateFromMonth} onChange={e => setOrdersDateFromMonth(e.target.value)} 
+                                           style={{padding: '6px 8px', width: '60px', margin: '0'}} />
+                                    <label style={{margin: '0', minWidth: '35px', fontWeight: '500'}}>Día:</label>
+                                    <input type="number" placeholder="1-31" min="1" max="31" 
+                                           value={ordersDateFromDay} onChange={e => setOrdersDateFromDay(e.target.value)} 
+                                           style={{padding: '6px 8px', width: '60px', margin: '0'}} />
+                                    <label style={{margin: '0', minWidth: '40px', fontWeight: '500'}}>Hora:</label>
+                                    <input type="number" placeholder="0-23" min="0" max="23" 
+                                           value={ordersDateFromHour} onChange={e => setOrdersDateFromHour(e.target.value)} 
+                                           style={{padding: '6px 8px', width: '60px', margin: '0'}} />
+                                    <label style={{margin: '0', minWidth: '30px', fontWeight: '500'}}>Min:</label>
+                                    <input type="number" placeholder="0-59" min="0" max="59" 
+                                           value={ordersDateFromMinute} onChange={e => setOrdersDateFromMinute(e.target.value)} 
+                                           style={{padding: '6px 8px', width: '60px', margin: '0'}} />
+                                </div>
+                                
+                                <h5>Hasta (opcional):</h5>
+                                <div className="date-components" style={{display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap'}}>
+                                    <label style={{margin: '0', minWidth: '35px', fontWeight: '500'}}>Año:</label>
+                                    <input type="number" placeholder="Ej: 2024" min="2020" max="2030" 
+                                           value={ordersDateToYear} onChange={e => setOrdersDateToYear(e.target.value)} 
+                                           style={{padding: '6px 8px', width: '80px', margin: '0'}} />
+                                    <label style={{margin: '0', minWidth: '35px', fontWeight: '500'}}>Mes:</label>
+                                    <input type="number" placeholder="1-12" min="1" max="12" 
+                                           value={ordersDateToMonth} onChange={e => setOrdersDateToMonth(e.target.value)} 
+                                           style={{padding: '6px 8px', width: '60px', margin: '0'}} />
+                                    <label style={{margin: '0', minWidth: '35px', fontWeight: '500'}}>Día:</label>
+                                    <input type="number" placeholder="1-31" min="1" max="31" 
+                                           value={ordersDateToDay} onChange={e => setOrdersDateToDay(e.target.value)} 
+                                           style={{padding: '6px 8px', width: '60px', margin: '0'}} />
+                                    <label style={{margin: '0', minWidth: '40px', fontWeight: '500'}}>Hora:</label>
+                                    <input type="number" placeholder="0-23" min="0" max="23" 
+                                           value={ordersDateToHour} onChange={e => setOrdersDateToHour(e.target.value)} 
+                                           style={{padding: '6px 8px', width: '60px', margin: '0'}} />
+                                    <label style={{margin: '0', minWidth: '30px', fontWeight: '500'}}>Min:</label>
+                                    <input type="number" placeholder="0-59" min="0" max="59" 
+                                           value={ordersDateToMinute} onChange={e => setOrdersDateToMinute(e.target.value)} 
+                                           style={{padding: '6px 8px', width: '60px', margin: '0'}} />
+                                </div>
+                            </div>
+                        </div>
+                        
+                        {/* Filtro de Método de Pago (múltiple selección) */}
+                        <div className="filter-row">
+                            <label>Métodos de Pago:</label>
+                            <div className="payment-method-checkboxes">
+                                {['debito', 'credito', 'transferencia', 'efectivo'].map(method => (
+                                    <label key={method}>
+                                        <input 
+                                            type="checkbox" 
+                                            checked={ordersPaymentMethodFilter.includes(method)} 
+                                            onChange={e => {
+                                                const checked = e.target.checked;
+                                                setOrdersPaymentMethodFilter(prev => 
+                                                    checked 
+                                                        ? Array.from(new Set([...prev, method])) 
+                                                        : prev.filter(x => x !== method)
+                                                );
+                                            }} 
+                                        />
+                                        {method.charAt(0).toUpperCase() + method.slice(1)}
+                                    </label>
+                                ))}
+                            </div>
+                        </div>
+                        
+                        {/* Filtro de Estado (múltiple selección) */}
+                        <div className="filter-row">
+                            <label>Estados:</label>
+                            <div className="status-checkboxes">
+                                {['Pendiente', 'En Preparación', 'Listo', 'Entregado', 'Cancelado'].map(status => (
+                                    <label key={status}>
+                                        <input 
+                                            type="checkbox" 
+                                            checked={ordersStatusFilter.includes(status)} 
+                                            onChange={e => {
+                                                const checked = e.target.checked;
+                                                setOrdersStatusFilter(prev => 
+                                                    checked 
+                                                        ? Array.from(new Set([...prev, status])) 
+                                                        : prev.filter(x => x !== status)
+                                                );
+                            }} 
+                                        />
+                                        {status}
+                                    </label>
+                                ))}
+                            </div>
+                        </div>
+                        
+                        {/* Filtro de búsqueda por nombre de Producto */}
+                        <div className="filter-row">
+                            <label>Buscar Producto:</label>
+                            <input 
+                                type="text" 
+                                value={ordersProductFilter} 
+                                onChange={e => setOrdersProductFilter(e.target.value)} 
+                                placeholder="Nombre del producto..." 
+                                style={{flex: 1, padding: '8px', marginLeft: '10px'}}
+                            />
+                        </div>
+                        
+                        {/* Filtro por Unidades/Cantidad */}
+                        <div className="filter-row">
+                            <label>Unidades:</label>
+                            <select value={ordersUnitsFilterOp} 
+                                    onChange={e => setOrdersUnitsFilterOp(e.target.value)}
+                                    style={{padding: '8px', marginLeft: '10px', marginRight: '5px'}}>
+                                <option value="equals">=</option>
+                                <option value="greater">&gt;</option>
+                                <option value="greaterOrEqual">&gt;=</option>
+                                <option value="less">&lt;</option>
+                                <option value="lessOrEqual">&lt;=</option>
+                            </select>
+                            <input 
+                                type="number" 
+                                value={ordersUnitsFilter} 
+                                onChange={e => setOrdersUnitsFilter(e.target.value)} 
+                                placeholder="Cantidad..." 
+                                style={{flex: 1, padding: '8px'}}
+                            />
+                        </div>
+                    </div>
+                )}
+                
+                {selectedQuery === 'compras' && (
+                    <div className="purchases-filters">
+                        <h4>Filtros de Compras</h4>
+                        
+                        {/* Filtro de ID */}
+                        <div className="filter-row">
+                            <label>ID:</label>
+                            <select value={purchasesIdFilterOp} onChange={e => setPurchasesIdFilterOp(e.target.value)}>
+                                <option value="equals">Es igual</option>
+                                <option value="lt">&lt;</option>
+                                <option value="lte">&le;</option>
+                                <option value="gt">&gt;</option>
+                                <option value="gte">&ge;</option>
+                            </select>
+                            <input 
+                                type="number" 
+                                value={purchasesIdFilter} 
+                                onChange={e => setPurchasesIdFilter(e.target.value)} 
+                                placeholder="ID de compra..." 
+                            />
+                        </div>
+
+                        {/* Filtro de Proveedor */}
+                        <div className="filter-row">
+                            <label>Proveedor:</label>
+                            <select value={purchasesSupplierFilterOp} onChange={e => setPurchasesSupplierFilterOp(e.target.value)}>
+                                <option value="contains">Contiene</option>
+                                <option value="equals">Es igual</option>
+                            </select>
+                            <input 
+                                type="text" 
+                                value={purchasesSupplierFilter} 
+                                onChange={e => setPurchasesSupplierFilter(e.target.value)} 
+                                placeholder="Nombre del proveedor..." 
+                            />
+                        </div>
+
+                        {/* Filtro de Total */}
+                        <div className="filter-row">
+                            <label>Total:</label>
+                            <select value={purchasesTotalFilterOp} onChange={e => setPurchasesTotalFilterOp(e.target.value)}>
+                                <option value="equals">Es igual</option>
+                                <option value="lt">&lt;</option>
+                                <option value="lte">&le;</option>
+                                <option value="gt">&gt;</option>
+                                <option value="gte">&ge;</option>
+                            </select>
+                            <input 
+                                type="number" 
+                                step="0.01" 
+                                value={purchasesTotalFilter} 
+                                onChange={e => setPurchasesTotalFilter(e.target.value)} 
+                                placeholder="Monto total..." 
+                            />
+                        </div>
+
+                        {/* Filtros de fecha granular */}
+                        <div className="filter-row">
+                            <label>Fecha (granular):</label>
+                            <div className="granular-date-filters">
+                                <p style={{margin: '0 0 10px', fontSize: '14px', color: '#6c757d', fontStyle: 'italic'}}>
+                                    💡 <strong>Filtro flexible:</strong> Cada campo funciona independientemente. Ej: Solo "Mes 11" = todas las compras de noviembre. "Año 2024 + Mes 11" = solo noviembre 2024. Combina los que necesites.
+                                </p>
+                                <h5>Desde (opcional):</h5>
+                                <div className="date-components" style={{display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap'}}>
+                                    <label style={{margin: '0', minWidth: '35px', fontWeight: '500'}}>Año:</label>
+                                    <input type="number" placeholder="Ej: 2024" min="2020" max="2030" 
+                                           value={purchasesDateFromYear} onChange={e => setPurchasesDateFromYear(e.target.value)} 
+                                           style={{padding: '6px 8px', width: '80px', margin: '0'}} />
+                                    <label style={{margin: '0', minWidth: '35px', fontWeight: '500'}}>Mes:</label>
+                                    <input type="number" placeholder="1-12" min="1" max="12" 
+                                           value={purchasesDateFromMonth} onChange={e => setPurchasesDateFromMonth(e.target.value)} 
+                                           style={{padding: '6px 8px', width: '60px', margin: '0'}} />
+                                    <label style={{margin: '0', minWidth: '35px', fontWeight: '500'}}>Día:</label>
+                                    <input type="number" placeholder="1-31" min="1" max="31" 
+                                           value={purchasesDateFromDay} onChange={e => setPurchasesDateFromDay(e.target.value)} 
+                                           style={{padding: '6px 8px', width: '60px', margin: '0'}} />
+                                    <label style={{margin: '0', minWidth: '40px', fontWeight: '500'}}>Hora:</label>
+                                    <input type="number" placeholder="0-23" min="0" max="23" 
+                                           value={purchasesDateFromHour} onChange={e => setPurchasesDateFromHour(e.target.value)} 
+                                           style={{padding: '6px 8px', width: '60px', margin: '0'}} />
+                                    <label style={{margin: '0', minWidth: '30px', fontWeight: '500'}}>Min:</label>
+                                    <input type="number" placeholder="0-59" min="0" max="59" 
+                                           value={purchasesDateFromMinute} onChange={e => setPurchasesDateFromMinute(e.target.value)} 
+                                           style={{padding: '6px 8px', width: '60px', margin: '0'}} />
+                                </div>
+                                
+                                <h5>Hasta (opcional):</h5>
+                                <div className="date-components" style={{display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap'}}>
+                                    <label style={{margin: '0', minWidth: '35px', fontWeight: '500'}}>Año:</label>
+                                    <input type="number" placeholder="Ej: 2024" min="2020" max="2030" 
+                                           value={purchasesDateToYear} onChange={e => setPurchasesDateToYear(e.target.value)} 
+                                           style={{padding: '6px 8px', width: '80px', margin: '0'}} />
+                                    <label style={{margin: '0', minWidth: '35px', fontWeight: '500'}}>Mes:</label>
+                                    <input type="number" placeholder="1-12" min="1" max="12" 
+                                           value={purchasesDateToMonth} onChange={e => setPurchasesDateToMonth(e.target.value)} 
+                                           style={{padding: '6px 8px', width: '60px', margin: '0'}} />
+                                    <label style={{margin: '0', minWidth: '35px', fontWeight: '500'}}>Día:</label>
+                                    <input type="number" placeholder="1-31" min="1" max="31" 
+                                           value={purchasesDateToDay} onChange={e => setPurchasesDateToDay(e.target.value)} 
+                                           style={{padding: '6px 8px', width: '60px', margin: '0'}} />
+                                    <label style={{margin: '0', minWidth: '40px', fontWeight: '500'}}>Hora:</label>
+                                    <input type="number" placeholder="0-23" min="0" max="23" 
+                                           value={purchasesDateToHour} onChange={e => setPurchasesDateToHour(e.target.value)} 
+                                           style={{padding: '6px 8px', width: '60px', margin: '0'}} />
+                                    <label style={{margin: '0', minWidth: '30px', fontWeight: '500'}}>Min:</label>
+                                    <input type="number" placeholder="0-59" min="0" max="59" 
+                                           value={purchasesDateToMinute} onChange={e => setPurchasesDateToMinute(e.target.value)} 
+                                           style={{padding: '6px 8px', width: '60px', margin: '0'}} />
+                                </div>
+                            </div>
+                        </div>
+                        
+                        {/* Filtro de Tipos (Producto/Insumo) */}
+                        <div className="filter-row">
+                            <label>Tipos:</label>
+                            <div className="type-checkboxes" style={{display: 'flex', flexWrap: 'wrap', gap: '10px', marginTop: '5px'}}>
+                                {['Producto', 'Insumo'].map(type => (
+                                    <label key={type} style={{display: 'flex', alignItems: 'center', gap: '5px'}}>
+                                        <input 
+                                            type="checkbox" 
+                                            checked={purchasesTypeFilter.includes(type)} 
+                                            onChange={e => {
+                                                const checked = e.target.checked;
+                                                setPurchasesTypeFilter(prev => 
+                                                    checked 
+                                                        ? Array.from(new Set([...prev, type])) 
+                                                        : prev.filter(x => x !== type)
+                                                );
+                                            }} 
+                                        />
+                                        {type}
+                                    </label>
+                                ))}
+                            </div>
+                        </div>
+                        
+                        {/* Filtro de búsqueda por nombre de Producto/Insumo */}
+                        <div className="filter-row">
+                            <label>Buscar Producto/Insumo:</label>
+                            <input 
+                                type="text" 
+                                value={purchasesProductFilter} 
+                                onChange={e => setPurchasesProductFilter(e.target.value)} 
+                                placeholder="Nombre del producto o insumo..." 
+                                style={{flex: 1, padding: '8px', marginLeft: '10px'}}
+                            />
+                        </div>
+                        
+                        {/* Filtro de cantidad */}
+                        <div className="filter-row">
+                            <label>Cantidad:</label>
+                            <select value={purchasesQuantityFilterOp} 
+                                    onChange={e => setPurchasesQuantityFilterOp(e.target.value)}
+                                    style={{padding: '8px', marginLeft: '10px', marginRight: '5px', minWidth: '80px'}}>
+                                <option value="equals">=</option>
+                                <option value="greater">&gt;</option>
+                                <option value="greaterOrEqual">&gt;=</option>
+                                <option value="less">&lt;</option>
+                                <option value="lessOrEqual">&lt;=</option>
+                            </select>
+                            <input 
+                                type="number" 
+                                value={purchasesQuantityFilter} 
+                                onChange={e => setPurchasesQuantityFilter(e.target.value)} 
+                                placeholder="Cantidad..." 
+                                style={{width: '120px', padding: '8px'}}
+                            />
+                            <select value={purchasesQuantityUnit} 
+                                    onChange={e => setPurchasesQuantityUnit(e.target.value)} 
+                                    style={{minWidth: '60px', marginLeft: '10px', padding: '8px'}}>
+                                <option value="Kg">Kg</option>
+                                <option value="L">L</option>
+                                <option value="U">U</option>
+                            </select>
+                        </div>
+                    </div>
+                )}
+                
+                {selectedQuery === 'proveedores' && (
+                    <div className="suppliers-filters">
+                        <h4>Filtros de Proveedores</h4>
+                        
+                        {/* Filtro de ID */}
+                        <div className="filter-row">
+                            <label>ID:</label>
+                            <select value={suppliersIdFilterOp} onChange={e => setSuppliersIdFilterOp(e.target.value)}>
+                                <option value="equals">Es igual</option>
+                                <option value="lt">&lt;</option>
+                                <option value="lte">&le;</option>
+                                <option value="gt">&gt;</option>
+                                <option value="gte">&ge;</option>
+                            </select>
+                            <input 
+                                type="number" 
+                                value={suppliersIdFilter} 
+                                onChange={e => setSuppliersIdFilter(e.target.value)} 
+                                placeholder="ID del proveedor..." 
+                            />
+                        </div>
+
+                        {/* Filtro de Nombre */}
+                        <div className="filter-row">
+                            <label>Nombre:</label>
+                            <select value={suppliersNameFilterOp} onChange={e => setSuppliersNameFilterOp(e.target.value)}>
+                                <option value="contains">Contiene</option>
+                                <option value="equals">Es igual</option>
+                            </select>
+                            <input 
+                                type="text" 
+                                value={suppliersNameFilter} 
+                                onChange={e => setSuppliersNameFilter(e.target.value)} 
+                                placeholder="Nombre del proveedor..." 
+                            />
+                        </div>
+
+                        {/* Filtro de CUIT */}
+                        <div className="filter-row">
+                            <label>CUIT:</label>
+                            <select value={suppliersCuitFilterOp} onChange={e => setSuppliersCuitFilterOp(e.target.value)}>
+                                <option value="contains">Contiene</option>
+                                <option value="equals">Es igual</option>
+                            </select>
+                            <input 
+                                type="text" 
+                                value={suppliersCuitFilter} 
+                                onChange={e => setSuppliersCuitFilter(e.target.value)} 
+                                placeholder="CUIT del proveedor..." 
+                            />
+                        </div>
+
+                        {/* Filtro de Teléfono */}
+                        <div className="filter-row">
+                            <label>Teléfono:</label>
+                            <select value={suppliersPhoneFilterOp} onChange={e => setSuppliersPhoneFilterOp(e.target.value)}>
+                                <option value="contains">Contiene</option>
+                                <option value="equals">Es igual</option>
+                            </select>
+                            <input 
+                                type="text" 
+                                value={suppliersPhoneFilter} 
+                                onChange={e => setSuppliersPhoneFilter(e.target.value)} 
+                                placeholder="Teléfono del proveedor..." 
+                            />
+                        </div>
+
+                        {/* Filtro de Dirección */}
+                        <div className="filter-row">
+                            <label>Dirección:</label>
+                            <select value={suppliersAddressFilterOp} onChange={e => setSuppliersAddressFilterOp(e.target.value)}>
+                                <option value="contains">Contiene</option>
+                                <option value="equals">Es igual</option>
+                            </select>
+                            <input 
+                                type="text" 
+                                value={suppliersAddressFilter} 
+                                onChange={e => setSuppliersAddressFilter(e.target.value)} 
+                                placeholder="Dirección del proveedor..." 
+                            />
+                        </div>
+
+                        {/* Filtro de Producto/Insumo */}
+                        <div className="filter-row">
+                            <label>Producto/Insumo:</label>
+                            <select value={suppliersProductFilterOp} onChange={e => setSuppliersProductFilterOp(e.target.value)}>
+                                <option value="contains">Contiene</option>
+                                <option value="equals">Es igual</option>
+                            </select>
+                            <input 
+                                type="text" 
+                                value={suppliersProductFilter} 
+                                onChange={e => setSuppliersProductFilter(e.target.value)} 
+                                placeholder="Producto o insumo..." 
+                            />
+                        </div>
+                    </div>
+                )}
+                
+                <div className="query-actions">
+                    <button onClick={executeQuery} className="action-button primary">Ejecutar Consulta</button>
+                    <button onClick={exportData} className="action-button secondary" id='Exportar-datos' disabled={!queryResults}>Exportar Datos</button>
+                </div>
+            </div>
+            {queryResults && (
+                <div className="query-results">
+                    <h3>{queryResults.title}</h3>
+                    <div className="results-summary">
+                        {Object.entries(queryResults.summary).map(([key, value]) => {
+                            // Manejo especial para objetos anidados como byType
+                            if (key === 'byType' && typeof value === 'object' && value !== null) {
                                 return (
-                                    <div key={key} className="bg-white p-2 sm:p-3 rounded-lg border border-slate-200 shadow-sm min-w-[100px] sm:min-w-[130px] flex-1">
-                                        <span className="text-[9px] sm:text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1 block truncate" title={headerTranslationMap[key] || key}>
-                                            {headerTranslationMap[key] || key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}
-                                        </span>
-                                        <span className="text-base sm:text-xl font-bold text-slate-800">
-                                            {typeof value === 'number' ? value.toLocaleString() : value}
-                                        </span>
+                                    <div key={key} className="summary-item">
+                                        <strong>Por Tipo:</strong>
+                                        <div style={{marginLeft: '15px', marginTop: '5px'}}>
+                                            {Object.entries(value).map(([typeKey, typeValue]) => (
+                                                <div key={typeKey} style={{fontSize: '14px'}}>
+                                                    • {typeKey}: {typeof typeValue === 'number' ? typeValue.toLocaleString() : typeValue}
+                                                </div>
+                                            ))}
+                                        </div>
                                     </div>
                                 );
-                            })}
-                        </div>
-                    )}
-
-                    {/* TABLA DE RESULTADOS */}
-                    <div className="flex-1 bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col min-h-[200px] sm:min-h-[300px] max-h-[50vh] sm:max-h-[60vh]">
-                        {!queryResults ? (
-                            <div className="flex-1 flex flex-col items-center justify-center text-slate-400 p-4 sm:p-8 bg-slate-50/50">
-                                <div className="bg-white p-3 sm:p-4 rounded-full shadow-sm mb-3">
-                                    <Search size={28} className="sm:w-8 sm:h-8 text-slate-300" />
+                            }
+                            
+                            return (
+                                <div key={key} className="summary-item">
+                                    <strong>{headerTranslationMap[key] || key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}:</strong> {
+                                        typeof value === 'number' ? value.toLocaleString() : value
+                                    }
                                 </div>
-                                <h3 className="font-bold text-slate-600 text-sm sm:text-base">Esperando Parámetros</h3>
-                                <p className="text-[10px] sm:text-xs mt-1 text-center max-w-sm">Configura la consulta y presiona "Consultar".</p>
-                            </div>
-                        ) : queryResults.data && queryResults.data.length > 0 ? (
-                            <>
-                                <div className="bg-slate-50 px-3 sm:px-4 py-2 sm:py-3 border-b border-slate-200 flex justify-between items-center flex-shrink-0">
-                                    <h3 className="font-bold text-slate-700 text-xs sm:text-sm truncate">{queryResults.title}</h3>
-                                    <span className="text-[10px] sm:text-xs text-slate-500 font-medium whitespace-nowrap ml-2">{queryResults.data.length} registros</span>
-                                </div>
-                                <div className="flex-1 overflow-x-auto overflow-y-auto">
-                                    <table className="w-full text-left border-collapse whitespace-nowrap min-w-[500px] text-xs sm:text-sm">
-                                        {(() => {
-                                            const sample = queryResults.data[0] || {};
-                                            let cols = Object.keys(sample).filter(k => k !== '_raw');
-                                            
-                                            if (selectedQuery === 'ventas' || (sample.product && sample.quantity !== undefined && sample.total !== undefined)) {
-                                                cols = ['id','date','product','quantity','total','user'];
-                                            } else if (selectedQuery === 'movimientos_caja') {
-                                                cols = ['id', 'date', 'type', 'amount', 'payment_method', 'description', 'user'];
-                                            } else if (sample.customerName || sample.customer_name) {
-                                                cols = ['id','date','customerName','paymentMethod','status','products','units'];
-                                            } else if (selectedQuery === 'compras') {
-                                                cols = ['id', 'date', 'supplier', 'type', 'items', 'total'];
-                                            } else if (selectedQuery === 'proveedores') {
-                                                cols = ['id', 'name', 'cuit', 'phone', 'address', 'products'];
-                                            }
-
-                                            const numericCols = ['quantity', 'total', 'amount', 'units'];
-
-                                            return (
-                                                <>
-                                                    <thead className="bg-white sticky top-0 z-10 shadow-sm">
-                                                        <tr>
-                                                            {cols.map(key => (
-                                                                <th key={key} className={`px-2 sm:px-4 py-2 sm:py-3 text-[9px] sm:text-[10px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200 bg-slate-50 ${numericCols.includes(key) ? 'text-right' : ''}`}>
-                                                                    {headerTranslationMap[key] || key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}
-                                                                </th>
-                                                            ))}
-                                                        </tr>
-                                                    </thead>
-                                                    <tbody className="divide-y divide-slate-100">
-                                                        {queryResults.data.map((row, index) => (
-                                                            <tr key={index} className="hover:bg-blue-50/30 transition-colors">
-                                                                {cols.map((k, ci) => (
-                                                                    <td key={ci} className={`px-2 sm:px-4 py-1.5 sm:py-2 ${numericCols.includes(k) ? 'text-right font-mono' : 'text-slate-700'}`}>
-                                                                        {k === 'items' && selectedQuery === 'compras' 
-                                                                            ? (Array.isArray(row[k]) ? row[k].map(it => `${it.productName||it.name||''} (${it.quantity||0})`).join(', ') : String(row[k]))
-                                                                            : renderCellValue(row[k] ?? row[k === 'products' ? 'items' : k], k)
-                                                                        }
-                                                                    </td>
-                                                                ))}
-                                                            </tr>
-                                                        ))}
-                                                    </tbody>
-                                                </>
-                                            );
-                                        })()}
+                            );
+                        })}
+                    </div>
+                    <div className="results-table">
+                        {queryResults.data && queryResults.data.length > 0 ? (
+                            (() => {
+                                const renderCellValue = (value, key) => {
+                                    if (value === null || value === undefined) return '';
+                                    // Formatear columnas de fecha de forma consistente
+                                    if (key === 'date') {
+                                        try { return formatMovementDate(value); } catch (e) { /* fallback below */ }
+                                    }
+                                    if (Array.isArray(value)) {
+                                        if (value.length === 0) return '';
+                                        if (value.every(v => v === null || ['string','number','boolean'].includes(typeof v))) return value.filter(v => v !== null && v !== undefined).join(', ');
+                                        return value.map(item => {
+                                            if (item === null || item === undefined) return '';
+                                            if (typeof item === 'string' || typeof item === 'number') return String(item);
+                                            const name = item.productName || item.product_name || item.product || item.name || item.productName;
+                                            const qty = item.quantity ?? item.cantidad ?? item.qty ?? '';
+                                            const unit = item.unitPrice ?? item.unit_price ?? item.price ?? '';
+                                            const total = item.total ?? item.totalAmount ?? item.total_amount ?? '';
+                                            const parts = [];
+                                            if (name) parts.push(String(name));
+                                            if (qty !== '') parts.push(String(qty));
+                                            if (unit !== '') parts.push(`x ${safeToFixed(unit)}`);
+                                            if (total !== '') parts.push(`= ${safeToFixed(total)}`);
+                                            return parts.join(' ');
+                                        }).filter(Boolean).join('; ');
+                                    }
+                                    if (typeof value === 'object') {
+                                        const name = value.productName || value.product_name || value.name;
+                                        if (name) {
+                                            const qty = value.quantity ?? value.cantidad ?? value.qty ?? '';
+                                            const unit = value.unitPrice ?? value.unit_price ?? value.price ?? '';
+                                            const total = value.total ?? value.totalAmount ?? value.total_amount ?? '';
+                                            const parts = [String(name)];
+                                            if (qty !== '') parts.push(String(qty));
+                                            if (unit !== '') parts.push(`x ${safeToFixed(unit)}`);
+                                            if (total !== '') parts.push(`= ${safeToFixed(total)}`);
+                                            return parts.join(' ');
+                                        }
+                                        try { return JSON.stringify(value); } catch (e) { return String(value); }
+                                    }
+                                    return String(value);
+                                };
+                                const sample = queryResults.data[0] || {};
+                                if (sample.customerName || sample.customer_name) {
+                                    const cols = ['id','date','customerName','paymentMethod','status','products','units'];
+                                    return (
+                                        <table>
+                                            <thead><tr>{cols.map(key=> <th key={key}>{headerTranslationMap[key] || key}</th>)}</tr></thead>
+                                            <tbody>{queryResults.data.map((row, index) => (<tr key={index}>{cols.map((k, ci) => (<td key={ci}>{renderCellValue(row[k] ?? row[k === 'products' ? 'items' : k], k)}</td>))}</tr>))}</tbody>
+                                        </table>
+                                    );
+                                }
+                                if (selectedQuery === 'ventas' || (sample.product && sample.quantity !== undefined && sample.total !== undefined)) {
+                                    const cols = ['id','date','product','quantity','total','user'];
+                                    return (
+                                        <table>
+                                            <thead><tr>{cols.map(key=> <th key={key}>{headerTranslationMap[key] || key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}</th>)}</tr></thead>
+                                            <tbody>{queryResults.data.map((row, index) => (<tr key={index}>{cols.map((k, ci) => (<td key={ci}>{renderCellValue(row[k], k)}</td>))}</tr>))}</tbody>
+                                        </table>
+                                    );
+                                }
+                                if (selectedQuery === 'movimientos_caja') {
+                                    const cols = ['id', 'date', 'type', 'amount', 'payment_method', 'description', 'user'];
+                                    return (
+                                        <table>
+                                            <thead><tr>{cols.map(key=> <th key={key}>{headerTranslationMap[key] || key.replace(/_/g, ' ').replace(/^./, str => str.toUpperCase())}</th>)}</tr></thead>
+                                            <tbody>{queryResults.data.map((row, index) => (<tr key={index}>{cols.map((k, ci) => (<td key={ci}>{renderCellValue(row[k], k)}</td>))}</tr>))}</tbody>
+                                        </table>
+                                    );
+                                }
+                if (selectedQuery === 'compras') {
+                    const cols = ['id', 'date', 'supplier', 'type', 'items', 'total'];
+                    const renderCompraItems = (items) => {
+                        if (Array.isArray(items)) {
+                            return items.map(item => {
+                                if (typeof item === 'object' && item.productName) {
+                                    const productName = item.productName || item.product_name || item.name || '';
+                                    const quantity = item.quantity || 0;
+                                    
+                                    if (!productName) return '';
+                                    
+                                    // Buscar el producto en inventory para obtener su unidad
+                                    const foundProduct = inventory.find(p => 
+                                        p && p.name && p.name.toLowerCase() === productName.toLowerCase()
+                                    );
+                                    
+                                    if (foundProduct && quantity > 0) {
+                                        const unit = foundProduct.unit;
+                                        if (unit === 'g') {
+                                            return `${productName} ${quantity}Kg`;
+                                        } else if (unit === 'ml') {
+                                            return `${productName} ${quantity}L`;
+                                        } else {
+                                            return `${productName} ${quantity}U`;
+                                        }
+                                    } else if (quantity > 0) {
+                                        return `${productName} ${quantity}U`;
+                                    } else {
+                                        return productName;
+                                    }
+                                } else {
+                                    return String(item || '');
+                                }
+                            }).filter(Boolean).join(', ');
+                        }
+                        return String(items || '');
+                    };
+                    return (
+                        <table>
+                            <thead><tr>{cols.map(key=> <th key={key}>{headerTranslationMap[key] || key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}</th>)}</tr></thead>
+                            <tbody>{queryResults.data.map((row, index) => (<tr key={index}>{cols.map((k, ci) => (<td key={ci}>{k === 'items' ? renderCompraItems(row[k]) : renderCellValue(row[k], k)}</td>))}</tr>))}</tbody>
+                        </table>
+                    );
+                }                                const keys = Object.keys(sample);
+                                return (
+                                    <table>
+                                        <thead><tr>{keys.map(key=> <th key={key}>{headerTranslationMap[key] || key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}</th>)}</tr></thead>
+                                        <tbody>{queryResults.data.map((row, rIdx) => (<tr key={rIdx}>{keys.map((k, cIdx) => (<td key={cIdx}>{renderCellValue(row[k], k)}</td>))}</tr>))}</tbody>
                                     </table>
-                                </div>
-                            </>
+                                );
+                            })()
                         ) : (
-                            <div className="flex-1 flex flex-col items-center justify-center text-slate-400 p-4 sm:p-8">
-                                <AlertCircle size={28} className="sm:w-8 sm:h-8 text-orange-400 mb-3" />
-                                <h3 className="font-bold text-slate-600 text-sm sm:text-base">No se encontraron datos</h3>
-                                <p className="text-[10px] sm:text-xs mt-1 text-center">Intenta ajustando los filtros o el rango de fechas.</p>
-                            </div>
+                            <p>No hay datos que mostrar para los criterios seleccionados.</p>
                         )}
                     </div>
                 </div>
-            </div>
-        </>
+            )}
+        </div>
     );
 }

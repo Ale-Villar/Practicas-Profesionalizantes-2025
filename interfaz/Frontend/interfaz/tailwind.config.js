@@ -11,6 +11,7 @@ module.exports = {
       'md': '950px',     // 3 columnas
       'lg': '1240px',    // 4 columnas
       'xl': '1600px',    // 5 columnas
+      'wide': '1857px',  // Pantalla ampliada para diálogo de consultas
       '2xl': '1920px',   // 6 columnas
       'ultra': '2560px', // 7 columnas
     },

@@ -638,12 +638,7 @@ const DialogoCompras = ({
                                 ${userRole === 'Encargado' ? 'Solicitar Nueva Compra' : 'Registrar Nueva Compra'}
                             </span>
                         </div>
-                        <button 
-                            class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg font-semibold text-sm transition-colors"
-                            onclick="window.opener.postMessage({type:'CLOSE_DIALOG'}, '*'); window.close();"
-                        >
-                            Cerrar
-                        </button>
+                       
                     </div>
 
                     <!-- Content -->

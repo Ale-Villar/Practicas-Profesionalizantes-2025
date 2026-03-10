@@ -175,6 +175,7 @@ const getLossRecords = () => {
   return api.get('/loss-records/');
 };
 
+
 // === FUNCIONES OFFLINE ===
 
 export default api;
