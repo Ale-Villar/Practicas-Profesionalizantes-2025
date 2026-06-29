@@ -87,3 +87,27 @@ como arrancar el proyecto:
                         activar el entorno virtual usando "pipenv shell" (en la carpeta Backend)
                         activar el servidor de django con "python manage.py runserver" (en la carpeta Backend/Interfaz)
 2- Arrancar el frontend: ir a la carpeta Frontend/interfaz y ejecutar "npm start"(en la carpeta Frontend/interfaz)
+
+3- detener los procesos control c.
+
+
+Usuarios creados:
+
+1-Gerente: alex059villar@gmail.com
+Contraseña:Icop2025
+
+2-Cajera:
+    -usuario:sofi_mendoza
+    -nombre: Sofía Mendoza
+    -correo: smendoza@churreria-demo.com.ar
+    -contraseña: Pastelera_2026!
+3-Panadero:
+    -usuario: lucas_riq
+    -nombre: Lucas Riquelme
+    -correo: lriquelme@churreria-demo.com.ar
+    -contraseña: DjangoR3act_25
+4-Encargado:
+    -usuario: valen.sosa
+    -nombre: Valentina Sosa
+    -correo: valen.sosa@churreria-demo.com.ar
+    -contraseña: DulceDeLeche10!
