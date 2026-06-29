@@ -1372,6 +1372,15 @@ const App = () => {
         console.log('❌ Error cargando cambios de inventario:', error.message);
       }
     };
+    //función para calcular saldo de caja a partir de los movimientos de caja.
+    const calculateCashBalance = () => {
+    return cashMovements.reduce((balance, movement) => {
+        return movement.type === 'Entrada' 
+            ? balance + parseFloat(movement.amount) 
+            : balance - parseFloat(movement.amount);
+            }, 0);
+        };
+
 
     // Componente de la interfaz de inicio de sesión.
     const Login = () => {
@@ -2136,7 +2145,22 @@ const App = () => {
     };
 
     const SalesView = () => {
-        const [activeTab, setActiveTab] = useState('ventas'); // 'ventas' o 'caja'
+        const [activeTab, setActiveTab] = useState('ventas'); // 'ventas', 'historial' o 'caja'
+        const [selectedDateFilter, setSelectedDateFilter] = useState(new Date().toISOString().split('T')[0]);
+
+        // Filtrar ventas por fecha
+        const filteredSales = sales.filter(sale => {
+            if (!sale.created_at) return false;
+            const saleDate = sale.created_at.split('T')[0];
+            return saleDate === selectedDateFilter;
+        });
+
+        // Filtrar movimientos de caja por fecha
+        const filteredCashMovements = cashMovements.filter(movement => {
+            if (!movement.date) return false;
+            const movementDate = movement.date.split('T')[0];
+            return movementDate === selectedDateFilter;
+        });
 
         return (
             <div className="min-h-screen bg-gray-50">
@@ -2154,6 +2178,17 @@ const App = () => {
                                 style={activeTab === 'ventas' ? { backgroundColor: 'rgb(82, 150, 214)' } : {}}
                             >
                                 Registrar Venta
+                            </button>
+                            <button
+                                onClick={() => setActiveTab('historial')}
+                                className={`py-4 px-6 font-medium text-lg transition-all rounded-t-lg ${
+                                    activeTab === 'historial'
+                                        ? 'text-white'
+                                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                }`}
+                                style={activeTab === 'historial' ? { backgroundColor: 'rgb(82, 150, 214)' } : {}}
+                            >
+                                Historial de Ventas
                             </button>
                             <button
                                 onClick={() => setActiveTab('caja')}
@@ -2177,13 +2212,136 @@ const App = () => {
                             products={products}
                             loadProducts={loadProducts}
                             loadCashMovements={loadCashMovements}
+                            cashMovements={cashMovements}
+                            sales={sales}
+                            calculateCashBalance={calculateCashBalance}
                         />
+                    </div>
+
+                    <div style={{ display: activeTab === 'historial' ? 'block' : 'none' }}>
+                        <div className="bg-white rounded-lg shadow-md p-6">
+                            <h2 className="text-2xl font-bold mb-4">Historial de Ventas</h2>
+                            
+                            {/* Filtro de fecha */}
+                            <div className="mb-6 flex gap-4 items-center">
+                                <label className="font-semibold text-gray-700">Filtrar por fecha:</label>
+                                <input
+                                    type="date"
+                                    value={selectedDateFilter}
+                                    onChange={(e) => setSelectedDateFilter(e.target.value)}
+                                    className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                />
+                                <span className="text-gray-600 font-semibold">
+                                    {filteredSales.length} venta{filteredSales.length !== 1 ? 's' : ''} encontrada{filteredSales.length !== 1 ? 's' : ''}
+                                </span>
+                            </div>
+
+                            {/* Tabla de ventas */}
+                            {filteredSales.length > 0 ? (
+                                <div className="overflow-x-auto">
+                                    <table className="w-full border-collapse border border-gray-300">
+                                        <thead className="bg-gray-200">
+                                            <tr>
+                                                <th className="border border-gray-300 px-4 py-2 text-left">ID</th>
+                                                <th className="border border-gray-300 px-4 py-2 text-left">Fecha</th>
+                                                <th className="border border-gray-300 px-4 py-2 text-left">Productos</th>
+                                                <th className="border border-gray-300 px-4 py-2 text-right">Monto Total</th>
+                                                <th className="border border-gray-300 px-4 py-2 text-left">Método de Pago</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {filteredSales.map((sale) => (
+                                                <tr key={sale.id} className="hover:bg-gray-50">
+                                                    <td className="border border-gray-300 px-4 py-2">#{sale.id}</td>
+                                                    <td className="border border-gray-300 px-4 py-2">
+                                                        {sale.created_at ? new Date(sale.created_at).toLocaleString('es-AR') : 'N/A'}
+                                                    </td>
+                                                    <td className="border border-gray-300 px-4 py-2">
+                                                        {sale.items && Array.isArray(sale.items) 
+                                                            ? sale.items.map(item => `${item.product_name} x${item.quantity}`).join(', ')
+                                                            : 'N/A'}
+                                                    </td>
+                                                    <td className="border border-gray-300 px-4 py-2 text-right font-bold">
+                                                        ${parseFloat(sale.total_amount || 0).toFixed(2)}
+                                                    </td>
+                                                    <td className="border border-gray-300 px-4 py-2">
+                                                        {sale.payment_method || 'N/A'}
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            ) : (
+                                <div className="text-center py-8 text-gray-500">
+                                    <p className="text-lg">No hay ventas registradas para esta fecha</p>
+                                </div>
+                            )}
+                        </div>
                     </div>
                     
                     <div style={{ display: activeTab === 'caja' ? 'block' : 'none' }}>
-                        <Movimientos_De_Caja 
-                            cashMovements={cashMovements}
-                        />
+                        <div className="bg-white rounded-lg shadow-md p-6">
+                            <h2 className="text-2xl font-bold mb-4">Movimientos de Caja</h2>
+                            
+                            {/* Filtro de fecha */}
+                            <div className="mb-6 flex gap-4 items-center">
+                                <label className="font-semibold text-gray-700">Filtrar por fecha:</label>
+                                <input
+                                    type="date"
+                                    value={selectedDateFilter}
+                                    onChange={(e) => setSelectedDateFilter(e.target.value)}
+                                    className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                />
+                                <span className="text-gray-600 font-semibold">
+                                    {filteredCashMovements.length} movimiento{filteredCashMovements.length !== 1 ? 's' : ''}
+                                </span>
+                            </div>
+
+                            {/* Tabla de movimientos */}
+                            {filteredCashMovements.length > 0 ? (
+                                <div className="overflow-x-auto">
+                                    <table className="w-full border-collapse border border-gray-300">
+                                        <thead className="bg-gray-200">
+                                            <tr>
+                                                <th className="border border-gray-300 px-4 py-2 text-left">Fecha</th>
+                                                <th className="border border-gray-300 px-4 py-2 text-left">Tipo</th>
+                                                <th className="border border-gray-300 px-4 py-2 text-right">Monto</th>
+                                                <th className="border border-gray-300 px-4 py-2 text-left">Descripción</th>
+                                                <th className="border border-gray-300 px-4 py-2 text-left">Método de Pago</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {filteredCashMovements.map((movement) => (
+                                                <tr key={movement.id} className="hover:bg-gray-50">
+                                                    <td className="border border-gray-300 px-4 py-2">
+                                                        {movement.date ? new Date(movement.date).toLocaleString('es-AR') : 'N/A'}
+                                                    </td>
+                                                    <td className={`border border-gray-300 px-4 py-2 font-semibold ${
+                                                        movement.type === 'Entrada' ? 'text-green-600' : 'text-red-600'
+                                                    }`}>
+                                                        {movement.type}
+                                                    </td>
+                                                    <td className="border border-gray-300 px-4 py-2 text-right font-bold">
+                                                        ${parseFloat(movement.amount || 0).toFixed(2)}
+                                                    </td>
+                                                    <td className="border border-gray-300 px-4 py-2">
+                                                        {movement.description || 'N/A'}
+                                                    </td>
+                                                    <td className="border border-gray-300 px-4 py-2">
+                                                        {movement.payment_method || 'N/A'}
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            ) : (
+                                <div className="text-center py-8 text-gray-500">
+                                    <p className="text-lg">No hay movimientos para esta fecha</p>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </div>
             </div>

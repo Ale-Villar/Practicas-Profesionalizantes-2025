@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import api from '../services/api';
 
-const Registrar_Venta = ({ products, loadProducts, loadCashMovements }) => {
+const Registrar_Venta = ({ products, loadProducts, loadCashMovements, cashMovements, sales, calculateCashBalance }) => {
     const [cartItems, setCartItems] = useState([]);
     const [total, setTotal] = useState(0);
     const [searchTerm, setSearchTerm] = useState('');
@@ -18,11 +18,15 @@ const Registrar_Venta = ({ products, loadProducts, loadCashMovements }) => {
     const [stockValue, setStockValue] = useState('');
     const [priceComparator, setPriceComparator] = useState('');
     const [priceValue, setPriceValue] = useState('');
+    const [filterDate, setFilterDate] = useState('');
 
     // Estados para drag del modal
     const [isDragging, setIsDragging] = useState(false);
     const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
     const [modalPosition, setModalPosition] = useState({ x: window.innerWidth / 2 - 300, y: window.innerHeight / 2 - 300 });
+
+    // Estado para saldo de caja
+    const cashBalance = calculateCashBalance ? calculateCashBalance() : 0;
 
     // Detectar cambios en el tamaño de la ventana
     useEffect(() => {
@@ -208,7 +212,7 @@ const Registrar_Venta = ({ products, loadProducts, loadCashMovements }) => {
         }
 
         // Validar que todos los medios de pago tengan un monto
-        const invalidPayments = paymentMethods.filter(pm => !pm.amount || parseFloat(pm.amount) <= 0);
+       const invalidPayments = paymentMethods.filter(pm => !pm.amount || parseFloat(pm.amount) <= 0);
         if (invalidPayments.length > 0) {
             setMessage('Todos los medios de pago deben tener un monto válido.');
             setTimeout(() => setMessage(''), 3000);
@@ -230,37 +234,39 @@ const Registrar_Venta = ({ products, loadProducts, loadCashMovements }) => {
         }));
 
         try {
-            // Registrar venta
+            // 1. Registrar el pedido en la base de datos
             await api.post('/sales/', {
                 total_amount: total,
                 payment_method: paymentMethods.map(pm => pm.method).join(', '),
                 items: saleItems
             });
 
-            // Registrar cada movimiento de caja según el medio de pago
+            // 2. Registrar cada movimiento de caja según el medio de pago(Suma al saldo y aparece en el historial)
             for (const pm of paymentMethods) {
                 const itemsForThisMethod = cartItems.map(item => 
                     `${item.product.name} x${item.quantity}`
                 ).join(', ');
                 
                 await api.post('/cash-movements/', {
-                    type: 'Entrada',
+                    type: 'Entrada', // Registra el ingreso de dinero
                     amount: parseFloat(pm.amount),
-                    description: `Venta: ${itemsForThisMethod}`,
+                    description: `Pedido: ${itemsForThisMethod}`, // Etiqueta visible en el historial
                     payment_method: pm.method
                 });
             }
-
+            // 3. Sincronizar la interfaz recargando los datos al momento
             await loadProducts();
-            await loadCashMovements();
+            if (loadCashMovements) {
+                await loadCashMovements();
+            }
 
-            setMessage('✅ Venta registrada exitosamente');
+            setMessage('✅ Pedido registrado y caja actualizada exitosamente');
             setTimeout(() => {
                 clearCart();
             }, 2000);
         } catch (err) {
-            console.error('Error registrando venta:', err);
-            setMessage('❌ No se pudo registrar la venta en el servidor.');
+            console.error('Error registrando pedido:', err);
+            setMessage('❌ No se pudo registrar el pedido en el servidor.');
             setTimeout(() => setMessage(''), 3000);
         }
     };
@@ -273,6 +279,19 @@ const Registrar_Venta = ({ products, loadProducts, loadCashMovements }) => {
                     {message}
                 </div>
             )}
+
+    {/* === MODIFICACIÓN: Mostrar saldo actual de caja === */}
+    <div className="w-full max-w-[3000px] mx-auto px-2 mb-4">
+    <div className="bg-gradient-to-r from-blue-50 to-slate-50 border-2 border-blue-300 rounded-lg p-4 shadow-md">
+        <div className="flex items-center justify-between">
+            <div>
+                <p className="text-sm text-slate-600 font-medium">Saldo Actual de Caja</p>
+                <p className="text-3xl font-bold text-blue-600">${cashBalance.toFixed(2)}</p>
+            </div>
+            <div className="text-5xl opacity-30"></div>
+        </div>
+        </div>
+    </div>
 
             {/* Layout principal */}
             <div className="w-full max-w-[3000px] mx-auto px-2">
@@ -308,30 +327,15 @@ const Registrar_Venta = ({ products, loadProducts, loadCashMovements }) => {
                                 )}
                             </div>
 
-                            {/* Filtro de Precio */}
+                            {/* Filtro de Fecha (Calendario) */}
                             <div className="mb-4">
-                                <label className="block text-sm font-semibold text-gray-700 mb-2">Precio</label>
-                                <select
-                                    value={priceComparator}
-                                    onChange={(e) => setPriceComparator(e.target.value)}
-                                    className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent mb-2"
-                                >
-                                    <option value="">Sin filtro</option>
-                                    <option value="gt">Mayor que</option>
-                                    <option value="gte">Mayor o igual</option>
-                                    <option value="lt">Menor que</option>
-                                    <option value="lte">Menor o igual</option>
-                                    <option value="eq">Igual a</option>
-                                </select>
-                                {priceComparator && (
-                                    <input
-                                        type="number"
-                                        value={priceValue}
-                                        onChange={(e) => setPriceValue(e.target.value)}
-                                        placeholder="Monto"
-                                        className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                    />
-                                )}
+                                <label className="block text-sm font-semibold text-gray-700 mb-2">Fecha</label>
+                                <input
+                                    type="date"
+                                    value={filterDate}
+                                    onChange={(e) => setFilterDate(e.target.value)}
+                                    className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                />
                             </div>
 
                             {/* Botón limpiar filtros */}
@@ -347,6 +351,7 @@ const Registrar_Venta = ({ products, loadProducts, loadCashMovements }) => {
                                 Limpiar filtros
                             </button>
                         </div>
+
                     </div>
 
                     {/* Columna central: Buscador y Productos */}
@@ -734,6 +739,7 @@ const Registrar_Venta = ({ products, loadProducts, loadCashMovements }) => {
                     </div>
                 </div>
             </div>
+            
         </div>
     );
 };

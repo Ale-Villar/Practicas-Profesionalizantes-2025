@@ -5,8 +5,16 @@ name = "pypi"
 
 [packages]
 django = "*"
+django-cors-headers = "*"
+djangorestframework = "*"
+djangorestframework-simplejwt = "*"
+pillow = "*"
+psycopg2-binary = "*"
+pyjwt = "*"
+python-dotenv = "*"
+reportlab = "*"
 
 [dev-packages]
 
 [requires]
-python_version = "3.13"
+python_version = "3.12"

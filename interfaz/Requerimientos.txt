@@ -81,3 +81,9 @@ Comandos para instalacion
 
 Despues de haber ejecutado el segundo comando npx tailwind init -p se tienen que generar
 los archivos tailwind.config.js y postcss.config.js .
+
+como arrancar el proyecto:
+1- Arrancar el backend: contenedor de docker con el comando "docker start proyecto_practicas2025"
+                        activar el entorno virtual usando "pipenv shell" (en la carpeta Backend)
+                        activar el servidor de django con "python manage.py runserver" (en la carpeta Backend/Interfaz)
+2- Arrancar el frontend: ir a la carpeta Frontend/interfaz y ejecutar "npm start"(en la carpeta Frontend/interfaz)

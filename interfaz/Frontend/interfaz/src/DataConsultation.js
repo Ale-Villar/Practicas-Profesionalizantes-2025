@@ -31,6 +31,13 @@ export default function DataConsultation(props) {
 
     // Estado para UI de filtros avanzados
     const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+    
+    // === MODIFICACIÓN: Estados para filtros colapsables ===
+    const [showQueryDateSection, setShowQueryDateSection] = useState(true); // Sección de consulta y fechas rebatible
+    const [showStockStatusFilter, setShowStockStatusFilter] = useState(false); // Estado (checkboxes) collapsible
+    const [showCashStatusFilter, setShowCashStatusFilter] = useState(false); // Tipo y Método de Pago collapsible
+    const [showOrdersStatusFilter, setShowOrdersStatusFilter] = useState(false); // Estado (checkboxes) collapsible
+    const [showPaymentMethodFilter, setShowPaymentMethodFilter] = useState(false); // Método de Pago collapsible
 
     const [selectedQuery, setSelectedQuery] = useState('');
     const [startDate, setStartDate] = useState('');
@@ -1993,87 +2000,100 @@ export default function DataConsultation(props) {
                     {/* TARJETA DE CONTROLES */}
                     <div className="bg-white border border-slate-200 rounded-xl shadow-sm flex-shrink-0">
                         
-                        {/* Controles Básicos */}
-                        <div className="p-3 sm:p-4 lg:p-5 flex flex-col gap-3 sm:gap-4">
-                            
-                            {/* Selector de Consulta */}
-                            <div className="w-full">
-                                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Consulta *</label>
-                                <div className="relative">
-                                    <select 
-                                        value={selectedQuery} 
-                                        onChange={e => { setSelectedQuery(e.target.value); setShowAdvancedFilters(true); }} 
-                                        className="w-full appearance-none pl-9 pr-8 py-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500"
-                                    >
-                                        <option value="">-- Elige una consulta --</option>
-                                        <option value="stock">Estado de Stock</option>
-                                        <option value="proveedores">Información de Proveedores</option>
-                                        <option value="ventas">Reporte de Ventas</option>
-                                        <option value="compras">Reporte de Compras</option>
-                                        <option value="pedidos">Reporte de Pedidos</option>
-                                        <option value="movimientos_caja">Movimientos de Caja</option>
-                                    </select>
-                                    <FileText size={16} className="absolute left-3 top-3 text-blue-600 pointer-events-none" />
-                                    <ChevronDown size={14} className="absolute right-3 top-3 text-slate-400 pointer-events-none" />
-                                </div>
-                            </div>
+                        {/* === MODIFICACIÓN: Sección de Consulta y Fechas REBATIBLE - Ahora arriba === */}
+                        <div className="bg-gradient-to-r from-blue-50 to-blue-100 border-b border-blue-200 shadow-sm">
+                            <button
+                                onClick={() => setShowQueryDateSection(!showQueryDateSection)}
+                                className="w-full flex items-center justify-between px-4 py-3 bg-blue-500 hover:bg-blue-600 text-white font-bold text-sm transition-colors"
+                            >
+                                <span className="flex items-center gap-2">
+                                    <FileText size={16} />
+                                    Consulta y Rango de Fechas
+                                </span>
+                                {showQueryDateSection ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                            </button>
 
-                            {/* Fechas y Botones */}
-                            <div className="flex flex-col sm:flex-row gap-3">
-                                <div className="flex-1 grid grid-cols-2 gap-2 sm:gap-3">
-                                    <div>
-                                        <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Fecha Inicio</label>
+                            {showQueryDateSection && (
+                                <div className="p-4 space-y-4">
+                                    {/* Selector de Consulta */}
+                                    <div className="w-full">
+                                        <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Consulta *</label>
                                         <div className="relative">
-                                            <Calendar size={14} className="absolute left-2 sm:left-3 top-3 text-slate-400" />
-                                            <input 
-                                                type="date" 
-                                                value={startDate} 
-                                                onChange={e => setStartDate(e.target.value)} 
-                                                className="w-full pl-7 sm:pl-8 pr-2 sm:pr-3 py-2 bg-white border border-slate-300 rounded-lg text-sm text-slate-700 outline-none focus:ring-2 focus:ring-blue-500"
-                                            />
+                                            <select 
+                                                value={selectedQuery} 
+                                                onChange={e => { setSelectedQuery(e.target.value); setShowAdvancedFilters(true); }} 
+                                                className="w-full appearance-none pl-9 pr-8 py-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500"
+                                            >
+                                                <option value="">-- Elige una consulta --</option>
+                                                <option value="stock">Estado de Stock</option>
+                                                <option value="proveedores">Información de Proveedores</option>
+                                                <option value="ventas">Reporte de Ventas</option>
+                                                <option value="compras">Reporte de Compras</option>
+                                                <option value="pedidos">Reporte de Pedidos</option>
+                                                <option value="movimientos_caja">Movimientos de Caja</option>
+                                            </select>
+                                            <FileText size={16} className="absolute left-3 top-3 text-blue-600 pointer-events-none" />
+                                            <ChevronDown size={14} className="absolute right-3 top-3 text-slate-400 pointer-events-none" />
                                         </div>
                                     </div>
-                                    <div>
-                                        <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Fecha Fin</label>
-                                        <div className="relative">
-                                            <Calendar size={14} className="absolute left-2 sm:left-3 top-3 text-slate-400" />
-                                            <input 
-                                                type="date" 
-                                                value={endDate} 
-                                                onChange={e => setEndDate(e.target.value)} 
-                                                className="w-full pl-7 sm:pl-8 pr-2 sm:pr-3 py-2 bg-white border border-slate-300 rounded-lg text-sm text-slate-700 outline-none focus:ring-2 focus:ring-blue-500"
-                                            />
+
+                                    {/* === MODIFICACIÓN: Filtro de Fechas con Calendarios === */}
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                        <div>
+                                            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Fecha Inicio</label>
+                                            <div className="relative">
+                                                <Calendar size={14} className="absolute left-2 sm:left-3 top-3 text-slate-400" />
+                                                <input 
+                                                    type="date" 
+                                                    value={startDate} 
+                                                    onChange={e => setStartDate(e.target.value)} 
+                                                    className="w-full pl-7 sm:pl-8 pr-2 sm:pr-3 py-2 bg-white border border-slate-300 rounded-lg text-sm text-slate-700 outline-none focus:ring-2 focus:ring-blue-500"
+                                                />
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Fecha Fin</label>
+                                            <div className="relative">
+                                                <Calendar size={14} className="absolute left-2 sm:left-3 top-3 text-slate-400" />
+                                                <input 
+                                                    type="date" 
+                                                    value={endDate} 
+                                                    onChange={e => setEndDate(e.target.value)} 
+                                                    className="w-full pl-7 sm:pl-8 pr-2 sm:pr-3 py-2 bg-white border border-slate-300 rounded-lg text-sm text-slate-700 outline-none focus:ring-2 focus:ring-blue-500"
+                                                />
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
 
-                                <div className="flex gap-2 sm:self-end">
-                                    {selectedQuery && (
-                                        <button 
-                                            type="button" 
-                                            onClick={() => setShowAdvancedFilters(!showAdvancedFilters)} 
-                                            className="flex-1 sm:flex-none flex items-center justify-center gap-1 bg-slate-100 hover:bg-slate-200 text-slate-600 px-3 sm:px-4 py-2.5 rounded-lg text-xs font-bold transition-colors"
-                                        >
-                                            <SlidersHorizontal size={14} />
-                                            <span className="hidden xs:inline">Filtros</span>
-                                        </button>
-                                    )}
-                                    <button 
-                                        onClick={executeQuery} 
-                                        disabled={isLoading} 
-                                        className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 sm:px-6 py-2.5 rounded-lg font-bold text-sm shadow-md transition-all active:scale-95 disabled:opacity-70 min-h-[42px]"
-                                    >
-                                        {isLoading ? (
-                                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                                        ) : (
-                                            <>
-                                                <Search size={16} />
-                                                <span className="hidden xs:inline">Consultar</span>
-                                            </>
+                                    {/* === MODIFICACIÓN: Botones de Filtros y Consultar === */}
+                                    <div className="flex gap-2 sm:gap-3 pt-2">
+                                        {selectedQuery && (
+                                            <button 
+                                                type="button" 
+                                                onClick={() => setShowAdvancedFilters(!showAdvancedFilters)} 
+                                                className="flex-1 sm:flex-none flex items-center justify-center gap-1 bg-slate-100 hover:bg-slate-200 text-slate-600 px-3 sm:px-4 py-2.5 rounded-lg text-xs font-bold transition-colors"
+                                            >
+                                                <SlidersHorizontal size={14} />
+                                                <span className="hidden xs:inline">Filtros</span>
+                                            </button>
                                         )}
-                                    </button>
+                                        <button 
+                                            onClick={executeQuery} 
+                                            disabled={isLoading} 
+                                            className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 sm:px-6 py-2.5 rounded-lg font-bold text-sm shadow-md transition-all active:scale-95 disabled:opacity-70 min-h-[42px]"
+                                        >
+                                            {isLoading ? (
+                                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                                            ) : (
+                                                <>
+                                                    <Search size={16} />
+                                                    <span className="hidden xs:inline">Consultar</span>
+                                                </>
+                                            )}
+                                        </button>
+                                    </div>
                                 </div>
-                            </div>
+                            )}
                         </div>
 
                         {/* FILTROS AVANZADOS COLAPSABLES */}
@@ -2149,9 +2169,16 @@ export default function DataConsultation(props) {
                                                         <option value="Insumo">Insumo</option>
                                                     </select>
                                                 </div>
-                                                <div>
-                                                    <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">Estado</label>
-                                                    <div className="flex flex-wrap gap-2 sm:gap-3 text-xs">
+                                                {/* === MODIFICACIÓN: Filtro de Estado collapsible === */}
+                                                <button
+                                                    onClick={() => setShowStockStatusFilter(!showStockStatusFilter)}
+                                                    className="w-full flex items-center justify-between bg-gradient-to-r from-slate-50 to-slate-100 p-2 rounded border border-slate-200 hover:border-slate-300 transition-colors"
+                                                >
+                                                    <label className="text-[10px] font-bold text-slate-500 uppercase cursor-pointer">Estado</label>
+                                                    {showStockStatusFilter ? <ChevronUp size={14} className="text-slate-600" /> : <ChevronDown size={14} className="text-slate-600" />}
+                                                </button>
+                                                {showStockStatusFilter && (
+                                                    <div className="flex flex-wrap gap-2 sm:gap-3 text-xs pt-2">
                                                         {['Stock Alto', 'Stock Medio', 'Stock Bajo'].map(st => (
                                                             <label key={st} className="flex items-center gap-1 cursor-pointer">
                                                                 <input type="checkbox" checked={stockStatusFilter.includes(st)} onChange={e => { const chk = e.target.checked; setStockStatusFilter(p => chk ? [...p, st] : p.filter(x => x !== st)); }} />
@@ -2159,7 +2186,7 @@ export default function DataConsultation(props) {
                                                             </label>
                                                         ))}
                                                     </div>
-                                                </div>
+                                                )}
                                             </div>
                                         </>
                                     )}
@@ -2319,15 +2346,37 @@ export default function DataConsultation(props) {
                                             </div>
 
                                             <div className="bg-white p-3 rounded border border-slate-200 space-y-3 shadow-sm">
-                                                <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">Método de Pago</label>
-                                                <div className="grid grid-cols-2 gap-2 text-xs">
-                                                    {['debito', 'credito', 'transferencia', 'efectivo'].map(method => (
-                                                        <label key={method} className="flex items-center gap-1 cursor-pointer">
-                                                            <input type="checkbox" checked={cashPaymentMethodFilter.includes(method)} onChange={e => { const chk = e.target.checked; setCashPaymentMethodFilter(p => chk ? [...p, method] : p.filter(x => x !== method)); }} />
-                                                            <span className="text-[10px] sm:text-xs">{method.charAt(0).toUpperCase() + method.slice(1)}</span>
-                                                        </label>
-                                                    ))}
-                                                </div>
+                                                {/* === MODIFICACIÓN: Filtro de Tipo y Método de Pago collapsible === */}
+                                                <button
+                                                    onClick={() => setShowCashStatusFilter(!showCashStatusFilter)}
+                                                    className="w-full flex items-center justify-between bg-gradient-to-r from-slate-50 to-slate-100 p-2 rounded border border-slate-200 hover:border-slate-300 transition-colors"
+                                                >
+                                                    <label className="text-[10px] font-bold text-slate-500 uppercase cursor-pointer">Tipo y Método de Pago</label>
+                                                    {showCashStatusFilter ? <ChevronUp size={14} className="text-slate-600" /> : <ChevronDown size={14} className="text-slate-600" />}
+                                                </button>
+                                                {showCashStatusFilter && (
+                                                    <div className="space-y-3 pt-2">
+                                                        <div>
+                                                            <label className="text-[10px] font-bold text-slate-500 uppercase block mb-2">Tipo</label>
+                                                            <select value={cashTypeFilter} onChange={e => setCashTypeFilter(e.target.value)} className="w-full text-xs p-1.5 border rounded outline-none">
+                                                                <option value="">Todos</option>
+                                                                <option value="Entrada">Entrada</option>
+                                                                <option value="Salida">Salida</option>
+                                                            </select>
+                                                        </div>
+                                                        <div>
+                                                            <label className="text-[10px] font-bold text-slate-500 uppercase block mb-2">Método de Pago</label>
+                                                            <div className="grid grid-cols-2 gap-2 text-xs">
+                                                                {['debito', 'credito', 'transferencia', 'efectivo'].map(method => (
+                                                                    <label key={method} className="flex items-center gap-1 cursor-pointer">
+                                                                        <input type="checkbox" checked={cashPaymentMethodFilter.includes(method)} onChange={e => { const chk = e.target.checked; setCashPaymentMethodFilter(p => chk ? [...p, method] : p.filter(x => x !== method)); }} />
+                                                                        <span className="text-[10px] sm:text-xs">{method.charAt(0).toUpperCase() + method.slice(1)}</span>
+                                                                    </label>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                )}
                                             </div>
 
                                             <div className="bg-blue-50/50 p-3 rounded border border-blue-100 space-y-3 shadow-sm sm:col-span-2 lg:col-span-1">
@@ -2392,9 +2441,16 @@ export default function DataConsultation(props) {
                                             </div>
 
                                             <div className="bg-white p-3 rounded border border-slate-200 space-y-3 shadow-sm">
-                                                <div>
-                                                    <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">Estado</label>
-                                                    <div className="grid grid-cols-2 gap-1 sm:gap-2 text-xs">
+                                                {/* === MODIFICACIÓN: Filtro de Estado collapsible === */}
+                                                <button
+                                                    onClick={() => setShowOrdersStatusFilter(!showOrdersStatusFilter)}
+                                                    className="w-full flex items-center justify-between bg-gradient-to-r from-slate-50 to-slate-100 p-2 rounded border border-slate-200 hover:border-slate-300 transition-colors"
+                                                >
+                                                    <label className="text-[10px] font-bold text-slate-500 uppercase cursor-pointer">Estado</label>
+                                                    {showOrdersStatusFilter ? <ChevronUp size={14} className="text-slate-600" /> : <ChevronDown size={14} className="text-slate-600" />}
+                                                </button>
+                                                {showOrdersStatusFilter && (
+                                                    <div className="grid grid-cols-2 gap-1 sm:gap-2 text-xs pt-2">
                                                         {['Pendiente', 'En Preparación', 'Listo', 'Entregado', 'Cancelado'].map(st => (
                                                             <label key={st} className="flex items-center gap-1 cursor-pointer">
                                                                 <input type="checkbox" checked={ordersStatusFilter.includes(st)} onChange={e => { const chk = e.target.checked; setOrdersStatusFilter(p => chk ? [...p, st] : p.filter(x => x !== st)); }} />
@@ -2402,7 +2458,7 @@ export default function DataConsultation(props) {
                                                             </label>
                                                         ))}
                                                     </div>
-                                                </div>
+                                                )}
                                                 <div className="pt-2 border-t border-slate-100">
                                                     <label className="text-[10px] font-bold text-slate-500 uppercase">Unidades</label>
                                                     <div className="flex gap-1 mt-1">
@@ -2419,15 +2475,24 @@ export default function DataConsultation(props) {
                                             </div>
 
                                             <div className="bg-white p-3 rounded border border-slate-200 space-y-3 shadow-sm">
-                                                <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">Método de Pago</label>
-                                                <div className="grid grid-cols-2 gap-2 text-xs">
-                                                    {['efectivo', 'debito', 'credito', 'transferencia'].map(method => (
-                                                        <label key={method} className="flex items-center gap-1 cursor-pointer">
-                                                            <input type="checkbox" checked={ordersPaymentMethodFilter.includes(method)} onChange={e => { const chk = e.target.checked; setOrdersPaymentMethodFilter(p => chk ? [...p, method] : p.filter(x => x !== method)); }} />
-                                                            <span className="text-[10px] sm:text-xs">{method.charAt(0).toUpperCase() + method.slice(1)}</span>
-                                                        </label>
-                                                    ))}
-                                                </div>
+                                                {/* === MODIFICACIÓN: Filtro de Método de Pago collapsible === */}
+                                                <button
+                                                    onClick={() => setShowPaymentMethodFilter(!showPaymentMethodFilter)}
+                                                    className="w-full flex items-center justify-between bg-gradient-to-r from-slate-50 to-slate-100 p-2 rounded border border-slate-200 hover:border-slate-300 transition-colors"
+                                                >
+                                                    <label className="text-[10px] font-bold text-slate-500 uppercase cursor-pointer">Método de Pago</label>
+                                                    {showPaymentMethodFilter ? <ChevronUp size={14} className="text-slate-600" /> : <ChevronDown size={14} className="text-slate-600" />}
+                                                </button>
+                                                {showPaymentMethodFilter && (
+                                                    <div className="grid grid-cols-2 gap-2 text-xs pt-2">
+                                                        {['efectivo', 'debito', 'credito', 'transferencia'].map(method => (
+                                                            <label key={method} className="flex items-center gap-1 cursor-pointer">
+                                                                <input type="checkbox" checked={ordersPaymentMethodFilter.includes(method)} onChange={e => { const chk = e.target.checked; setOrdersPaymentMethodFilter(p => chk ? [...p, method] : p.filter(x => x !== method)); }} />
+                                                                <span className="text-[10px] sm:text-xs">{method.charAt(0).toUpperCase() + method.slice(1)}</span>
+                                                            </label>
+                                                        ))}
+                                                    </div>
+                                                )}
                                             </div>
 
                                             <div className="bg-blue-50/50 p-3 rounded border border-blue-100 space-y-3 shadow-sm sm:col-span-2 lg:col-span-1">
