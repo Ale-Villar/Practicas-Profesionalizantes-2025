@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 
 const PurchaseHistory = ({ purchases, onDeletePurchase, confirmDelete, onCancelDelete, userRole, inventory = [] }) => {
@@ -9,16 +8,11 @@ const PurchaseHistory = ({ purchases, onDeletePurchase, confirmDelete, onCancelD
     const [purchasesSupplierFilterOp, setPurchasesSupplierFilterOp] = useState('contains');
     const [purchasesTotalFilter, setPurchasesTotalFilter] = useState('');
     const [purchasesTotalFilterOp, setPurchasesTotalFilterOp] = useState('equals');
-    const [purchasesDateFromYear, setPurchasesDateFromYear] = useState('');
-    const [purchasesDateFromMonth, setPurchasesDateFromMonth] = useState('');
-    const [purchasesDateFromDay, setPurchasesDateFromDay] = useState('');
-    const [purchasesDateFromHour, setPurchasesDateFromHour] = useState('');
-    const [purchasesDateFromMinute, setPurchasesDateFromMinute] = useState('');
-    const [purchasesDateToYear, setPurchasesDateToYear] = useState('');
-    const [purchasesDateToMonth, setPurchasesDateToMonth] = useState('');
-    const [purchasesDateToDay, setPurchasesDateToDay] = useState('');
-    const [purchasesDateToHour, setPurchasesDateToHour] = useState('');
-    const [purchasesDateToMinute, setPurchasesDateToMinute] = useState('');
+    
+    // NUEVOS ESTADOS DE FECHA (Simplificados)
+    const [purchasesDateFrom, setPurchasesDateFrom] = useState('');
+    const [purchasesDateTo, setPurchasesDateTo] = useState('');
+
     const [purchasesTypeFilter, setPurchasesTypeFilter] = useState([]);
     const [purchasesProductFilter, setPurchasesProductFilter] = useState('');
     const [purchasesQuantityFilter, setPurchasesQuantityFilter] = useState('');
@@ -45,6 +39,7 @@ const PurchaseHistory = ({ purchases, onDeletePurchase, confirmDelete, onCancelD
     const formatDate = (dateString) => {
         if (!dateString) return 'N/A';
         const date = new Date(dateString);
+        if (isNaN(date.getTime())) return dateString;
         const year = date.getFullYear();
         const month = String(date.getMonth() + 1).padStart(2, '0');
         const day = String(date.getDate()).padStart(2, '0');
@@ -133,69 +128,22 @@ const PurchaseHistory = ({ purchases, onDeletePurchase, confirmDelete, onCancelD
     
     let filteredPurchases = normalizedPurchases;
 
-    // 1. Filtro de fechas granular
-    if (purchasesDateFromYear || purchasesDateFromMonth || purchasesDateFromDay || purchasesDateFromHour || purchasesDateFromMinute || purchasesDateToYear || purchasesDateToMonth || purchasesDateToDay || purchasesDateToHour || purchasesDateToMinute) {
+    // 1. FILTRO DE FECHAS SIMPLIFICADO (Calendario)
+    if (purchasesDateFrom || purchasesDateTo) {
         filteredPurchases = filteredPurchases.filter(purchase => {
             const purchaseDate = parseAnyDate(purchase.date);
             if (!purchaseDate) return false;
             
-            let matches = true;
+            // Formato YYYY-MM-DD para comparar strings
+            const y = purchaseDate.getFullYear();
+            const m = String(purchaseDate.getMonth() + 1).padStart(2, '0');
+            const d = String(purchaseDate.getDate()).padStart(2, '0');
+            const pDateStr = `${y}-${m}-${d}`;
             
-            // Filtros "desde" - usar >= para rangos, o === para valores exactos si no hay "hasta"
-            if (purchasesDateFromYear) {
-                if (purchasesDateToYear) {
-                    matches = matches && purchaseDate.getFullYear() >= parseInt(purchasesDateFromYear);
-                } else {
-                    matches = matches && purchaseDate.getFullYear() === parseInt(purchasesDateFromYear);
-                }
-            }
-            if (purchasesDateFromMonth) {
-                if (purchasesDateToMonth) {
-                    matches = matches && purchaseDate.getMonth() >= (parseInt(purchasesDateFromMonth) - 1);
-                } else {
-                    matches = matches && purchaseDate.getMonth() === (parseInt(purchasesDateFromMonth) - 1);
-                }
-            }
-            if (purchasesDateFromDay) {
-                if (purchasesDateToDay) {
-                    matches = matches && purchaseDate.getDate() >= parseInt(purchasesDateFromDay);
-                } else {
-                    matches = matches && purchaseDate.getDate() === parseInt(purchasesDateFromDay);
-                }
-            }
-            if (purchasesDateFromHour) {
-                if (purchasesDateToHour) {
-                    matches = matches && purchaseDate.getHours() >= parseInt(purchasesDateFromHour);
-                } else {
-                    matches = matches && purchaseDate.getHours() === parseInt(purchasesDateFromHour);
-                }
-            }
-            if (purchasesDateFromMinute) {
-                if (purchasesDateToMinute) {
-                    matches = matches && purchaseDate.getMinutes() >= parseInt(purchasesDateFromMinute);
-                } else {
-                    matches = matches && purchaseDate.getMinutes() === parseInt(purchasesDateFromMinute);
-                }
-            }
+            if (purchasesDateFrom && pDateStr < purchasesDateFrom) return false;
+            if (purchasesDateTo && pDateStr > purchasesDateTo) return false;
             
-            // Filtros "hasta" - siempre usar <=
-            if (purchasesDateToYear) {
-                matches = matches && purchaseDate.getFullYear() <= parseInt(purchasesDateToYear);
-            }
-            if (purchasesDateToMonth) {
-                matches = matches && purchaseDate.getMonth() <= (parseInt(purchasesDateToMonth) - 1);
-            }
-            if (purchasesDateToDay) {
-                matches = matches && purchaseDate.getDate() <= parseInt(purchasesDateToDay);
-            }
-            if (purchasesDateToHour) {
-                matches = matches && purchaseDate.getHours() <= parseInt(purchasesDateToHour);
-            }
-            if (purchasesDateToMinute) {
-                matches = matches && purchaseDate.getMinutes() <= parseInt(purchasesDateToMinute);
-            }
-            
-            return matches;
+            return true;
         });
     }
     
@@ -346,9 +294,9 @@ const PurchaseHistory = ({ purchases, onDeletePurchase, confirmDelete, onCancelD
                         >
                             <option value="equals">=</option>
                             <option value="lt">&lt;</option>
-                            <option value="lte">≤</option>
+                            <option value="lte">=</option>
                             <option value="gt">&gt;</option>
-                            <option value="gte">≥</option>
+                            <option value="gte">=</option>
                         </select>
                         <input 
                             type="number" 
@@ -389,9 +337,9 @@ const PurchaseHistory = ({ purchases, onDeletePurchase, confirmDelete, onCancelD
                         >
                             <option value="equals">=</option>
                             <option value="lt">&lt;</option>
-                            <option value="lte">≤</option>
+                            <option value="lte">=</option>
                             <option value="gt">&gt;</option>
-                            <option value="gte">≥</option>
+                            <option value="gte">=</option>
                         </select>
                         <input 
                             type="number" 
@@ -436,9 +384,9 @@ const PurchaseHistory = ({ purchases, onDeletePurchase, confirmDelete, onCancelD
                         >
                             <option value="equals">=</option>
                             <option value="greater">&gt;</option>
-                            <option value="greaterOrEqual">≥</option>
+                            <option value="greaterOrEqual">=</option>
                             <option value="less">&lt;</option>
-                            <option value="lessOrEqual">≤</option>
+                            <option value="lessOrEqual">=</option>
                         </select>
                         <input 
                             type="number" 
@@ -457,7 +405,7 @@ const PurchaseHistory = ({ purchases, onDeletePurchase, confirmDelete, onCancelD
                         </select>
                     </div>
 
-                    {/* Buscador de Producto/Insumo - responsive: móvil flexible, tablet adaptable, desktop min-378px */}
+                    {/* Buscador de Producto/Insumo */}
                     <div className="flex items-center gap-1 flex-1 w-full sm:w-auto sm:min-w-[180px] md:min-w-[250px] lg:min-w-[378px]">
                         <label className="text-[10px] sm:text-xs md:text-sm font-medium text-slate-600 whitespace-nowrap">Buscar Producto/Insumo</label>
                         <input 
@@ -470,146 +418,30 @@ const PurchaseHistory = ({ purchases, onDeletePurchase, confirmDelete, onCancelD
                     </div>
                 </div>
 
-                {/* Filtros de fecha granular */}
+                {/* FILTROS DE FECHA (Calendario Nativo) */}
                 <div className="border-t border-slate-200 pt-2 sm:pt-3 md:pt-4 overflow-hidden">
                     <p className="text-[10px] sm:text-xs md:text-sm text-slate-500 italic mb-1.5 sm:mb-2 md:mb-3">
-                        💡 <strong>Fechas:</strong> Cada campo es independiente.
+                        ?? <strong>Fechas:</strong> Selecciona el rango para filtrar el historial.
                     </p>
                     
-                    {/* Contenedor de Desde y Hasta */}
-                    <div className="flex flex-col md:flex-row gap-2 sm:gap-3 md:gap-4">
-                        {/* Fecha Desde */}
-                        <div className="flex-1 min-w-0">
-                            <span className="text-[10px] sm:text-xs md:text-sm font-semibold text-slate-600 mb-1 sm:mb-1.5 block">Desde:</span>
-                            <div className="flex flex-wrap items-center gap-1 sm:gap-1.5">
-                                <div className="flex items-center gap-0.5">
-                                    <label className="text-[8px] sm:text-[10px] md:text-xs font-medium text-slate-500">Año</label>
-                                    <input 
-                                        type="number" 
-                                        placeholder="24" 
-                                        min="2020" 
-                                        max="2030" 
-                                        value={purchasesDateFromYear} 
-                                        onChange={e => setPurchasesDateFromYear(e.target.value)}
-                                        className="w-12 sm:w-14 md:w-16 px-0.5 sm:px-1 py-0.5 text-[10px] sm:text-xs md:text-sm border border-slate-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                                    />
-                                </div>
-                                <div className="flex items-center gap-0.5">
-                                    <label className="text-[8px] sm:text-[10px] md:text-xs font-medium text-slate-500">M</label>
-                                    <input 
-                                        type="number" 
-                                        placeholder="1" 
-                                        min="1" 
-                                        max="12" 
-                                        value={purchasesDateFromMonth} 
-                                        onChange={e => setPurchasesDateFromMonth(e.target.value)}
-                                        className="w-10 sm:w-11 md:w-11 px-0.5 sm:px-1 py-0.5 text-[10px] sm:text-xs md:text-sm border border-slate-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                                    />
-                                </div>
-                                <div className="flex items-center gap-0.5">
-                                    <label className="text-[8px] sm:text-[10px] md:text-xs font-medium text-slate-500">D</label>
-                                    <input 
-                                        type="number" 
-                                        placeholder="1" 
-                                        min="1" 
-                                        max="31" 
-                                        value={purchasesDateFromDay} 
-                                        onChange={e => setPurchasesDateFromDay(e.target.value)}
-                                        className="w-10 sm:w-11 md:w-11 sm:px-1 py-0.5 text-[10px] sm:text-xs md:text-sm border border-slate-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                                    />
-                                </div>
-                                <div className="flex items-center gap-0.5">
-                                    <label className="text-[8px] sm:text-[10px] md:text-xs font-medium text-slate-500">H</label>
-                                    <input 
-                                        type="number" 
-                                        placeholder="0" 
-                                        min="0" 
-                                        max="23" 
-                                        value={purchasesDateFromHour} 
-                                        onChange={e => setPurchasesDateFromHour(e.target.value)}
-                                        className="w-10 sm:w-11 md:w-11 px-0.5 sm:px-1 py-0.5 text-[10px] sm:text-xs md:text-sm border border-slate-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                                    />
-                                </div>
-                                <div className="flex items-center gap-0.5">
-                                    <label className="text-[8px] sm:text-[10px] md:text-xs font-medium text-slate-500">m</label>
-                                    <input 
-                                        type="number" 
-                                        placeholder="0" 
-                                        min="0" 
-                                        max="59" 
-                                        value={purchasesDateFromMinute} 
-                                        onChange={e => setPurchasesDateFromMinute(e.target.value)}
-                                        className="w-10 sm:w-11 md:w-11 px-0.5 sm:px-1 py-0.5 text-[10px] sm:text-xs md:text-sm border border-slate-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                                    />
-                                </div>
-                            </div>
+                    <div className="flex flex-col sm:flex-row gap-4">
+                        <div className="flex-1">
+                            <label className="text-[10px] sm:text-xs md:text-sm font-semibold text-slate-600 mb-1 block uppercase">Desde:</label>
+                            <input 
+                                type="date" 
+                                value={purchasesDateFrom} 
+                                onChange={e => setPurchasesDateFrom(e.target.value)}
+                                className="w-full px-2 py-1.5 text-sm border border-slate-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                            />
                         </div>
-                        
-                        {/* Fecha Hasta */}
-                        <div className="flex-1 min-w-0">
-                            <span className="text-[10px] sm:text-xs md:text-sm font-semibold text-slate-600 mb-1 sm:mb-1.5 block">Hasta:</span>
-                            <div className="flex flex-wrap items-center gap-1 sm:gap-1.5">
-                                <div className="flex items-center gap-0.5">
-                                    <label className="text-[8px] sm:text-[10px] md:text-xs font-medium text-slate-500">Año</label>
-                                    <input 
-                                        type="number" 
-                                        placeholder="24" 
-                                        min="2020" 
-                                        max="2030" 
-                                        value={purchasesDateToYear} 
-                                        onChange={e => setPurchasesDateToYear(e.target.value)}
-                                        className="w-12 sm:w-14 md:w-16  px-0.5 sm:px-1 py-0.5 text-[10px] sm:text-xs md:text-sm border border-slate-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                                    />
-                                </div>
-                                <div className="flex items-center gap-0.5">
-                                    <label className="text-[8px] sm:text-[10px] md:text-xs font-medium text-slate-500">M</label>
-                                    <input 
-                                        type="number" 
-                                        placeholder="12" 
-                                        min="1" 
-                                        max="12" 
-                                        value={purchasesDateToMonth} 
-                                        onChange={e => setPurchasesDateToMonth(e.target.value)}
-                                        className="w-10 sm:w-11 md:w-11 px-0.5 sm:px-1 py-0.5 text-[10px] sm:text-xs md:text-sm border border-slate-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                                    />
-                                </div>
-                                <div className="flex items-center gap-0.5">
-                                    <label className="text-[8px] sm:text-[10px] md:text-xs font-medium text-slate-500">D</label>
-                                    <input 
-                                        type="number" 
-                                        placeholder="31" 
-                                        min="1" 
-                                        max="31" 
-                                        value={purchasesDateToDay} 
-                                        onChange={e => setPurchasesDateToDay(e.target.value)}
-                                        className="w-10 sm:w-11 md:w-11 px-0.5 sm:px-1 py-0.5 text-[10px] sm:text-xs md:text-sm border border-slate-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                                    />
-                                </div>
-                                <div className="flex items-center gap-0.5">
-                                    <label className="text-[8px] sm:text-[10px] md:text-xs font-medium text-slate-500">H</label>
-                                    <input 
-                                        type="number" 
-                                        placeholder="23" 
-                                        min="0" 
-                                        max="23" 
-                                        value={purchasesDateToHour} 
-                                        onChange={e => setPurchasesDateToHour(e.target.value)}
-                                        className="w-10 sm:w-11 md:w-11 px-0.5 sm:px-1 py-0.5 text-[10px] sm:text-xs md:text-sm border border-slate-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                                    />
-                                </div>
-                                <div className="flex items-center gap-0.5">
-                                    <label className="text-[8px] sm:text-[10px] md:text-xs font-medium text-slate-500">m</label>
-                                    <input 
-                                        type="number" 
-                                        placeholder="59" 
-                                        min="0" 
-                                        max="59" 
-                                        value={purchasesDateToMinute} 
-                                        onChange={e => setPurchasesDateToMinute(e.target.value)}
-                                        className="w-10 sm:w-11 md:w-11 px-0.5 sm:px-1 py-0.5 text-[10px] sm:text-xs md:text-sm border border-slate-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                                    />
-                                </div>
-                            </div>
+                        <div className="flex-1">
+                            <label className="text-[10px] sm:text-xs md:text-sm font-semibold text-slate-600 mb-1 block uppercase">Hasta:</label>
+                            <input 
+                                type="date" 
+                                value={purchasesDateTo} 
+                                onChange={e => setPurchasesDateTo(e.target.value)}
+                                className="w-full px-2 py-1.5 text-sm border border-slate-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                            />
                         </div>
                     </div>
                 </div>

@@ -8,16 +8,11 @@ const Movimientos_De_Caja = ({ cashMovements }) => {
     const [cashDescriptionFilter, setCashDescriptionFilter] = useState('');
     const [cashDescriptionFilterOp, setCashDescriptionFilterOp] = useState('contains');
     const [cashPaymentMethodFilter, setCashPaymentMethodFilter] = useState([]);
-    const [cashDateFromYear, setCashDateFromYear] = useState('');
-    const [cashDateFromMonth, setCashDateFromMonth] = useState('');
-    const [cashDateFromDay, setCashDateFromDay] = useState('');
-    const [cashDateFromHour, setCashDateFromHour] = useState('');
-    const [cashDateFromMinute, setCashDateFromMinute] = useState('');
-    const [cashDateToYear, setCashDateToYear] = useState('');
-    const [cashDateToMonth, setCashDateToMonth] = useState('');
-    const [cashDateToDay, setCashDateToDay] = useState('');
-    const [cashDateToHour, setCashDateToHour] = useState('');
-    const [cashDateToMinute, setCashDateToMinute] = useState('');
+    
+    // NUEVOS ESTADOS DE FECHA (Simplificados)
+    const [cashDateFrom, setCashDateFrom] = useState('');
+    const [cashDateTo, setCashDateTo] = useState('');
+
     const [showFilters, setShowFilters] = useState(false);
     
     // Estado para el diálogo de historial
@@ -92,120 +87,22 @@ const Movimientos_De_Caja = ({ cashMovements }) => {
             });
         }
 
-        if (cashDateFromYear || cashDateFromMonth || cashDateFromDay || cashDateFromHour || cashDateFromMinute || 
-            cashDateToYear || cashDateToMonth || cashDateToDay || cashDateToHour || cashDateToMinute) {
+        // LÓGICA DE FILTRADO DE FECHAS SIMPLIFICADA
+        if (cashDateFrom || cashDateTo) {
             filtered = filtered.filter(movement => {
                 const movementDate = parseAnyDate(movement.date);
                 if (!movementDate) return false;
-                const hasToFilters = cashDateToYear || cashDateToMonth || cashDateToDay || cashDateToHour || cashDateToMinute;
+
+                // Formateamos a YYYY-MM-DD para comparar strings fácilmente
+                const y = movementDate.getFullYear();
+                const m = String(movementDate.getMonth() + 1).padStart(2, '0');
+                const d = String(movementDate.getDate()).padStart(2, '0');
+                const mDateStr = `${y}-${m}-${d}`;
+
                 let matches = true;
+                if (cashDateFrom && mDateStr < cashDateFrom) matches = false;
+                if (cashDateTo && mDateStr > cashDateTo) matches = false;
 
-                if (cashDateFromYear && matches) {
-                    if (hasToFilters) {
-                        matches = movementDate.getFullYear() >= parseInt(cashDateFromYear);
-                    } else {
-                        matches = movementDate.getFullYear() === parseInt(cashDateFromYear);
-                    }
-                }
-
-                if (cashDateFromMonth && matches) {
-                    if (hasToFilters) {
-                        if (cashDateFromYear) {
-                            const yearMatches = movementDate.getFullYear() > parseInt(cashDateFromYear);
-                            const yearExact = movementDate.getFullYear() === parseInt(cashDateFromYear);
-                            matches = yearMatches || (yearExact && movementDate.getMonth() >= (parseInt(cashDateFromMonth) - 1));
-                        } else {
-                            matches = movementDate.getMonth() >= (parseInt(cashDateFromMonth) - 1);
-                        }
-                    } else {
-                        const yearMatches = !cashDateFromYear || movementDate.getFullYear() === parseInt(cashDateFromYear);
-                        matches = yearMatches && movementDate.getMonth() === (parseInt(cashDateFromMonth) - 1);
-                    }
-                }
-
-                if (cashDateFromDay && matches) {
-                    if (hasToFilters) {
-                        const yearMatch = !cashDateFromYear || movementDate.getFullYear() >= parseInt(cashDateFromYear);
-                        const monthMatch = !cashDateFromMonth || movementDate.getMonth() >= (parseInt(cashDateFromMonth) - 1);
-                        if (cashDateFromYear && cashDateFromMonth) {
-                            const exactYearMonth = movementDate.getFullYear() === parseInt(cashDateFromYear) && 
-                                                   movementDate.getMonth() === (parseInt(cashDateFromMonth) - 1);
-                            matches = (!exactYearMonth) || (exactYearMonth && movementDate.getDate() >= parseInt(cashDateFromDay));
-                        } else {
-                            matches = yearMatch && monthMatch && movementDate.getDate() >= parseInt(cashDateFromDay);
-                        }
-                    } else {
-                        const yearMatches = !cashDateFromYear || movementDate.getFullYear() === parseInt(cashDateFromYear);
-                        const monthMatches = !cashDateFromMonth || movementDate.getMonth() === (parseInt(cashDateFromMonth) - 1);
-                        matches = yearMatches && monthMatches && movementDate.getDate() === parseInt(cashDateFromDay);
-                    }
-                }
-
-                if (cashDateFromHour && matches) {
-                    const yearMatches = !cashDateFromYear || movementDate.getFullYear() === parseInt(cashDateFromYear);
-                    const monthMatches = !cashDateFromMonth || movementDate.getMonth() === (parseInt(cashDateFromMonth) - 1);
-                    const dayMatches = !cashDateFromDay || movementDate.getDate() === parseInt(cashDateFromDay);
-                    if (hasToFilters) {
-                        if (yearMatches && monthMatches && dayMatches) {
-                            matches = movementDate.getHours() >= parseInt(cashDateFromHour);
-                        }
-                    } else {
-                        matches = yearMatches && monthMatches && dayMatches && movementDate.getHours() === parseInt(cashDateFromHour);
-                    }
-                }
-
-                if (cashDateFromMinute && matches) {
-                    const yearMatches = !cashDateFromYear || movementDate.getFullYear() === parseInt(cashDateFromYear);
-                    const monthMatches = !cashDateFromMonth || movementDate.getMonth() === (parseInt(cashDateFromMonth) - 1);
-                    const dayMatches = !cashDateFromDay || movementDate.getDate() === parseInt(cashDateFromDay);
-                    const hourMatches = !cashDateFromHour || movementDate.getHours() === parseInt(cashDateFromHour);
-                    if (hasToFilters) {
-                        if (yearMatches && monthMatches && dayMatches && hourMatches) {
-                            matches = movementDate.getMinutes() >= parseInt(cashDateFromMinute);
-                        }
-                    } else {
-                        matches = yearMatches && monthMatches && dayMatches && hourMatches && movementDate.getMinutes() === parseInt(cashDateFromMinute);
-                    }
-                }
-
-                if (hasToFilters) {
-                    if (cashDateToYear && matches) {
-                        matches = movementDate.getFullYear() <= parseInt(cashDateToYear);
-                    }
-                    if (cashDateToMonth && matches) {
-                        if (cashDateToYear) {
-                            const yearMatches = movementDate.getFullYear() < parseInt(cashDateToYear);
-                            const yearExact = movementDate.getFullYear() === parseInt(cashDateToYear);
-                            matches = yearMatches || (yearExact && movementDate.getMonth() <= (parseInt(cashDateToMonth) - 1));
-                        } else {
-                            matches = movementDate.getMonth() <= (parseInt(cashDateToMonth) - 1);
-                        }
-                    }
-                    if (cashDateToDay && matches) {
-                        const exactYearMonth = (!cashDateToYear || movementDate.getFullYear() === parseInt(cashDateToYear)) && 
-                                               (!cashDateToMonth || movementDate.getMonth() === (parseInt(cashDateToMonth) - 1));
-                        if (exactYearMonth) {
-                            matches = movementDate.getDate() <= parseInt(cashDateToDay);
-                        }
-                    }
-                    if (cashDateToHour && matches) {
-                        const exactDate = (!cashDateToYear || movementDate.getFullYear() === parseInt(cashDateToYear)) &&
-                                          (!cashDateToMonth || movementDate.getMonth() === (parseInt(cashDateToMonth) - 1)) &&
-                                          (!cashDateToDay || movementDate.getDate() === parseInt(cashDateToDay));
-                        if (exactDate) {
-                            matches = movementDate.getHours() <= parseInt(cashDateToHour);
-                        }
-                    }
-                    if (cashDateToMinute && matches) {
-                        const exactDateTime = (!cashDateToYear || movementDate.getFullYear() === parseInt(cashDateToYear)) &&
-                                              (!cashDateToMonth || movementDate.getMonth() === (parseInt(cashDateToMonth) - 1)) &&
-                                              (!cashDateToDay || movementDate.getDate() === parseInt(cashDateToDay)) &&
-                                              (!cashDateToHour || movementDate.getHours() === parseInt(cashDateToHour));
-                        if (exactDateTime) {
-                            matches = movementDate.getMinutes() <= parseInt(cashDateToMinute);
-                        }
-                    }
-                }
                 return matches;
             });
         }
@@ -252,10 +149,8 @@ const Movimientos_De_Caja = ({ cashMovements }) => {
 
     // Función para abrir el diálogo en ventana nueva
     const openInNewWindow = () => {
-        // Pasar los movimientos completos sin filtrar
         const allMovements = JSON.stringify(cashMovements);
         
-        // Usar about:blank y configurar como ventana independiente
         const newWindow = window.open('about:blank', '_blank', 'width=1500,height=900,menubar=no,toolbar=no,location=no,status=no,resizable=yes,scrollbars=yes');
         if (newWindow) {
             newWindow.document.write(`
@@ -269,10 +164,6 @@ const Movimientos_De_Caja = ({ cashMovements }) => {
                         .line-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
                         .filters-row { display: flex; flex-wrap: wrap; gap: 24px; margin-bottom: 16px; }
                         .date-group { display: flex; align-items: center; gap: 8px; }
-                        .date-label { font-size: 0.95em; margin-right: 8px; min-width: 70px; }
-                        .date-input { width: 48px; padding: 2px 4px; font-size: 0.95em; border: 1px solid #ccc; border-radius: 4px; text-align: center; }
-                        .date-input.year { width: 60px; }
-                        .date-input:focus { outline: 2px solid #2563eb; border-color: #2563eb; }
                         /* Fila 2 normal - visible por defecto */
                         .description-row-normal { display: grid; }
                         .description-row-ultrawide { display: none; }
@@ -311,7 +202,7 @@ const Movimientos_De_Caja = ({ cashMovements }) => {
                         // Datos de movimientos
                         const allMovements = ${allMovements};
                         
-                        // Estado de filtros
+                        // Estado de filtros actualizados
                         let filters = {
                             sortOrder: 'desc',
                             amountFilter: '',
@@ -319,8 +210,8 @@ const Movimientos_De_Caja = ({ cashMovements }) => {
                             descriptionFilter: '',
                             descriptionFilterOp: 'contains',
                             paymentMethodFilter: [],
-                            dateFromYear: '', dateFromMonth: '', dateFromDay: '', dateFromHour: '', dateFromMinute: '',
-                            dateToYear: '', dateToMonth: '', dateToDay: '', dateToHour: '', dateToMinute: ''
+                            dateFrom: '',
+                            dateTo: ''
                         };
                         
                         function formatDate(dateStr) {
@@ -371,6 +262,24 @@ const Movimientos_De_Caja = ({ cashMovements }) => {
                                 });
                             }
                             
+                            // Filtro de Fechas (Simplificado)
+                            if (filters.dateFrom || filters.dateTo) {
+                                filtered = filtered.filter(m => {
+                                    if (!m.date) return false;
+                                    const mDateObj = new Date(m.date);
+                                    if (isNaN(mDateObj.getTime())) return false;
+                                    
+                                    const y = mDateObj.getFullYear();
+                                    const mo = String(mDateObj.getMonth() + 1).padStart(2, '0');
+                                    const d = String(mDateObj.getDate()).padStart(2, '0');
+                                    const mDateStr = \`\${y}-\${mo}-\${d}\`;
+
+                                    if (filters.dateFrom && mDateStr < filters.dateFrom) return false;
+                                    if (filters.dateTo && mDateStr > filters.dateTo) return false;
+                                    return true;
+                                });
+                            }
+                            
                             // Ordenar
                             filtered.sort((a, b) => {
                                 const dateA = new Date(a.date);
@@ -398,7 +307,6 @@ const Movimientos_De_Caja = ({ cashMovements }) => {
                                         <div class="font-medium text-gray-800 text-sm">
                                             <p class="line-clamp-2 mb-2">\${m.description}</p>
                                             \${m.payment_method ? \`<span class="block text-xs text-gray-600 mb-2 capitalize"> \${m.payment_method}</span>\` : ''}
-
                                         </div>
                                     </div>
                                 \`).join('');
@@ -461,7 +369,7 @@ const Movimientos_De_Caja = ({ cashMovements }) => {
                                 </div>
                             </div>
 
-                            <!-- Fila 2: Select Descripción + Input Descripción (visible en pantallas < 1950px) -->
+                            <!-- Fila 2: Select Descripción + Input Descripción -->
                             <div class="description-row-normal grid gap-3 mb-3" style="grid-template-columns: 180px 1fr;">
                                 <div>
                                     <label class="block text-xs font-semibold text-gray-700 mb-1">TIPO BÚSQUEDA</label>
@@ -476,7 +384,7 @@ const Movimientos_De_Caja = ({ cashMovements }) => {
                                 </div>
                             </div>
 
-                            <!-- Métodos de pago + Fechas en una sola fila -->
+                            <!-- Métodos de pago + Fechas -->
                             <div class="filters-row">
                                 <div class="flex flex-wrap items-center gap-3 mr-4" style="flex-shrink: 0;">
                                     <label class="block text-xs font-semibold text-gray-700 mr-2">MÉTODOS DE PAGO</label>
@@ -497,34 +405,29 @@ const Movimientos_De_Caja = ({ cashMovements }) => {
                                         <span class="text-sm capitalize">Transferencia</span>
                                     </label>
                                 </div>
+                                
+                                <!-- CALENDARIOS NATIVOS -->
                                 <div class="date-group mr-4" style="flex-shrink: 0;">
-                                    <span class="date-label">Fecha desde:</span>
-                                    <input class="date-input year" id="dateFromYear" maxlength="4" placeholder="Año" oninput="updateFilter('dateFromYear', this.value)" />
-                                    <input class="date-input" id="dateFromMonth" maxlength="2" placeholder="Mes" oninput="updateFilter('dateFromMonth', this.value)" />
-                                    <input class="date-input" id="dateFromDay" maxlength="2" placeholder="Día" oninput="updateFilter('dateFromDay', this.value)" />
-                                    <input class="date-input" id="dateFromHour" maxlength="2" placeholder="Hora" oninput="updateFilter('dateFromHour', this.value)" />
-                                    <input class="date-input" id="dateFromMinute" maxlength="2" placeholder="Min" oninput="updateFilter('dateFromMinute', this.value)" />
+                                    <span class="date-label font-semibold text-gray-700 text-xs uppercase">Desde:</span>
+                                    <input type="date" class="border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none" oninput="updateFilter('dateFrom', this.value)" />
                                 </div>
                                 <div class="date-group" style="flex-shrink: 0;">
-                                    <span class="date-label">Fecha hasta:</span>
-                                    <input class="date-input year" id="dateToYear" maxlength="4" placeholder="Año" oninput="updateFilter('dateToYear', this.value)" />
-                                    <input class="date-input" id="dateToMonth" maxlength="2" placeholder="Mes" oninput="updateFilter('dateToMonth', this.value)" />
-                                    <input class="date-input" id="dateToDay" maxlength="2" placeholder="Día" oninput="updateFilter('dateToDay', this.value)" />
-                                    <input class="date-input" id="dateToHour" maxlength="2" placeholder="Hora" oninput="updateFilter('dateToHour', this.value)" />
-                                    <input class="date-input" id="dateToMinute" maxlength="2" placeholder="Min" oninput="updateFilter('dateToMinute', this.value)" />
+                                    <span class="date-label font-semibold text-gray-700 text-xs uppercase">Hasta:</span>
+                                    <input type="date" class="border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none" oninput="updateFilter('dateTo', this.value)" />
                                 </div>
-                                <!-- Descripción inline para pantallas >= 1950px -->
+                                
+                                <!-- Descripción inline para pantallas ultrawide -->
                                 <div class="description-row-ultrawide" style="display: flex; flex: 1 1 auto; align-items: flex-end; gap: 12px; min-width: 540px;">
                                     <div style="flex-shrink: 0;">
                                         <label class="block text-xs font-semibold text-gray-700 mb-1">TIPO BÚSQUEDA</label>
-                                        <select id="descOpUltrawide" onchange="updateFilter('descriptionFilterOp', this.value)" class="px-2 py-1.5 border border-gray-300 rounded-lg text-sm" style="width: 120px;">
+                                        <select onchange="updateFilter('descriptionFilterOp', this.value)" class="px-2 py-1.5 border border-gray-300 rounded-lg text-sm" style="width: 120px;">
                                             <option value="contains">Contiene</option>
                                             <option value="equals">Es igual</option>
                                         </select>
                                     </div>
                                     <div style="flex: 1 1 420px; min-width: 420px;">
                                         <label class="block text-xs font-semibold text-gray-700 mb-1">BUSCAR DESCRIPCIÓN</label>
-                                        <input type="text" id="descInputUltrawide" oninput="updateFilter('descriptionFilter', this.value)" placeholder="Escribe para buscar..." class="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-sm">
+                                        <input type="text" oninput="updateFilter('descriptionFilter', this.value)" placeholder="Escribe para buscar..." class="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-sm">
                                     </div>
                                 </div>
                             </div>
@@ -533,13 +436,11 @@ const Movimientos_De_Caja = ({ cashMovements }) => {
                         <!-- Grid de movimientos -->
                         <div class="p-6">
                             <div id="movementsGrid" class="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-                                <!-- Se llena dinámicamente con JavaScript -->
-                                <!-- Las columnas se ajustan con media queries en el style -->
+                                <!-- Se llena dinámicamente -->
                             </div>
                         </div>
                     </div>
                     <script>
-                        // Renderizar inicial
                         renderMovements();
                     </script>
                 </body>
@@ -554,7 +455,7 @@ const Movimientos_De_Caja = ({ cashMovements }) => {
             <div className="grid grid-cols-1 lg:grid-cols-[420px_1fr] min-[1200px]:grid-cols-1 2xl:grid-cols-1 gap-4 px-2 2xl:px-[2vw] mx-auto">
                 {/* Columna lateral: Caja y Filtros */}
                 <aside className="space-y-4 min-[1200px]:hidden">
-                    {/* Saldo actual (visible siempre) */}
+                    {/* Saldo actual */}
                     <div className="bg-white rounded-lg shadow-md p-4">
                         <h3 className="text-2xl font-bold text-gray-700 mb-2">Caja</h3>
                         <div className="text-center">
@@ -567,12 +468,9 @@ const Movimientos_De_Caja = ({ cashMovements }) => {
 
                     {/* Filtros - Desktop (solo en pantallas <1200px) */}
                     <div className="bg-white rounded-lg shadow-md p-3 overflow-y-auto max-h-[calc(100vh-180px)] hidden lg:block min-[1200px]:hidden">
-                        <h3 className="text-md font-bold text-gray-700 mb-3">� Filtros</h3>
+                        <h3 className="text-md font-bold text-gray-700 mb-3">🔍 Filtros</h3>
                         
-
-                        {/* Fila 1: Orden + Select Descripción (desktop >=1240px) / Orden + Métodos de Pago (tablets 700px-1239px) */}
                         <div className="flex gap-2 mb-3 flex-col min-[1240px]:flex-row">
-                            {/* Orden */}
                             <div className="w-auto min-w-[140px] max-w-[160px]">
                                 <label className="block text-xs font-semibold text-gray-700 mb-1">ORDEN</label>
                                 <select
@@ -585,7 +483,6 @@ const Movimientos_De_Caja = ({ cashMovements }) => {
                                 </select>
                             </div>
 
-                            {/* Métodos de Pago: SOLO visible en tablets (700px-1239px) al lado de Orden */}
                             <div className="hidden min-[700px]:flex min-[1240px]:hidden flex-1 items-end">
                                 <div className="w-full">
                                     <label className="block text-xs font-semibold text-gray-700 mb-1">MÉTODOS DE PAGO</label>
@@ -611,7 +508,6 @@ const Movimientos_De_Caja = ({ cashMovements }) => {
                                 </div>
                             </div>
 
-                            {/* Select Descripción: SOLO visible en desktop >=1240px al lado de Orden */}
                             <div className="hidden min-[1240px]:flex flex-1">
                                 <div className="w-full">
                                     <label className="block text-xs font-semibold text-gray-700 mb-1">DESCRIPCIÓN</label>
@@ -627,7 +523,6 @@ const Movimientos_De_Caja = ({ cashMovements }) => {
                             </div>
                         </div>
 
-                        {/* Fila 2: Select Descripción (tablets <1240px) */}
                         <div className="mb-3 min-[1240px]:hidden">
                             <label className="block text-xs font-semibold text-gray-700 mb-1">DESCRIPCIÓN</label>
                             <select 
@@ -640,7 +535,6 @@ const Movimientos_De_Caja = ({ cashMovements }) => {
                             </select>
                         </div>
 
-                        {/* Fila 3: Input Descripción */}
                         <div className="mb-3">
                             <input 
                                 type="text" 
@@ -651,7 +545,6 @@ const Movimientos_De_Caja = ({ cashMovements }) => {
                             />
                         </div>
 
-                        {/* Fila 4: Métodos de Pago (desktop >=1240px) */}
                         <div className="mb-3 hidden min-[1240px]:block">
                             <label className="block text-xs font-semibold text-gray-700 mb-1">MÉTODOS DE PAGO</label>
                             <div className="flex flex-nowrap gap-2 overflow-x-auto">
@@ -675,7 +568,6 @@ const Movimientos_De_Caja = ({ cashMovements }) => {
                             </div>
                         </div>
 
-                        {/* Fila 5: Monto */}
                         <div className="mb-3">
                             <label className="block text-xs font-semibold text-gray-700 mb-1">MONTO</label>
                             <div className="flex gap-2">
@@ -700,108 +592,28 @@ const Movimientos_De_Caja = ({ cashMovements }) => {
                             </div>
                         </div>
 
-                        {/* Fila 6: Filtros de Fecha - Optimizados */}
-                        <div className="mb-2">
-                            <label className="block text-xs font-semibold text-gray-700 mb-1">FECHAS</label>
-                            
-                            {/* Desde */}
-                            <div className="flex items-center gap-1 mb-2">
-                                <span className="text-xs font-medium text-gray-600 min-w-[50px]">Desde:</span>
-                                <input 
-                                    type="number" 
-                                    value={cashDateFromYear} 
-                                    onChange={e => setCashDateFromYear(e.target.value)}
-                                    placeholder="Año"
-                                    min="2000"
-                                    max="2100"
-                                    className="w-16 min-w-[60px] px-1.5 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 text-xs"
-                                />
-                                <input 
-                                    type="number" 
-                                    value={cashDateFromMonth} 
-                                    onChange={e => setCashDateFromMonth(e.target.value)}
-                                    placeholder="Mes"
-                                    min="1"
-                                    max="12"
-                                    className="w-12 min-w-[45px] px-1.5 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 text-xs"
-                                />
-                                <input 
-                                    type="number" 
-                                    value={cashDateFromDay} 
-                                    onChange={e => setCashDateFromDay(e.target.value)}
-                                    placeholder="Día"
-                                    min="1"
-                                    max="31"
-                                    className="w-12 min-w-[45px] px-1.5 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 text-xs"
-                                />
-                                <input 
-                                    type="number" 
-                                    value={cashDateFromHour} 
-                                    onChange={e => setCashDateFromHour(e.target.value)}
-                                    placeholder="Hora"
-                                    min="0"
-                                    max="23"
-                                    className="w-12 min-w-[45px] px-1.5 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 text-xs"
-                                />
-                                <input 
-                                    type="number" 
-                                    value={cashDateFromMinute} 
-                                    onChange={e => setCashDateFromMinute(e.target.value)}
-                                    placeholder="Min"
-                                    min="0"
-                                    max="59"
-                                    className="w-12 min-w-[45px] px-1.5 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 text-xs"
-                                />
-                            </div>
-
-                            {/* Hasta */}
-                            <div className="flex items-center gap-1">
-                                <span className="text-xs font-medium text-gray-600 min-w-[50px]">Hasta:</span>
-                                <input 
-                                    type="number" 
-                                    value={cashDateToYear} 
-                                    onChange={e => setCashDateToYear(e.target.value)}
-                                    placeholder="Año"
-                                    min="2000"
-                                    max="2100"
-                                    className="w-16 min-w-[60px] px-1.5 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 text-xs"
-                                />
-                                <input 
-                                    type="number" 
-                                    value={cashDateToMonth} 
-                                    onChange={e => setCashDateToMonth(e.target.value)}
-                                    placeholder="Mes"
-                                    min="1"
-                                    max="12"
-                                    className="w-12 min-w-[45px] px-1.5 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 text-xs"
-                                />
-                                <input 
-                                    type="number" 
-                                    value={cashDateToDay} 
-                                    onChange={e => setCashDateToDay(e.target.value)}
-                                    placeholder="Día"
-                                    min="1"
-                                    max="31"
-                                    className="w-12 min-w-[45px] px-1.5 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 text-xs"
-                                />
-                                <input 
-                                    type="number" 
-                                    value={cashDateToHour} 
-                                    onChange={e => setCashDateToHour(e.target.value)}
-                                    placeholder="Hora"
-                                    min="0"
-                                    max="23"
-                                    className="w-12 min-w-[45px] px-1.5 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 text-xs"
-                                />
-                                <input 
-                                    type="number" 
-                                    value={cashDateToMinute} 
-                                    onChange={e => setCashDateToMinute(e.target.value)}
-                                    placeholder="Min"
-                                    min="0"
-                                    max="59"
-                                    className="w-12 min-w-[45px] px-1.5 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 text-xs"
-                                />
+                        {/* CALENDARIOS NATIVOS (Desktop Sidebar) */}
+                        <div className="mb-4 bg-gray-50 p-2 rounded-lg border border-gray-200">
+                            <label className="block text-xs font-bold text-gray-700 mb-2 uppercase tracking-wide">Filtrar por Fechas</label>
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="block text-[10px] text-gray-500 mb-1 uppercase">Desde</label>
+                                    <input 
+                                        type="date" 
+                                        value={cashDateFrom} 
+                                        onChange={e => setCashDateFrom(e.target.value)}
+                                        className="w-full px-2 py-1.5 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 text-sm"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] text-gray-500 mb-1 uppercase">Hasta</label>
+                                    <input 
+                                        type="date" 
+                                        value={cashDateTo} 
+                                        onChange={e => setCashDateTo(e.target.value)}
+                                        className="w-full px-2 py-1.5 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 text-sm"
+                                    />
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -819,9 +631,7 @@ const Movimientos_De_Caja = ({ cashMovements }) => {
                             <div className="bg-white rounded-lg shadow-md p-3 mt-2 overflow-y-auto max-h-[calc(100vh-200px)]">
                                 <h3 className="text-md font-bold text-gray-700 mb-3">🔍 Filtros</h3>
                                 
-                                {/* Fila 1: Orden + Métodos de Pago (tablets 700px-1239px) + Select Descripción (desktop >=1240px) */}
                                 <div className="flex flex-col min-[700px]:flex-row min-[1240px]:flex-col gap-2 mb-3">
-                                    {/* Orden */}
                                     <div className="w-full min-[700px]:w-auto min-[700px]:min-w-[140px] min-[700px]:max-w-[160px]">
                                         <label className="block text-xs font-semibold text-gray-700 mb-1">ORDEN</label>
                                         <select
@@ -834,7 +644,6 @@ const Movimientos_De_Caja = ({ cashMovements }) => {
                                         </select>
                                     </div>
 
-                                    {/* Métodos de Pago: mostrarse junto a Orden en tablets (700px-1239px) */}
                                     <div className="hidden min-[700px]:flex min-[1240px]:hidden items-end min-[700px]:flex-1">
                                         <div className="w-full">
                                             <label className="block text-xs font-semibold text-gray-700 mb-1">MÉTODOS DE PAGO</label>
@@ -860,7 +669,6 @@ const Movimientos_De_Caja = ({ cashMovements }) => {
                                         </div>
                                     </div>
 
-                                    {/* Select Descripción (desktop >=1240px al lado de Orden) */}
                                     <div className="hidden min-[1240px]:flex flex-1">
                                         <div className="w-full">
                                             <label className="block text-xs font-semibold text-gray-700 mb-1">DESCRIPCIÓN</label>
@@ -876,7 +684,6 @@ const Movimientos_De_Caja = ({ cashMovements }) => {
                                     </div>
                                 </div>
 
-                                {/* Fila 2: Select Descripción (tablets y mobile <1240px, debajo de Orden+Métodos) */}
                                 <div className="mb-3 min-[1240px]:hidden">
                                     <label className="block text-xs font-semibold text-gray-700 mb-1">DESCRIPCIÓN</label>
                                     <select 
@@ -889,7 +696,6 @@ const Movimientos_De_Caja = ({ cashMovements }) => {
                                     </select>
                                 </div>
 
-                                {/* Fila 3: Input Descripción */}
                                 <div className="mb-3">
                                     <input 
                                         type="text" 
@@ -900,7 +706,6 @@ const Movimientos_De_Caja = ({ cashMovements }) => {
                                     />
                                 </div>
 
-                                {/* Fila 4: Métodos de Pago (mobile <700px y desktop >=1240px) */}
                                 <div className="mb-3 min-[700px]:hidden min-[1240px]:block">
                                     <label className="block text-xs font-semibold text-gray-700 mb-1">MÉTODOS DE PAGO</label>
                                     <div className="flex flex-nowrap gap-2 overflow-x-auto">
@@ -924,7 +729,6 @@ const Movimientos_De_Caja = ({ cashMovements }) => {
                                     </div>
                                 </div>
 
-                                {/* Fila 5: Monto */}
                                 <div className="mb-3">
                                     <label className="block text-xs font-semibold text-gray-700 mb-1">MONTO</label>
                                     <div className="flex flex-col min-[420px]:flex-row gap-2">
@@ -949,112 +753,26 @@ const Movimientos_De_Caja = ({ cashMovements }) => {
                                     </div>
                                 </div>
 
-                                {/* Filtros de Fecha - Desde y Hasta */}
-                                <div className="grid grid-cols-2 gap-3 mb-4">
-                                    {/* Fecha Desde */}
-                                    <div>
-                                        <label className="block text-sm font-semibold text-gray-700 mb-2">DESDE</label>
-                                        <div className="grid grid-cols-3 gap-2 mb-2">
+                                {/* CALENDARIOS NATIVOS (Mobile Accordion) */}
+                                <div className="mb-4 bg-gray-50 p-2 rounded-lg border border-gray-200">
+                                    <label className="block text-xs font-bold text-gray-700 mb-2 uppercase tracking-wide">Filtrar por Fechas</label>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <label className="block text-[10px] text-gray-500 mb-1 uppercase">Desde</label>
                                             <input 
-                                                type="number" 
-                                                value={cashDateFromYear} 
-                                                onChange={e => setCashDateFromYear(e.target.value)}
-                                                placeholder="Año"
-                                                min="2000"
-                                                max="2100"
-                                                className="px-2 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
-                                            />
-                                            <input 
-                                                type="number" 
-                                                value={cashDateFromMonth} 
-                                                onChange={e => setCashDateFromMonth(e.target.value)}
-                                                placeholder="Mes"
-                                                min="1"
-                                                max="12"
-                                                className="px-2 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
-                                            />
-                                            <input 
-                                                type="number" 
-                                                value={cashDateFromDay} 
-                                                onChange={e => setCashDateFromDay(e.target.value)}
-                                                placeholder="Día"
-                                                min="1"
-                                                max="31"
-                                                className="px-2 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                                                type="date" 
+                                                value={cashDateFrom} 
+                                                onChange={e => setCashDateFrom(e.target.value)}
+                                                className="w-full px-2 py-1.5 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 text-sm"
                                             />
                                         </div>
-                                        <div className="grid grid-cols-2 gap-2">
+                                        <div>
+                                            <label className="block text-[10px] text-gray-500 mb-1 uppercase">Hasta</label>
                                             <input 
-                                                type="number" 
-                                                value={cashDateFromHour} 
-                                                onChange={e => setCashDateFromHour(e.target.value)}
-                                                placeholder="Hora"
-                                                min="0"
-                                                max="23"
-                                                className="px-2 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
-                                            />
-                                            <input 
-                                                type="number" 
-                                                value={cashDateFromMinute} 
-                                                onChange={e => setCashDateFromMinute(e.target.value)}
-                                                placeholder="Min"
-                                                min="0"
-                                                max="59"
-                                                className="px-2 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
-                                            />
-                                        </div>
-                                    </div>
-
-                                    {/* Fecha Hasta */}
-                                    <div>
-                                        <label className="block text-sm font-semibold text-gray-700 mb-2">HASTA</label>
-                                        <div className="grid grid-cols-3 gap-2 mb-2">
-                                            <input 
-                                                type="number" 
-                                                value={cashDateToYear} 
-                                                onChange={e => setCashDateToYear(e.target.value)}
-                                                placeholder="Año"
-                                                min="2000"
-                                                max="2100"
-                                                className="px-2 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
-                                            />
-                                            <input 
-                                                type="number" 
-                                                value={cashDateToMonth} 
-                                                onChange={e => setCashDateToMonth(e.target.value)}
-                                                placeholder="Mes"
-                                                min="1"
-                                                max="12"
-                                                className="px-2 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
-                                            />
-                                            <input 
-                                                type="number" 
-                                                value={cashDateToDay} 
-                                                onChange={e => setCashDateToDay(e.target.value)}
-                                                placeholder="Día"
-                                                min="1"
-                                                max="31"
-                                                className="px-2 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
-                                            />
-                                        </div>
-                                        <div className="grid grid-cols-2 gap-2">
-                                            <input 
-                                                type="number" 
-                                                value={cashDateToHour} 
-                                                onChange={e => setCashDateToHour(e.target.value)}
-                                                placeholder="Hora"
-                                                min="0"
-                                                max="23"
-                                                className="px-2 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
-                                            />
-                                            <input 
-                                                type="number" 
-                                                value={cashDateToMinute} 
-                                                onChange={e => setCashDateToMinute(e.target.value)}
-                                                placeholder="Min"
-                                                min="0"
-                                                max="59"
-                                                className="px-2 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                                                type="date" 
+                                                value={cashDateTo} 
+                                                onChange={e => setCashDateTo(e.target.value)}
+                                                className="w-full px-2 py-1.5 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 text-sm"
                                             />
                                         </div>
                                     </div>
@@ -1064,11 +782,9 @@ const Movimientos_De_Caja = ({ cashMovements }) => {
                     </div>
                 </aside>
 
-                {/* Columna principal: Lista de movimientos (solo visible en <1200px) / Botón en ≥1200px */}
+                {/* Columna principal: Lista de movimientos (solo visible en <1200px) / Botón en >=1200px */}
                 <main>
-                    {/* En pantallas ≥1200px: Saldo actual + Botón */}
                     <div className="hidden min-[1200px]:flex flex-col gap-4 max-w-md mx-auto">
-                        {/* Saldo actual */}
                         <div className="bg-white rounded-lg shadow-md p-4">
                             <h3 className="text-2xl font-bold text-gray-700 mb-2">Caja</h3>
                             <div className="text-center">
@@ -1079,7 +795,6 @@ const Movimientos_De_Caja = ({ cashMovements }) => {
                             </div>
                         </div>
                         
-                        {/* Botón para abrir historial */}
                         <div className="bg-white rounded-lg shadow-md p-4 flex justify-center items-center">
                             <button
                                 className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-semibold text-lg transition-colors"
@@ -1091,7 +806,6 @@ const Movimientos_De_Caja = ({ cashMovements }) => {
                     </div>
 
                     <div className="bg-white rounded-lg shadow-md p-4 min-[1200px]:hidden">
-                        {/* En pantallas <1200px: mostrar historial completo */}
                         <div className="min-[1200px]:hidden">
                             <div className="flex justify-between items-center mb-4">
                                 <h3 className="text-xl font-bold text-gray-700">Historial de Movimientos de Caja</h3>
@@ -1135,7 +849,7 @@ const Movimientos_De_Caja = ({ cashMovements }) => {
                 </main>
             </div>
 
-            {/* Diálogo pop-up para historial completo (solo ≥1200px) */}
+            {/* Diálogo pop-up para historial completo (solo >=1200px) */}
             {showHistoryDialog && (
                 <>
                     <div 
@@ -1152,7 +866,6 @@ const Movimientos_De_Caja = ({ cashMovements }) => {
                             maxHeight: isMinimized ? 'auto' : '90vh'
                         }}
                     >
-                        {/* Barra de título draggable */}
                         <div 
                             className={`bg-blue-600 text-white px-4 py-3 cursor-move flex justify-between items-center select-none ${isMinimized ? 'min-h-[48px] px-2' : ''}`}
                             onMouseDown={(e) => {
@@ -1216,14 +929,11 @@ const Movimientos_De_Caja = ({ cashMovements }) => {
                             </div>
                         </div>
 
-                        {/* Contenido del diálogo */}
                         {!isMinimized && (
                             <>
-                                {/* Filtros dentro del diálogo */}
                                 <div className="border-b border-gray-200 bg-gray-50 p-3 overflow-y-auto max-h-[300px]">
                                     <h4 className="text-sm font-bold text-gray-700 mb-3">🔍 Filtros</h4>
                                     
-                                    {/* Orden y Descripción */}
                                     <div className="grid grid-cols-2 gap-3 mb-3">
                                         <div>
                                             <label className="block text-xs font-semibold text-gray-700 mb-1">ORDEN</label>
@@ -1249,7 +959,6 @@ const Movimientos_De_Caja = ({ cashMovements }) => {
                                         </div>
                                     </div>
 
-                                    {/* Input Descripción */}
                                     <div className="mb-3">
                                         <label className="block text-xs font-semibold text-gray-700 mb-1">BUSCAR DESCRIPCIÓN</label>
                                         <input
@@ -1261,7 +970,6 @@ const Movimientos_De_Caja = ({ cashMovements }) => {
                                         />
                                     </div>
 
-                                    {/* Monto */}
                                     <div className="grid grid-cols-2 gap-3 mb-3">
                                         <div>
                                             <label className="block text-xs font-semibold text-gray-700 mb-1">OPERACIÓN MONTO</label>
@@ -1289,7 +997,6 @@ const Movimientos_De_Caja = ({ cashMovements }) => {
                                         </div>
                                     </div>
 
-                                    {/* Métodos de pago */}
                                     <div className="mb-3">
                                         <label className="block text-xs font-semibold text-gray-700 mb-1">MÉTODOS DE PAGO</label>
                                         <div className="flex flex-wrap gap-3">
@@ -1313,42 +1020,32 @@ const Movimientos_De_Caja = ({ cashMovements }) => {
                                         </div>
                                     </div>
 
-                                    {/* Fechas FROM */}
-                                    <div className="mb-3">
-                                        <label className="block text-xs font-semibold text-gray-700 mb-1">FECHA DESDE</label>
-                                        <div className="grid grid-cols-5 gap-2">
-                                            <input type="number" placeholder="Año" value={cashDateFromYear} onChange={e => setCashDateFromYear(e.target.value)} 
-                                                className="px-2 py-1.5 border border-gray-300 rounded-lg text-sm" />
-                                            <input type="number" placeholder="Mes" value={cashDateFromMonth} onChange={e => setCashDateFromMonth(e.target.value)} 
-                                                className="px-2 py-1.5 border border-gray-300 rounded-lg text-sm" />
-                                            <input type="number" placeholder="Día" value={cashDateFromDay} onChange={e => setCashDateFromDay(e.target.value)} 
-                                                className="px-2 py-1.5 border border-gray-300 rounded-lg text-sm" />
-                                            <input type="number" placeholder="Hora" value={cashDateFromHour} onChange={e => setCashDateFromHour(e.target.value)} 
-                                                className="px-2 py-1.5 border border-gray-300 rounded-lg text-sm" />
-                                            <input type="number" placeholder="Min" value={cashDateFromMinute} onChange={e => setCashDateFromMinute(e.target.value)} 
-                                                className="px-2 py-1.5 border border-gray-300 rounded-lg text-sm" />
-                                        </div>
-                                    </div>
-
-                                    {/* Fechas TO */}
-                                    <div>
-                                        <label className="block text-xs font-semibold text-gray-700 mb-1">FECHA HASTA</label>
-                                        <div className="grid grid-cols-5 gap-2">
-                                            <input type="number" placeholder="Año" value={cashDateToYear} onChange={e => setCashDateToYear(e.target.value)} 
-                                                className="px-2 py-1.5 border border-gray-300 rounded-lg text-sm" />
-                                            <input type="number" placeholder="Mes" value={cashDateToMonth} onChange={e => setCashDateToMonth(e.target.value)} 
-                                                className="px-2 py-1.5 border border-gray-300 rounded-lg text-sm" />
-                                            <input type="number" placeholder="Día" value={cashDateToDay} onChange={e => setCashDateToDay(e.target.value)} 
-                                                className="px-2 py-1.5 border border-gray-300 rounded-lg text-sm" />
-                                            <input type="number" placeholder="Hora" value={cashDateToHour} onChange={e => setCashDateToHour(e.target.value)} 
-                                                className="px-2 py-1.5 border border-gray-300 rounded-lg text-sm" />
-                                            <input type="number" placeholder="Min" value={cashDateToMinute} onChange={e => setCashDateToMinute(e.target.value)} 
-                                                className="px-2 py-1.5 border border-gray-300 rounded-lg text-sm" />
+                                    {/* CALENDARIOS NATIVOS (Diálogo) */}
+                                    <div className="mb-2 bg-white p-2 rounded border border-gray-200">
+                                        <label className="block text-xs font-bold text-gray-700 mb-2 uppercase">Filtrar por Fechas</label>
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <div>
+                                                <label className="block text-[10px] text-gray-500 mb-1">DESDE</label>
+                                                <input 
+                                                    type="date" 
+                                                    value={cashDateFrom} 
+                                                    onChange={e => setCashDateFrom(e.target.value)}
+                                                    className="w-full px-2 py-1.5 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 text-sm"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-[10px] text-gray-500 mb-1">HASTA</label>
+                                                <input 
+                                                    type="date" 
+                                                    value={cashDateTo} 
+                                                    onChange={e => setCashDateTo(e.target.value)}
+                                                    className="w-full px-2 py-1.5 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 text-sm"
+                                                />
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
 
-                                {/* Grid de movimientos */}
                                 <div className="flex-1 p-4 overflow-y-auto">
                                     {filteredMovements.length === 0 ? (
                                         <p className="text-center text-gray-500 py-12">No se encontraron movimientos</p>
@@ -1370,7 +1067,6 @@ const Movimientos_De_Caja = ({ cashMovements }) => {
                                                                  {movement.payment_method}
                                                             </span>
                                                         )}
-                                                        
                                                     </div>
                                                 </div>
                                             ))}
@@ -1378,7 +1074,6 @@ const Movimientos_De_Caja = ({ cashMovements }) => {
                                     )}
                                 </div>
 
-                                {/* Handle de redimensionamiento */}
                                 <div 
                                     className="absolute bottom-0 right-0 w-5 h-5 cursor-se-resize"
                                     style={{ 
