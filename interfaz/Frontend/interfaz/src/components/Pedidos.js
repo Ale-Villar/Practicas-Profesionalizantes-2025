@@ -28,21 +28,17 @@ const Pedidos = ({ orders, setOrders, products }) => {
     const [ordersIdFilterOp, setOrdersIdFilterOp] = useState('equals');
     const [ordersCustomerFilter, setOrdersCustomerFilter] = useState('');
     const [ordersCustomerFilterOp, setOrdersCustomerFilterOp] = useState('contains');
-    const [ordersDateFromYear, setOrdersDateFromYear] = useState('');
-    const [ordersDateFromMonth, setOrdersDateFromMonth] = useState('');
-    const [ordersDateFromDay, setOrdersDateFromDay] = useState('');
-    const [ordersDateFromHour, setOrdersDateFromHour] = useState('');
-    const [ordersDateFromMinute, setOrdersDateFromMinute] = useState('');
-    const [ordersDateToYear, setOrdersDateToYear] = useState('');
-    const [ordersDateToMonth, setOrdersDateToMonth] = useState('');
-    const [ordersDateToDay, setOrdersDateToDay] = useState('');
-    const [ordersDateToHour, setOrdersDateToHour] = useState('');
-    const [ordersDateToMinute, setOrdersDateToMinute] = useState('');
+    
+    // NUEVOS ESTADOS DE FECHA (Simplificados)
+    const [ordersDateFrom, setOrdersDateFrom] = useState('');
+    const [ordersDateTo, setOrdersDateTo] = useState('');
+
     const [ordersPaymentMethodFilter, setOrdersPaymentMethodFilter] = useState([]);
     const [ordersStatusFilter, setOrdersStatusFilter] = useState([]);
     const [ordersProductFilter, setOrdersProductFilter] = useState('');
     const [ordersUnitsFilter, setOrdersUnitsFilter] = useState('');
     const [ordersUnitsFilterOp, setOrdersUnitsFilterOp] = useState('equals');
+    
     // Estado para controlar qué pedidos tienen abierto el menú de productos
     const [openProducts, setOpenProducts] = useState({});
     // Estado para controlar si los filtros están desplegados
@@ -112,7 +108,7 @@ const Pedidos = ({ orders, setOrders, products }) => {
         e.preventDefault();
         
         if (!newOrder.customerName.trim()) {
-            setMessage('🚫 Error: Debe ingresar el nombre del cliente.');
+            setMessage('❌ Error: Debe ingresar el nombre del cliente.');
             return;
         }
 
@@ -121,7 +117,7 @@ const Pedidos = ({ orders, setOrders, products }) => {
             .map(([method]) => method);
 
         if (selectedPaymentMethods.length === 0) {
-            setMessage('🚫 Error: Debe seleccionar al menos un método de pago.');
+            setMessage('❌ Error: Debe seleccionar al menos un método de pago.');
             return;
         }
         
@@ -130,7 +126,7 @@ const Pedidos = ({ orders, setOrders, products }) => {
         );
         
         if (validItems.length === 0) {
-            setMessage('🚫 Error: Debe seleccionar al menos un producto con cantidad y precio válidos.');
+            setMessage('❌ Error: Debe seleccionar al menos un producto con cantidad y precio válidos.');
             return;
         }
         
@@ -418,146 +414,27 @@ const Pedidos = ({ orders, setOrders, products }) => {
                     </div>
                 </div>
 
-                {/* Filtro por Fecha */}
+                {/* FILTRO DE FECHAS (Calendario Nativo) */}
                 <div className="mb-4">
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">Fecha (granular)</label>
-                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-3">
-                        <p className="text-xs text-blue-700 italic">
-                            💡 <strong>Filtro inteligente:</strong> Si completas solo "Desde", filtra exactamente ese período (ej: Mes 11 = solo noviembre). Si completas "Hasta", filtra como rango.
-                        </p>
-                    </div>
-                    
-                    {/* Desde */}
-                    <div className="mb-3">
-                        <h5 className="text-sm font-semibold text-gray-700 mb-2">Desde (opcional):</h5>
-                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
-                            <div>
-                                <label className="block text-xs text-gray-600 mb-1">Año</label>
-                                <input 
-                                    type="number" 
-                                    placeholder="2024" 
-                                    min="2020" 
-                                    max="2030" 
-                                    value={ordersDateFromYear} 
-                                    onChange={e => setOrdersDateFromYear(e.target.value)} 
-                                    className="w-full px-2 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-xs text-gray-600 mb-1">Mes</label>
-                                <input 
-                                    type="number" 
-                                    placeholder="1-12" 
-                                    min="1" 
-                                    max="12" 
-                                    value={ordersDateFromMonth} 
-                                    onChange={e => setOrdersDateFromMonth(e.target.value)} 
-                                    className="w-full px-2 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-xs text-gray-600 mb-1">Día</label>
-                                <input 
-                                    type="number" 
-                                    placeholder="1-31" 
-                                    min="1" 
-                                    max="31" 
-                                    value={ordersDateFromDay} 
-                                    onChange={e => setOrdersDateFromDay(e.target.value)} 
-                                    className="w-full px-2 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-xs text-gray-600 mb-1">Hora</label>
-                                <input 
-                                    type="number" 
-                                    placeholder="0-23" 
-                                    min="0" 
-                                    max="23" 
-                                    value={ordersDateFromHour} 
-                                    onChange={e => setOrdersDateFromHour(e.target.value)} 
-                                    className="w-full px-2 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-xs text-gray-600 mb-1">Min</label>
-                                <input 
-                                    type="number" 
-                                    placeholder="0-59" 
-                                    min="0" 
-                                    max="59" 
-                                    value={ordersDateFromMinute} 
-                                    onChange={e => setOrdersDateFromMinute(e.target.value)} 
-                                    className="w-full px-2 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
-                                />
-                            </div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Filtrar por Fechas</label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-gray-50 p-3 rounded-lg border border-gray-200">
+                        <div>
+                            <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">Desde</label>
+                            <input 
+                                type="date" 
+                                value={ordersDateFrom} 
+                                onChange={e => setOrdersDateFrom(e.target.value)} 
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                            />
                         </div>
-                    </div>
-                    
-                    {/* Hasta */}
-                    <div>
-                        <h5 className="text-sm font-semibold text-gray-700 mb-2">Hasta (opcional):</h5>
-                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
-                            <div>
-                                <label className="block text-xs text-gray-600 mb-1">Año</label>
-                                <input 
-                                    type="number" 
-                                    placeholder="2024" 
-                                    min="2020" 
-                                    max="2030" 
-                                    value={ordersDateToYear} 
-                                    onChange={e => setOrdersDateToYear(e.target.value)} 
-                                    className="w-full px-2 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-xs text-gray-600 mb-1">Mes</label>
-                                <input 
-                                    type="number" 
-                                    placeholder="1-12" 
-                                    min="1" 
-                                    max="12" 
-                                    value={ordersDateToMonth} 
-                                    onChange={e => setOrdersDateToMonth(e.target.value)} 
-                                    className="w-full px-2 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-xs text-gray-600 mb-1">Día</label>
-                                <input 
-                                    type="number" 
-                                    placeholder="1-31" 
-                                    min="1" 
-                                    max="31" 
-                                    value={ordersDateToDay} 
-                                    onChange={e => setOrdersDateToDay(e.target.value)} 
-                                    className="w-full px-2 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-xs text-gray-600 mb-1">Hora</label>
-                                <input 
-                                    type="number" 
-                                    placeholder="0-23" 
-                                    min="0" 
-                                    max="23" 
-                                    value={ordersDateToHour} 
-                                    onChange={e => setOrdersDateToHour(e.target.value)} 
-                                    className="w-full px-2 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-xs text-gray-600 mb-1">Min</label>
-                                <input 
-                                    type="number" 
-                                    placeholder="0-59" 
-                                    min="0" 
-                                    max="59" 
-                                    value={ordersDateToMinute} 
-                                    onChange={e => setOrdersDateToMinute(e.target.value)} 
-                                    className="w-full px-2 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
-                                />
-                            </div>
+                        <div>
+                            <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">Hasta</label>
+                            <input 
+                                type="date" 
+                                value={ordersDateTo} 
+                                onChange={e => setOrdersDateTo(e.target.value)} 
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                            />
                         </div>
                     </div>
                 </div>
@@ -673,40 +550,20 @@ const Pedidos = ({ orders, setOrders, products }) => {
                         if (ordersCustomerFilterOp === 'equals' && customerName !== filterLower) return false;
                     }
                     
-                    // Filtro por fecha granular
-                    if (ordersDateFromYear || ordersDateFromMonth || ordersDateFromDay || ordersDateFromHour || ordersDateFromMinute ||
-                        ordersDateToYear || ordersDateToMonth || ordersDateToDay || ordersDateToHour || ordersDateToMinute) {
+                    // FILTRO DE FECHA SIMPLIFICADO (Calendario)
+                    if (ordersDateFrom || ordersDateTo) {
+                        if (!order.fecha_de_orden_del_pedido) return false;
                         const orderDate = new Date(order.fecha_de_orden_del_pedido);
+                        if (isNaN(orderDate.getTime())) return false;
                         
-                        // Construir fecha "desde"
-                        if (ordersDateFromYear || ordersDateFromMonth || ordersDateFromDay || ordersDateFromHour || ordersDateFromMinute) {
-                            const fromYear = ordersDateFromYear ? parseInt(ordersDateFromYear) : null;
-                            const fromMonth = ordersDateFromMonth ? parseInt(ordersDateFromMonth) : null;
-                            const fromDay = ordersDateFromDay ? parseInt(ordersDateFromDay) : null;
-                            const fromHour = ordersDateFromHour ? parseInt(ordersDateFromHour) : null;
-                            const fromMinute = ordersDateFromMinute ? parseInt(ordersDateFromMinute) : null;
-                            
-                            if (fromYear !== null && orderDate.getFullYear() < fromYear) return false;
-                            if (fromMonth !== null && orderDate.getMonth() + 1 < fromMonth) return false;
-                            if (fromDay !== null && orderDate.getDate() < fromDay) return false;
-                            if (fromHour !== null && orderDate.getHours() < fromHour) return false;
-                            if (fromMinute !== null && orderDate.getMinutes() < fromMinute) return false;
-                        }
+                        // Formato YYYY-MM-DD para comparación directa de strings
+                        const y = orderDate.getFullYear();
+                        const m = String(orderDate.getMonth() + 1).padStart(2, '0');
+                        const d = String(orderDate.getDate()).padStart(2, '0');
+                        const orderDateStr = `${y}-${m}-${d}`;
                         
-                        // Construir fecha "hasta"
-                        if (ordersDateToYear || ordersDateToMonth || ordersDateToDay || ordersDateToHour || ordersDateToMinute) {
-                            const toYear = ordersDateToYear ? parseInt(ordersDateToYear) : null;
-                            const toMonth = ordersDateToMonth ? parseInt(ordersDateToMonth) : null;
-                            const toDay = ordersDateToDay ? parseInt(ordersDateToDay) : null;
-                            const toHour = ordersDateToHour ? parseInt(ordersDateToHour) : null;
-                            const toMinute = ordersDateToMinute ? parseInt(ordersDateToMinute) : null;
-                            
-                            if (toYear !== null && orderDate.getFullYear() > toYear) return false;
-                            if (toMonth !== null && orderDate.getMonth() + 1 > toMonth) return false;
-                            if (toDay !== null && orderDate.getDate() > toDay) return false;
-                            if (toHour !== null && orderDate.getHours() > toHour) return false;
-                            if (toMinute !== null && orderDate.getMinutes() > toMinute) return false;
-                        }
+                        if (ordersDateFrom && orderDateStr < ordersDateFrom) return false;
+                        if (ordersDateTo && orderDateStr > ordersDateTo) return false;
                     }
                     
                     // Filtro por método de pago

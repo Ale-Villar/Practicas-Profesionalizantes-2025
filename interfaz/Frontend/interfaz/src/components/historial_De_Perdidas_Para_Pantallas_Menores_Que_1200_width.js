@@ -47,6 +47,23 @@ const parseAnyDate = (dateStr) => {
     return isNaN(d.getTime()) ? null : d;
 };
 
+const parseDateInput = (value, endOfDay = false) => {
+    if (!value) return null;
+
+    const [year, month, day] = value.split('-').map(Number);
+    if (!year || !month || !day) return null;
+
+    return new Date(
+        year,
+        month - 1,
+        day,
+        endOfDay ? 23 : 0,
+        endOfDay ? 59 : 0,
+        endOfDay ? 59 : 0,
+        endOfDay ? 999 : 0
+    );
+};
+
 export default function HistorialPerdidasMovil() {
     const [lossRecords, setLossRecords] = useState([]);
     const [selectedLoss, setSelectedLoss] = useState(null);
@@ -64,8 +81,8 @@ export default function HistorialPerdidasMovil() {
         cost: '', costOp: 'equals',
         categories: [],
         description: '', descriptionOp: 'contains',
-        dateFromYear: '', dateFromMonth: '', dateFromDay: '', dateFromHour: '', dateFromMinute: '',
-        dateToYear: '', dateToMonth: '', dateToDay: '', dateToHour: '', dateToMinute: ''
+        dateFrom: '',
+        dateTo: ''
     });
 
     useEffect(() => {
@@ -92,8 +109,8 @@ export default function HistorialPerdidasMovil() {
             cost: '', costOp: 'equals',
             categories: [],
             description: '', descriptionOp: 'contains',
-            dateFromYear: '', dateFromMonth: '', dateFromDay: '', dateFromHour: '', dateFromMinute: '',
-            dateToYear: '', dateToMonth: '', dateToDay: '', dateToHour: '', dateToMinute: ''
+            dateFrom: '',
+            dateTo: ''
         });
     };
 
@@ -186,140 +203,18 @@ export default function HistorialPerdidasMovil() {
             });
         }
 
-        // Filtros de fecha granular
-        const hasFromFilters = filters.dateFromYear || filters.dateFromMonth || filters.dateFromDay || 
-                               filters.dateFromHour !== '' || filters.dateFromMinute !== '';
-        const hasToFilters = filters.dateToYear || filters.dateToMonth || filters.dateToDay || 
-                            filters.dateToHour !== '' || filters.dateToMinute !== '';
-        const hasGranularFilters = hasFromFilters || hasToFilters;
+        // Filtro de fecha por rango usando calendario nativo
+        if (filters.dateFrom || filters.dateTo) {
+            const fromDate = parseDateInput(filters.dateFrom, false);
+            const toDate = parseDateInput(filters.dateTo, true);
 
-        if (hasGranularFilters) {
             filtered = filtered.filter(record => {
                 const recordDate = parseAnyDate(record.timestamp);
                 if (!recordDate) return false;
 
-                let matches = true;
-
-                // --- FILTROS "DESDE" ---
-                if (hasFromFilters && matches) {
-                    // Año
-                    if (filters.dateFromYear) {
-                        const fromYear = parseInt(filters.dateFromYear);
-                        if (hasToFilters) {
-                            if (recordDate.getFullYear() < fromYear) matches = false;
-                        } else {
-                            if (recordDate.getFullYear() !== fromYear) matches = false;
-                        }
-                    }
-                    
-                    // Mes
-                    if (matches && filters.dateFromMonth) {
-                        const fromMonth = parseInt(filters.dateFromMonth) - 1;
-                        const yearOk = !filters.dateFromYear || recordDate.getFullYear() >= parseInt(filters.dateFromYear);
-                        if (hasToFilters && yearOk) {
-                            const sameYear = !filters.dateFromYear || recordDate.getFullYear() === parseInt(filters.dateFromYear);
-                            if (sameYear && recordDate.getMonth() < fromMonth) matches = false;
-                        } else {
-                            if (recordDate.getMonth() !== fromMonth) matches = false;
-                        }
-                    }
-                    
-                    // Día
-                    if (matches && filters.dateFromDay) {
-                        const fromDay = parseInt(filters.dateFromDay);
-                        const sameYearMonth = (!filters.dateFromYear || recordDate.getFullYear() === parseInt(filters.dateFromYear)) &&
-                                              (!filters.dateFromMonth || recordDate.getMonth() === parseInt(filters.dateFromMonth) - 1);
-                        if (hasToFilters && sameYearMonth) {
-                            if (recordDate.getDate() < fromDay) matches = false;
-                        } else if (sameYearMonth) {
-                            if (recordDate.getDate() !== fromDay) matches = false;
-                        }
-                    }
-                    
-                    // Hora
-                    if (matches && filters.dateFromHour !== '') {
-                        const fromHour = parseInt(filters.dateFromHour);
-                        const sameDate = (!filters.dateFromYear || recordDate.getFullYear() === parseInt(filters.dateFromYear)) &&
-                                         (!filters.dateFromMonth || recordDate.getMonth() === parseInt(filters.dateFromMonth) - 1) &&
-                                         (!filters.dateFromDay || recordDate.getDate() === parseInt(filters.dateFromDay));
-                        if (hasToFilters && sameDate) {
-                            if (recordDate.getHours() < fromHour) matches = false;
-                        } else if (sameDate || (!filters.dateFromYear && !filters.dateFromMonth && !filters.dateFromDay)) {
-                            if (!hasToFilters) {
-                                if (recordDate.getHours() !== fromHour) matches = false;
-                            } else if (recordDate.getHours() < fromHour) {
-                                matches = false;
-                            }
-                        }
-                    }
-                    
-                    // Minuto
-                    if (matches && filters.dateFromMinute !== '') {
-                        const fromMinute = parseInt(filters.dateFromMinute);
-                        const sameDateTime = (!filters.dateFromYear || recordDate.getFullYear() === parseInt(filters.dateFromYear)) &&
-                                             (!filters.dateFromMonth || recordDate.getMonth() === parseInt(filters.dateFromMonth) - 1) &&
-                                             (!filters.dateFromDay || recordDate.getDate() === parseInt(filters.dateFromDay)) &&
-                                             (filters.dateFromHour === '' || recordDate.getHours() === parseInt(filters.dateFromHour));
-                        if (hasToFilters && sameDateTime) {
-                            if (recordDate.getMinutes() < fromMinute) matches = false;
-                        } else if (sameDateTime || (filters.dateFromHour !== '' && !filters.dateFromYear && !filters.dateFromMonth && !filters.dateFromDay)) {
-                            if (!hasToFilters) {
-                                if (recordDate.getMinutes() !== fromMinute) matches = false;
-                            } else if (recordDate.getMinutes() < fromMinute) {
-                                matches = false;
-                            }
-                        }
-                    }
-                }
-
-                // --- FILTROS "HASTA" ---
-                if (matches && hasToFilters) {
-                    // Año
-                    if (filters.dateToYear) {
-                        const toYear = parseInt(filters.dateToYear);
-                        if (recordDate.getFullYear() > toYear) matches = false;
-                    }
-                    
-                    // Mes
-                    if (matches && filters.dateToMonth) {
-                        const toMonth = parseInt(filters.dateToMonth) - 1;
-                        const sameYear = !filters.dateToYear || recordDate.getFullYear() === parseInt(filters.dateToYear);
-                        if (sameYear && recordDate.getMonth() > toMonth) matches = false;
-                    }
-                    
-                    // Día
-                    if (matches && filters.dateToDay) {
-                        const toDay = parseInt(filters.dateToDay);
-                        const sameYearMonth = (!filters.dateToYear || recordDate.getFullYear() === parseInt(filters.dateToYear)) &&
-                                              (!filters.dateToMonth || recordDate.getMonth() === parseInt(filters.dateToMonth) - 1);
-                        if (sameYearMonth && recordDate.getDate() > toDay) matches = false;
-                    }
-                    
-                    // Hora
-                    if (matches && filters.dateToHour !== '') {
-                        const toHour = parseInt(filters.dateToHour);
-                        const sameDate = (!filters.dateToYear || recordDate.getFullYear() === parseInt(filters.dateToYear)) &&
-                                         (!filters.dateToMonth || recordDate.getMonth() === parseInt(filters.dateToMonth) - 1) &&
-                                         (!filters.dateToDay || recordDate.getDate() === parseInt(filters.dateToDay));
-                        if (sameDate || (!filters.dateToYear && !filters.dateToMonth && !filters.dateToDay)) {
-                            if (recordDate.getHours() > toHour) matches = false;
-                        }
-                    }
-                    
-                    // Minuto
-                    if (matches && filters.dateToMinute !== '') {
-                        const toMinute = parseInt(filters.dateToMinute);
-                        const sameDateTime = (!filters.dateToYear || recordDate.getFullYear() === parseInt(filters.dateToYear)) &&
-                                             (!filters.dateToMonth || recordDate.getMonth() === parseInt(filters.dateToMonth) - 1) &&
-                                             (!filters.dateToDay || recordDate.getDate() === parseInt(filters.dateToDay)) &&
-                                             (filters.dateToHour === '' || recordDate.getHours() === parseInt(filters.dateToHour));
-                        if (sameDateTime || (filters.dateToHour !== '' && !filters.dateToYear && !filters.dateToMonth && !filters.dateToDay)) {
-                            if (recordDate.getMinutes() > toMinute) matches = false;
-                        }
-                    }
-                }
-
-                return matches;
+                if (fromDate && recordDate < fromDate) return false;
+                if (toDate && recordDate > toDate) return false;
+                return true;
             });
         }
 
@@ -654,103 +549,23 @@ export default function HistorialPerdidasMovil() {
                             {/* Filtros de Fecha - Desde */}
                             <div className="border-t border-slate-100 pt-3">
                                 <label className="text-slate-500 block mb-2 text-xs font-medium">Fecha Desde</label>
-                                <div className="flex flex-wrap gap-2">
-                                    <input 
-                                        type="number"
-                                        value={filters.dateFromYear}
-                                        onChange={(e) => setFilters({...filters, dateFromYear: e.target.value})}
-                                        placeholder="Año"
-                                        className="px-2 py-2 border border-slate-200 rounded-lg text-sm text-center"
-                                        style={{ width: '4.5rem' }}
-                                    />
-                                    <input 
-                                        type="number"
-                                        value={filters.dateFromMonth}
-                                        onChange={(e) => setFilters({...filters, dateFromMonth: e.target.value})}
-                                        placeholder="Mes"
-                                        min="1" max="12"
-                                        className="px-2 py-2 border border-slate-200 rounded-lg text-sm text-center"
-                                        style={{ width: '3.5rem' }}
-                                    />
-                                    <input 
-                                        type="number"
-                                        value={filters.dateFromDay}
-                                        onChange={(e) => setFilters({...filters, dateFromDay: e.target.value})}
-                                        placeholder="Día"
-                                        min="1" max="31"
-                                        className="px-2 py-2 border border-slate-200 rounded-lg text-sm text-center"
-                                        style={{ width: '3.5rem' }}
-                                    />
-                                    <input 
-                                        type="number"
-                                        value={filters.dateFromHour}
-                                        onChange={(e) => setFilters({...filters, dateFromHour: e.target.value})}
-                                        placeholder="Hora"
-                                        min="0" max="23"
-                                        className="px-2 py-2 border border-slate-200 rounded-lg text-sm text-center"
-                                        style={{ width: '3.5rem' }}
-                                    />
-                                    <input 
-                                        type="number"
-                                        value={filters.dateFromMinute}
-                                        onChange={(e) => setFilters({...filters, dateFromMinute: e.target.value})}
-                                        placeholder="Min"
-                                        min="0" max="59"
-                                        className="px-2 py-2 border border-slate-200 rounded-lg text-sm text-center"
-                                        style={{ width: '4rem' }}
-                                    />
-                                </div>
+                                <input 
+                                    type="date"
+                                    value={filters.dateFrom}
+                                    onChange={(e) => setFilters({...filters, dateFrom: e.target.value})}
+                                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm"
+                                />
                             </div>
                             
                             {/* Filtros de Fecha - Hasta */}
                             <div>
                                 <label className="text-slate-500 block mb-2 text-xs font-medium">Fecha Hasta</label>
-                                <div className="flex flex-wrap gap-2">
-                                    <input 
-                                        type="number"
-                                        value={filters.dateToYear}
-                                        onChange={(e) => setFilters({...filters, dateToYear: e.target.value})}
-                                        placeholder="Año"
-                                        className="px-2 py-2 border border-slate-200 rounded-lg text-sm text-center"
-                                        style={{ width: '4.5rem' }}
-                                    />
-                                    <input 
-                                        type="number"
-                                        value={filters.dateToMonth}
-                                        onChange={(e) => setFilters({...filters, dateToMonth: e.target.value})}
-                                        placeholder="Mes"
-                                        min="1" max="12"
-                                        className="px-2 py-2 border border-slate-200 rounded-lg text-sm text-center"
-                                        style={{ width: '3.5rem' }}
-                                    />
-                                    <input 
-                                        type="number"
-                                        value={filters.dateToDay}
-                                        onChange={(e) => setFilters({...filters, dateToDay: e.target.value})}
-                                        placeholder="Día"
-                                        min="1" max="31"
-                                        className="px-2 py-2 border border-slate-200 rounded-lg text-sm text-center"
-                                        style={{ width: '3.5rem' }}
-                                    />
-                                    <input 
-                                        type="number"
-                                        value={filters.dateToHour}
-                                        onChange={(e) => setFilters({...filters, dateToHour: e.target.value})}
-                                        placeholder="Hora"
-                                        min="0" max="23"
-                                        className="px-2 py-2 border border-slate-200 rounded-lg text-sm text-center"
-                                        style={{ width: '3.5rem' }}
-                                    />
-                                    <input 
-                                        type="number"
-                                        value={filters.dateToMinute}
-                                        onChange={(e) => setFilters({...filters, dateToMinute: e.target.value})}
-                                        placeholder="Min"
-                                        min="0" max="59"
-                                        className="px-2 py-2 border border-slate-200 rounded-lg text-sm text-center"
-                                        style={{ width: '4rem' }}
-                                    />
-                                </div>
+                                <input 
+                                    type="date"
+                                    value={filters.dateTo}
+                                    onChange={(e) => setFilters({...filters, dateTo: e.target.value})}
+                                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm"
+                                />
                             </div>
                         </div>
                         

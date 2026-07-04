@@ -27,16 +27,8 @@ const ProductionCreation = ({ products, userRole, loadProducts }) => {
     const [userFilter, setUserFilter] = useState('');
     const [totalFilter, setTotalFilter] = useState('');
     const [totalFilterOp, setTotalFilterOp] = useState('equals');
-    const [dateFromYear, setDateFromYear] = useState('');
-    const [dateFromMonth, setDateFromMonth] = useState('');
-    const [dateFromDay, setDateFromDay] = useState('');
-    const [dateFromHour, setDateFromHour] = useState('');
-    const [dateFromMinute, setDateFromMinute] = useState('');
-    const [dateToYear, setDateToYear] = useState('');
-    const [dateToMonth, setDateToMonth] = useState('');
-    const [dateToDay, setDateToDay] = useState('');
-    const [dateToHour, setDateToHour] = useState('');
-    const [dateToMinute, setDateToMinute] = useState('');
+    const [dateFrom, setDateFrom] = useState('');
+    const [dateTo, setDateTo] = useState('');
     const selectedProductsRef = useRef(selectedProducts);
     const externalWindowRef = useRef(null);
     
@@ -465,6 +457,23 @@ const ProductionCreation = ({ products, userRole, loadProducts }) => {
         return isNaN(parsedDate.getTime()) ? null : parsedDate;
     };
 
+    const parseDateInput = (dateStr, endOfDay = false) => {
+        if (!dateStr) return null;
+
+        const [year, month, day] = dateStr.split('-').map(Number);
+        if (!year || !month || !day) return null;
+
+        return new Date(
+            year,
+            month - 1,
+            day,
+            endOfDay ? 23 : 0,
+            endOfDay ? 59 : 0,
+            endOfDay ? 59 : 0,
+            endOfDay ? 999 : 0
+        );
+    };
+
     // Función para obtener producciones filtradas
     const getFilteredProductions = () => {
         let filtered = [...productions];
@@ -493,122 +502,17 @@ const ProductionCreation = ({ products, userRole, loadProducts }) => {
             }
         }
 
-        // Filtro por fecha (flexible como Movimientos_De_Caja)
-        if (dateFromYear || dateFromMonth || dateFromDay || dateFromHour || dateFromMinute || 
-            dateToYear || dateToMonth || dateToDay || dateToHour || dateToMinute) {
+        // Filtro por fecha usando calendario nativo
+        if (dateFrom || dateTo) {
+            const fromDate = parseDateInput(dateFrom, false);
+            const toDate = parseDateInput(dateTo, true);
+
             filtered = filtered.filter(production => {
                 const prodDate = parseAnyDate(production.created_at);
                 if (!prodDate) return false;
-                const hasToFilters = dateToYear || dateToMonth || dateToDay || dateToHour || dateToMinute;
-                let matches = true;
-
-                if (dateFromYear && matches) {
-                    if (hasToFilters) {
-                        matches = prodDate.getFullYear() >= parseInt(dateFromYear);
-                    } else {
-                        matches = prodDate.getFullYear() === parseInt(dateFromYear);
-                    }
-                }
-
-                if (dateFromMonth && matches) {
-                    if (hasToFilters) {
-                        if (dateFromYear) {
-                            const yearMatches = prodDate.getFullYear() > parseInt(dateFromYear);
-                            const yearExact = prodDate.getFullYear() === parseInt(dateFromYear);
-                            matches = yearMatches || (yearExact && prodDate.getMonth() >= (parseInt(dateFromMonth) - 1));
-                        } else {
-                            matches = prodDate.getMonth() >= (parseInt(dateFromMonth) - 1);
-                        }
-                    } else {
-                        const yearMatches = !dateFromYear || prodDate.getFullYear() === parseInt(dateFromYear);
-                        matches = yearMatches && prodDate.getMonth() === (parseInt(dateFromMonth) - 1);
-                    }
-                }
-
-                if (dateFromDay && matches) {
-                    if (hasToFilters) {
-                        const yearMatch = !dateFromYear || prodDate.getFullYear() >= parseInt(dateFromYear);
-                        const monthMatch = !dateFromMonth || prodDate.getMonth() >= (parseInt(dateFromMonth) - 1);
-                        if (dateFromYear && dateFromMonth) {
-                            const exactYearMonth = prodDate.getFullYear() === parseInt(dateFromYear) && 
-                                                   prodDate.getMonth() === (parseInt(dateFromMonth) - 1);
-                            matches = (!exactYearMonth) || (exactYearMonth && prodDate.getDate() >= parseInt(dateFromDay));
-                        } else {
-                            matches = yearMatch && monthMatch && prodDate.getDate() >= parseInt(dateFromDay);
-                        }
-                    } else {
-                        const yearMatches = !dateFromYear || prodDate.getFullYear() === parseInt(dateFromYear);
-                        const monthMatches = !dateFromMonth || prodDate.getMonth() === (parseInt(dateFromMonth) - 1);
-                        matches = yearMatches && monthMatches && prodDate.getDate() === parseInt(dateFromDay);
-                    }
-                }
-
-                if (dateFromHour && matches) {
-                    const yearMatches = !dateFromYear || prodDate.getFullYear() === parseInt(dateFromYear);
-                    const monthMatches = !dateFromMonth || prodDate.getMonth() === (parseInt(dateFromMonth) - 1);
-                    const dayMatches = !dateFromDay || prodDate.getDate() === parseInt(dateFromDay);
-                    if (hasToFilters) {
-                        if (yearMatches && monthMatches && dayMatches) {
-                            matches = prodDate.getHours() >= parseInt(dateFromHour);
-                        }
-                    } else {
-                        matches = yearMatches && monthMatches && dayMatches && prodDate.getHours() === parseInt(dateFromHour);
-                    }
-                }
-
-                if (dateFromMinute && matches) {
-                    const yearMatches = !dateFromYear || prodDate.getFullYear() === parseInt(dateFromYear);
-                    const monthMatches = !dateFromMonth || prodDate.getMonth() === (parseInt(dateFromMonth) - 1);
-                    const dayMatches = !dateFromDay || prodDate.getDate() === parseInt(dateFromDay);
-                    const hourMatches = !dateFromHour || prodDate.getHours() === parseInt(dateFromHour);
-                    if (hasToFilters) {
-                        if (yearMatches && monthMatches && dayMatches && hourMatches) {
-                            matches = prodDate.getMinutes() >= parseInt(dateFromMinute);
-                        }
-                    } else {
-                        matches = yearMatches && monthMatches && dayMatches && hourMatches && prodDate.getMinutes() === parseInt(dateFromMinute);
-                    }
-                }
-
-                if (hasToFilters) {
-                    if (dateToYear && matches) {
-                        matches = prodDate.getFullYear() <= parseInt(dateToYear);
-                    }
-                    if (dateToMonth && matches) {
-                        if (dateToYear) {
-                            const yearMatches = prodDate.getFullYear() < parseInt(dateToYear);
-                            const yearExact = prodDate.getFullYear() === parseInt(dateToYear);
-                            matches = yearMatches || (yearExact && prodDate.getMonth() <= (parseInt(dateToMonth) - 1));
-                        } else {
-                            matches = prodDate.getMonth() <= (parseInt(dateToMonth) - 1);
-                        }
-                    }
-                    if (dateToDay && matches) {
-                        const exactYearMonth = (!dateToYear || prodDate.getFullYear() === parseInt(dateToYear)) && 
-                                               (!dateToMonth || prodDate.getMonth() === (parseInt(dateToMonth) - 1));
-                        if (exactYearMonth) {
-                            matches = prodDate.getDate() <= parseInt(dateToDay);
-                        }
-                    }
-                    if (dateToHour && matches) {
-                        const exactDate = (!dateToYear || prodDate.getFullYear() === parseInt(dateToYear)) &&
-                                          (!dateToMonth || prodDate.getMonth() === (parseInt(dateToMonth) - 1)) &&
-                                          (!dateToDay || prodDate.getDate() === parseInt(dateToDay));
-                        if (exactDate) {
-                            matches = prodDate.getHours() <= parseInt(dateToHour);
-                        }
-                    }
-                    if (dateToMinute && matches) {
-                        const exactDateTime = (!dateToYear || prodDate.getFullYear() === parseInt(dateToYear)) &&
-                                              (!dateToMonth || prodDate.getMonth() === (parseInt(dateToMonth) - 1)) &&
-                                              (!dateToDay || prodDate.getDate() === parseInt(dateToDay)) &&
-                                              (!dateToHour || prodDate.getHours() === parseInt(dateToHour));
-                        if (exactDateTime) {
-                            matches = prodDate.getMinutes() <= parseInt(dateToMinute);
-                        }
-                    }
-                }
-                return matches;
+                if (fromDate && prodDate < fromDate) return false;
+                if (toDate && prodDate > toDate) return false;
+                return true;
             });
         }
 
@@ -1153,106 +1057,24 @@ const ProductionCreation = ({ products, userRole, loadProducts }) => {
                                     </div>
                                 </div>
 
-                                {/* Filtro de Fecha Desde */}
-                                <div className="mt-4">
-                                    <label className="block text-xs font-semibold text-gray-700 uppercase mb-2">Fecha Desde</label>
-                                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                                {/* Filtro de Fecha */}
+                                <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-xs font-semibold text-gray-700 uppercase mb-2">Fecha Desde</label>
                                         <input
-                                            type="number"
-                                            value={dateFromYear}
-                                            onChange={(e) => setDateFromYear(e.target.value)}
-                                            placeholder="Año"
-                                            min="2000"
-                                            max="2100"
-                                            className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-blue-500"
-                                        />
-                                        <input
-                                            type="number"
-                                            value={dateFromMonth}
-                                            onChange={(e) => setDateFromMonth(e.target.value)}
-                                            placeholder="Mes"
-                                            min="1"
-                                            max="12"
-                                            className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-blue-500"
-                                        />
-                                        <input
-                                            type="number"
-                                            value={dateFromDay}
-                                            onChange={(e) => setDateFromDay(e.target.value)}
-                                            placeholder="Día"
-                                            min="1"
-                                            max="31"
-                                            className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-blue-500"
-                                        />
-                                        <input
-                                            type="number"
-                                            value={dateFromHour}
-                                            onChange={(e) => setDateFromHour(e.target.value)}
-                                            placeholder="Hora"
-                                            min="0"
-                                            max="23"
-                                            className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-blue-500"
-                                        />
-                                        <input
-                                            type="number"
-                                            value={dateFromMinute}
-                                            onChange={(e) => setDateFromMinute(e.target.value)}
-                                            placeholder="Min"
-                                            min="0"
-                                            max="59"
-                                            className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-blue-500"
+                                            type="date"
+                                            value={dateFrom}
+                                            onChange={(e) => setDateFrom(e.target.value)}
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-blue-500"
                                         />
                                     </div>
-                                </div>
-
-                                {/* Filtro de Fecha Hasta */}
-                                <div className="mt-4">
-                                    <label className="block text-xs font-semibold text-gray-700 uppercase mb-2">Fecha Hasta</label>
-                                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                                    <div>
+                                        <label className="block text-xs font-semibold text-gray-700 uppercase mb-2">Fecha Hasta</label>
                                         <input
-                                            type="number"
-                                            value={dateToYear}
-                                            onChange={(e) => setDateToYear(e.target.value)}
-                                            placeholder="Año"
-                                            min="2000"
-                                            max="2100"
-                                            className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-blue-500"
-                                        />
-                                        <input
-                                            type="number"
-                                            value={dateToMonth}
-                                            onChange={(e) => setDateToMonth(e.target.value)}
-                                            placeholder="Mes"
-                                            min="1"
-                                            max="12"
-                                            className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-blue-500"
-                                        />
-                                        <input
-                                            type="number"
-                                            value={dateToDay}
-                                            onChange={(e) => setDateToDay(e.target.value)}
-                                            placeholder="Día"
-                                            min="1"
-                                            max="31"
-                                            className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-blue-500"
-                                        />
-                                        <input
-                                            type="number"
-                                            value={dateToHour}
-                                            onChange={(e) => setDateToHour(e.target.value)}
-                                            placeholder="Hora"
-                                            min="0"
-                                            max="23"
-                                            className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-blue-500"
-                                        />
-                                        <input
-                                            type="number"
-                                            value={dateToMinute}
-                                            onChange={(e) => setDateToMinute(e.target.value)}
-                                            placeholder="Min"
-                                            min="0"
-                                            max="59"
-                                            className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-blue-500"
+                                            type="date"
+                                            value={dateTo}
+                                            onChange={(e) => setDateTo(e.target.value)}
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-blue-500"
                                         />
                                     </div>
                                 </div>
@@ -1264,16 +1086,8 @@ const ProductionCreation = ({ products, userRole, loadProducts }) => {
                                             setUserFilter('');
                                             setTotalFilter('');
                                             setTotalFilterOp('equals');
-                                            setDateFromYear('');
-                                            setDateFromMonth('');
-                                            setDateFromDay('');
-                                            setDateFromHour('');
-                                            setDateFromMinute('');
-                                            setDateToYear('');
-                                            setDateToMonth('');
-                                            setDateToDay('');
-                                            setDateToHour('');
-                                            setDateToMinute('');
+                                            setDateFrom('');
+                                            setDateTo('');
                                         }}
                                         className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors text-sm font-medium"
                                     >

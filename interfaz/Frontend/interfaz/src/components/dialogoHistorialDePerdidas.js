@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, Filter, X, Maximize2, Minimize2, ExternalLink, MoreVertical, BarChart2, PieChart, Sliders, GripHorizontal, AlignLeft, Tag, ChevronDown, ChevronUp, RotateCcw } from 'lucide-react';
+import { Search, Filter, X, Maximize2, Minimize2, ExternalLink, MoreVertical, PieChart, Sliders, GripHorizontal, AlignLeft, Tag, ChevronDown, ChevronUp, RotateCcw } from 'lucide-react';
 import { getLossRecords } from '../services/api';
 
 // --- UTILIDADES ---
@@ -50,6 +50,23 @@ const parseAnyDate = (dateStr) => {
     return isNaN(d.getTime()) ? null : d;
 };
 
+const parseDateInput = (value, endOfDay = false) => {
+    if (!value) return null;
+
+    const [year, month, day] = value.split('-').map(Number);
+    if (!year || !month || !day) return null;
+
+    return new Date(
+        year,
+        month - 1,
+        day,
+        endOfDay ? 23 : 0,
+        endOfDay ? 59 : 0,
+        endOfDay ? 59 : 0,
+        endOfDay ? 999 : 0
+    );
+};
+
 export default function DialogoHistorialDePerdidas({ onClose, isWindowMode = false, isEmbedded = false }) {
     // Estado de la ventana (posición y tamaño)
     const [windowState, setWindowState] = useState({
@@ -95,7 +112,7 @@ export default function DialogoHistorialDePerdidas({ onClose, isWindowMode = fal
         leftPanelWidth + responsiveConfig.leftPanelExtra,
         responsiveConfig.isLargeScreen ? 520 + responsiveConfig.leftPanelExtra : leftPanelWidth
     );
-    
+
     // Datos
     const [lossRecords, setLossRecords] = useState([]);
     const [selectedLoss, setSelectedLoss] = useState(null);
@@ -116,8 +133,8 @@ export default function DialogoHistorialDePerdidas({ onClose, isWindowMode = fal
         cost: '', costOp: 'equals',
         categories: [], // Array para checkboxes múltiples
         description: '', descriptionOp: 'contains',
-        dateFromYear: '', dateFromMonth: '', dateFromDay: '', dateFromHour: '', dateFromMinute: '',
-        dateToYear: '', dateToMonth: '', dateToDay: '', dateToHour: '', dateToMinute: ''
+        dateFrom: '',
+        dateTo: ''
     });
 
     // Carga de datos
@@ -146,8 +163,8 @@ export default function DialogoHistorialDePerdidas({ onClose, isWindowMode = fal
             cost: '', costOp: 'equals',
             categories: [],
             description: '', descriptionOp: 'contains',
-            dateFromYear: '', dateFromMonth: '', dateFromDay: '', dateFromHour: '', dateFromMinute: '',
-            dateToYear: '', dateToMonth: '', dateToDay: '', dateToHour: '', dateToMinute: ''
+            dateFrom: '',
+            dateTo: ''
         });
     };
 
@@ -245,143 +262,18 @@ export default function DialogoHistorialDePerdidas({ onClose, isWindowMode = fal
             });
         }
 
-        // Filtros de fecha granular
-        const hasFromFilters = filters.dateFromYear || filters.dateFromMonth || filters.dateFromDay || 
-                               filters.dateFromHour !== '' || filters.dateFromMinute !== '';
-        const hasToFilters = filters.dateToYear || filters.dateToMonth || filters.dateToDay || 
-                            filters.dateToHour !== '' || filters.dateToMinute !== '';
-        const hasGranularFilters = hasFromFilters || hasToFilters;
+        // Filtro de fecha por rango usando calendario nativo
+        if (filters.dateFrom || filters.dateTo) {
+            const fromDate = parseDateInput(filters.dateFrom, false);
+            const toDate = parseDateInput(filters.dateTo, true);
 
-        if (hasGranularFilters) {
             filtered = filtered.filter(record => {
                 const recordDate = parseAnyDate(record.timestamp);
                 if (!recordDate) return false;
 
-                let matches = true;
-
-                // --- FILTROS "DESDE" ---
-                if (hasFromFilters && matches) {
-                    // Año
-                    if (filters.dateFromYear) {
-                        const fromYear = parseInt(filters.dateFromYear);
-                        if (hasToFilters) {
-                            // Modo rango: año debe ser >= 
-                            if (recordDate.getFullYear() < fromYear) matches = false;
-                        } else {
-                            // Modo exacto: año debe coincidir
-                            if (recordDate.getFullYear() !== fromYear) matches = false;
-                        }
-                    }
-                    
-                    // Mes (solo si año coincide o no hay filtro de año)
-                    if (matches && filters.dateFromMonth) {
-                        const fromMonth = parseInt(filters.dateFromMonth) - 1;
-                        const yearOk = !filters.dateFromYear || recordDate.getFullYear() >= parseInt(filters.dateFromYear);
-                        if (hasToFilters && yearOk) {
-                            const sameYear = !filters.dateFromYear || recordDate.getFullYear() === parseInt(filters.dateFromYear);
-                            if (sameYear && recordDate.getMonth() < fromMonth) matches = false;
-                        } else {
-                            if (recordDate.getMonth() !== fromMonth) matches = false;
-                        }
-                    }
-                    
-                    // Día
-                    if (matches && filters.dateFromDay) {
-                        const fromDay = parseInt(filters.dateFromDay);
-                        const sameYearMonth = (!filters.dateFromYear || recordDate.getFullYear() === parseInt(filters.dateFromYear)) &&
-                                              (!filters.dateFromMonth || recordDate.getMonth() === parseInt(filters.dateFromMonth) - 1);
-                        if (hasToFilters && sameYearMonth) {
-                            if (recordDate.getDate() < fromDay) matches = false;
-                        } else if (sameYearMonth) {
-                            if (recordDate.getDate() !== fromDay) matches = false;
-                        }
-                    }
-                    
-                    // Hora
-                    if (matches && filters.dateFromHour !== '') {
-                        const fromHour = parseInt(filters.dateFromHour);
-                        const sameDate = (!filters.dateFromYear || recordDate.getFullYear() === parseInt(filters.dateFromYear)) &&
-                                         (!filters.dateFromMonth || recordDate.getMonth() === parseInt(filters.dateFromMonth) - 1) &&
-                                         (!filters.dateFromDay || recordDate.getDate() === parseInt(filters.dateFromDay));
-                        if (hasToFilters && sameDate) {
-                            if (recordDate.getHours() < fromHour) matches = false;
-                        } else if (sameDate || (!filters.dateFromYear && !filters.dateFromMonth && !filters.dateFromDay)) {
-                            // Si no hay filtros de fecha, comparar solo hora
-                            if (!hasToFilters) {
-                                if (recordDate.getHours() !== fromHour) matches = false;
-                            } else if (recordDate.getHours() < fromHour) {
-                                matches = false;
-                            }
-                        }
-                    }
-                    
-                    // Minuto
-                    if (matches && filters.dateFromMinute !== '') {
-                        const fromMinute = parseInt(filters.dateFromMinute);
-                        const sameDateTime = (!filters.dateFromYear || recordDate.getFullYear() === parseInt(filters.dateFromYear)) &&
-                                             (!filters.dateFromMonth || recordDate.getMonth() === parseInt(filters.dateFromMonth) - 1) &&
-                                             (!filters.dateFromDay || recordDate.getDate() === parseInt(filters.dateFromDay)) &&
-                                             (filters.dateFromHour === '' || recordDate.getHours() === parseInt(filters.dateFromHour));
-                        if (hasToFilters && sameDateTime) {
-                            if (recordDate.getMinutes() < fromMinute) matches = false;
-                        } else if (sameDateTime || (filters.dateFromHour !== '' && !filters.dateFromYear && !filters.dateFromMonth && !filters.dateFromDay)) {
-                            if (!hasToFilters) {
-                                if (recordDate.getMinutes() !== fromMinute) matches = false;
-                            } else if (recordDate.getMinutes() < fromMinute) {
-                                matches = false;
-                            }
-                        }
-                    }
-                }
-
-                // --- FILTROS "HASTA" ---
-                if (matches && hasToFilters) {
-                    // Año
-                    if (filters.dateToYear) {
-                        const toYear = parseInt(filters.dateToYear);
-                        if (recordDate.getFullYear() > toYear) matches = false;
-                    }
-                    
-                    // Mes
-                    if (matches && filters.dateToMonth) {
-                        const toMonth = parseInt(filters.dateToMonth) - 1;
-                        const sameYear = !filters.dateToYear || recordDate.getFullYear() === parseInt(filters.dateToYear);
-                        if (sameYear && recordDate.getMonth() > toMonth) matches = false;
-                    }
-                    
-                    // Día
-                    if (matches && filters.dateToDay) {
-                        const toDay = parseInt(filters.dateToDay);
-                        const sameYearMonth = (!filters.dateToYear || recordDate.getFullYear() === parseInt(filters.dateToYear)) &&
-                                              (!filters.dateToMonth || recordDate.getMonth() === parseInt(filters.dateToMonth) - 1);
-                        if (sameYearMonth && recordDate.getDate() > toDay) matches = false;
-                    }
-                    
-                    // Hora
-                    if (matches && filters.dateToHour !== '') {
-                        const toHour = parseInt(filters.dateToHour);
-                        const sameDate = (!filters.dateToYear || recordDate.getFullYear() === parseInt(filters.dateToYear)) &&
-                                         (!filters.dateToMonth || recordDate.getMonth() === parseInt(filters.dateToMonth) - 1) &&
-                                         (!filters.dateToDay || recordDate.getDate() === parseInt(filters.dateToDay));
-                        if (sameDate || (!filters.dateToYear && !filters.dateToMonth && !filters.dateToDay)) {
-                            if (recordDate.getHours() > toHour) matches = false;
-                        }
-                    }
-                    
-                    // Minuto
-                    if (matches && filters.dateToMinute !== '') {
-                        const toMinute = parseInt(filters.dateToMinute);
-                        const sameDateTime = (!filters.dateToYear || recordDate.getFullYear() === parseInt(filters.dateToYear)) &&
-                                             (!filters.dateToMonth || recordDate.getMonth() === parseInt(filters.dateToMonth) - 1) &&
-                                             (!filters.dateToDay || recordDate.getDate() === parseInt(filters.dateToDay)) &&
-                                             (filters.dateToHour === '' || recordDate.getHours() === parseInt(filters.dateToHour));
-                        if (sameDateTime || (filters.dateToHour !== '' && !filters.dateToYear && !filters.dateToMonth && !filters.dateToDay)) {
-                            if (recordDate.getMinutes() > toMinute) matches = false;
-                        }
-                    }
-                }
-
-                return matches;
+                if (fromDate && recordDate < fromDate) return false;
+                if (toDate && recordDate > toDate) return false;
+                return true;
             });
         }
 
@@ -389,43 +281,6 @@ export default function DialogoHistorialDePerdidas({ onClose, isWindowMode = fal
     };
 
     // Calcular KPIs dinámicos
-    const calculateStockPercentage = (item) => {
-        if (!item || !item.product_stock) return 100;
-        const currentStock = parseFloat(item.product_stock) || 0;
-        const lostQty = parseFloat(item.quantity) || 0;
-        const totalStock = currentStock + lostQty;
-        if (totalStock === 0) return 100;
-        return Math.round((currentStock / totalStock) * 100);
-    };
-
-    const calculateLossAverage = (productId) => {
-        const productLosses = lossRecords.filter(r => r.product === productId);
-        if (productLosses.length === 0) return 0;
-        const totalLoss = productLosses.reduce((acc, r) => acc + (parseFloat(r.quantity) || 0), 0);
-        return totalLoss / productLosses.length;
-    };
-
-    const calculateDeviationFromAverage = (item) => {
-        if (!item) return 0;
-        const avgLoss = calculateLossAverage(item.product);
-        if (avgLoss === 0) return 0;
-        const currentLoss = parseFloat(item.quantity) || 0;
-        return Math.round(((currentLoss - avgLoss) / avgLoss) * 100);
-    };
-
-    const calculateMonthlyLossPercentage = (item) => {
-        if (!item) return 0;
-        const now = new Date();
-        const monthLosses = lossRecords.filter(r => {
-            const date = new Date(r.timestamp);
-            return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
-        });
-        const totalMonthCost = monthLosses.reduce((acc, r) => acc + (parseFloat(r.cost_estimate) || 0), 0);
-        if (totalMonthCost === 0) return 0;
-        const itemCost = parseFloat(item.cost_estimate) || 0;
-        return Math.round((itemCost / totalMonthCost) * 100);
-    };
-
     // Lógica de Arrastre (Drag & Drop)
     const dragRef = useRef(null);
     const isDragging = useRef(false);
@@ -470,7 +325,17 @@ export default function DialogoHistorialDePerdidas({ onClose, isWindowMode = fal
     const handlePanelResize = (e) => {
         if (!isResizingPanel.current) return;
         const containerLeft = windowState.x || 0;
+        const extraWidth = responsiveConfig.leftPanelExtra || 0;
         const newWidth = e.clientX - containerLeft;
+
+        if (responsiveConfig.isLargeScreen) {
+            const minEffectiveWidth = screenWidth * 0.3;
+            const maxEffectiveWidth = screenWidth * 0.7;
+            const clampedEffectiveWidth = Math.max(minEffectiveWidth, Math.min(maxEffectiveWidth, newWidth));
+            setLeftPanelWidth(Math.max(0, clampedEffectiveWidth - extraWidth));
+            return;
+        }
+
         setLeftPanelWidth(Math.max(200, Math.min(1500, newWidth)));
     };
 
@@ -591,9 +456,9 @@ export default function DialogoHistorialDePerdidas({ onClose, isWindowMode = fal
                     {/* PANEL IZQUIERDO: LISTA COMPACTA (con ancho ajustable y responsivo) */}
                     <div 
                         style={{ 
-                            width: effectiveLeftPanelWidth, 
-                            minWidth: responsiveConfig.isLargeScreen ? 520 : 200, 
-                            maxWidth: responsiveConfig.isLargeScreen ? 3000 : 600,
+                            width: responsiveConfig.isLargeScreen ? `${effectiveLeftPanelWidth}px` : effectiveLeftPanelWidth, 
+                            minWidth: responsiveConfig.isLargeScreen ? '30%' : 200, 
+                            maxWidth: responsiveConfig.isLargeScreen ? '70%' : 600,
                             flexShrink: 0
                         }}
                         className="border-r border-slate-200 flex flex-col bg-white relative"
@@ -778,104 +643,24 @@ export default function DialogoHistorialDePerdidas({ onClose, isWindowMode = fal
                                             </div>
                                         </div>
                                         
-                                        {/* Filtros de Fecha - Desde */}
-                                        <div style={{ flex: responsiveConfig.isLargeScreen ? '0 0 auto' : '1 1 100%' }} className={responsiveConfig.isUltraWideScreen ? '' : 'border-t border-slate-100 pt-2 mt-1'}>
-                                            <label className="text-slate-500 block mb-1 font-medium">Fecha Desde</label>
-                                            <div className="flex flex-wrap gap-2">
+                                        {/* Filtros de Fecha */}
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 w-full" style={{ flex: '1 1 100%' }}>
+                                            <div className={responsiveConfig.isUltraWideScreen ? '' : 'border-t border-slate-100 pt-2 mt-1'}>
+                                                <label className="text-slate-500 block mb-1 font-medium">Fecha Desde</label>
                                                 <input 
-                                                    type="number"
-                                                    value={filters.dateFromYear}
-                                                    onChange={(e) => setFilters({...filters, dateFromYear: e.target.value})}
-                                                    placeholder="Año"
-                                                    className="px-1 py-1.5 border border-slate-200 rounded text-xs text-center"
-                                                    style={{ width: '4rem' }}
-                                                />
-                                                <input 
-                                                    type="number"
-                                                    value={filters.dateFromMonth}
-                                                    onChange={(e) => setFilters({...filters, dateFromMonth: e.target.value})}
-                                                    placeholder="Mes"
-                                                    min="1" max="12"
-                                                    className="px-1 py-1.5 border border-slate-200 rounded text-xs text-center"
-                                                    style={{ width: '3rem' }}
-                                                />
-                                                <input 
-                                                    type="number"
-                                                    value={filters.dateFromDay}
-                                                    onChange={(e) => setFilters({...filters, dateFromDay: e.target.value})}
-                                                    placeholder="Día"
-                                                    min="1" max="31"
-                                                    className="px-1 py-1.5 border border-slate-200 rounded text-xs text-center"
-                                                    style={{ width: '3rem' }}
-                                                />
-                                                <input 
-                                                    type="number"
-                                                    value={filters.dateFromHour}
-                                                    onChange={(e) => setFilters({...filters, dateFromHour: e.target.value})}
-                                                    placeholder="Hora"
-                                                    min="0" max="23"
-                                                    className="px-1 py-1.5 border border-slate-200 rounded text-xs text-center"
-                                                    style={{ width: '3rem' }}
-                                                />
-                                                <input 
-                                                    type="number"
-                                                    value={filters.dateFromMinute}
-                                                    onChange={(e) => setFilters({...filters, dateFromMinute: e.target.value})}
-                                                    placeholder="Min"
-                                                    min="0" max="59"
-                                                    className="px-1 py-1.5 border border-slate-200 rounded text-xs text-center"
-                                                    style={{ width: '3.5rem' }}
+                                                    type="date"
+                                                    value={filters.dateFrom}
+                                                    onChange={(e) => setFilters({...filters, dateFrom: e.target.value})}
+                                                    className="w-full px-2 py-1.5 border border-slate-200 rounded text-xs"
                                                 />
                                             </div>
-                                        </div>
-                                        
-                                        {/* Filtros de Fecha - Hasta */}
-                                        <div style={{ flex: responsiveConfig.isLargeScreen ? '0 0 auto' : '1 1 100%' }} className={responsiveConfig.isLargeScreen ? '' : 'border-t border-slate-100 pt-2 mt-1'}>
-                                            <label className="text-slate-500 block mb-1 font-medium">Fecha Hasta</label>
-                                            <div className="flex flex-wrap gap-2">
+                                            <div className={responsiveConfig.isUltraWideScreen ? '' : 'border-t border-slate-100 pt-2 mt-1'}>
+                                                <label className="text-slate-500 block mb-1 font-medium">Fecha Hasta</label>
                                                 <input 
-                                                    type="number"
-                                                    value={filters.dateToYear}
-                                                    onChange={(e) => setFilters({...filters, dateToYear: e.target.value})}
-                                                    placeholder="Año"
-                                                    className="px-1 py-1.5 border border-slate-200 rounded text-xs text-center"
-                                                    style={{ width: '4rem' }}
-                                                />
-                                                <input 
-                                                    type="number"
-                                                    value={filters.dateToMonth}
-                                                    onChange={(e) => setFilters({...filters, dateToMonth: e.target.value})}
-                                                    placeholder="Mes"
-                                                    min="1" max="12"
-                                                    className="px-1 py-1.5 border border-slate-200 rounded text-xs text-center"
-                                                    style={{ width: '3rem' }}
-                                                />
-                                                <input 
-                                                    type="number"
-                                                    value={filters.dateToDay}
-                                                    onChange={(e) => setFilters({...filters, dateToDay: e.target.value})}
-                                                    placeholder="Día"
-                                                    min="1" max="31"
-                                                    className="px-1 py-1.5 border border-slate-200 rounded text-xs text-center"
-                                                    style={{ width: '3rem' }}
-                                                />
-                                                <input 
-                                                    type="number"
-                                                    value={filters.dateToHour}
-                                                    onChange={(e) => setFilters({...filters, dateToHour: e.target.value})}
-                                                    placeholder="Hora"
-                                                    min="0" max="23"
-                                                    className="px-1 py-1.5 border border-slate-200 rounded text-xs text-center"
-                                                    style={{ width: '3rem' }}
-                                                />
-                                                <input 
-                                                    type="number"
-                                                    value={filters.dateToMinute}
-                                                    onChange={(e) => setFilters({...filters, dateToMinute: e.target.value})}
-                                                    placeholder="Min"
-                                                    min="0" max="59"
-                                                    className="px-1 py-1.5 border border-slate-200 rounded text-xs text-center"
-                                                    style={{ width: '3.5rem' }}
+                                                    type="date"
+                                                    value={filters.dateTo}
+                                                    onChange={(e) => setFilters({...filters, dateTo: e.target.value})}
+                                                    className="w-full px-2 py-1.5 border border-slate-200 rounded text-xs"
                                                 />
                                             </div>
                                         </div>
@@ -1041,49 +826,6 @@ export default function DialogoHistorialDePerdidas({ onClose, isWindowMode = fal
                                     <p className="text-slate-600 leading-relaxed">
                                         {selectedLoss.description || "Sin descripción detallada disponible."}
                                     </p>
-                                </div>
-
-                                {/* Gráfico de Impacto en Inventario */}
-                                <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-                                    <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
-                                        <BarChart2 size={18} className="text-slate-400"/> Impacto en Inventario
-                                    </h3>
-                                    <div className="space-y-5">
-                                        {/* Stock Restante (dinámico) */}
-                                        <div>
-                                            <div className="flex justify-between text-xs mb-1">
-                                                <span className="font-medium text-slate-600">Stock Restante</span>
-                                                <span className="text-slate-500">{calculateStockPercentage(selectedLoss)}%</span>
-                                            </div>
-                                            <div className="w-full bg-slate-100 rounded-full h-2">
-                                                <div 
-                                                    className="bg-blue-500 h-2 rounded-full transition-all duration-300" 
-                                                    style={{width: `${calculateStockPercentage(selectedLoss)}%`}}
-                                                ></div>
-                                            </div>
-                                        </div>
-
-                                        {/* Pérdida vs Promedio */}
-                                        <div>
-                                            <div className="flex justify-between text-xs mb-1">
-                                                <span className="font-medium text-slate-600">Pérdida vs Promedio</span>
-                                                <span className={`font-bold ${calculateDeviationFromAverage(selectedLoss) > 0 ? 'text-red-500' : 'text-green-500'}`}>
-                                                    {calculateDeviationFromAverage(selectedLoss) > 0 ? '+' : ''}{calculateDeviationFromAverage(selectedLoss)}%
-                                                </span>
-                                            </div>
-                                            <div className="w-full bg-slate-100 rounded-full h-2">
-                                                <div 
-                                                    className={`h-2 rounded-full transition-all duration-300 ${calculateDeviationFromAverage(selectedLoss) > 0 ? 'bg-red-400' : 'bg-green-400'}`}
-                                                    style={{width: `${Math.min(100, Math.abs(calculateDeviationFromAverage(selectedLoss)) + 50)}%`}}
-                                                ></div>
-                                            </div>
-                                        </div>
-
-                                        {/* Texto informativo */}
-                                        <p className="text-xs text-slate-400 mt-4">
-                                            Este producto representa el <strong className="text-slate-600">{calculateMonthlyLossPercentage(selectedLoss)}%</strong> de las mermas totales del mes.
-                                        </p>
-                                    </div>
                                 </div>
 
                             </div>
