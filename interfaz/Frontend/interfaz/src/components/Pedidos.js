@@ -33,6 +33,22 @@ const Pedidos = ({ orders, setOrders, products }) => {
     const [ordersDateFrom, setOrdersDateFrom] = useState('');
     const [ordersDateTo, setOrdersDateTo] = useState('');
 
+    const parseAnyDate = (dateStr) => {
+        if (!dateStr) return null;
+        if (dateStr instanceof Date) return dateStr;
+        const trimmed = String(dateStr).trim();
+        if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+            const [year, month, day] = trimmed.split('-').map(Number);
+            return new Date(year, month - 1, day);
+        }
+        if (/^\d{2}\/\d{2}\/\d{4}$/.test(trimmed)) {
+            const [day, month, year] = trimmed.split('/').map(Number);
+            return new Date(year, month - 1, day);
+        }
+        const date = new Date(trimmed);
+        return isNaN(date.getTime()) ? null : date;
+    };
+
     const [ordersPaymentMethodFilter, setOrdersPaymentMethodFilter] = useState([]);
     const [ordersStatusFilter, setOrdersStatusFilter] = useState([]);
     const [ordersProductFilter, setOrdersProductFilter] = useState('');
@@ -552,18 +568,15 @@ const Pedidos = ({ orders, setOrders, products }) => {
                     
                     // FILTRO DE FECHA SIMPLIFICADO (Calendario)
                     if (ordersDateFrom || ordersDateTo) {
-                        if (!order.fecha_de_orden_del_pedido) return false;
-                        const orderDate = new Date(order.fecha_de_orden_del_pedido);
-                        if (isNaN(orderDate.getTime())) return false;
-                        
-                        // Formato YYYY-MM-DD para comparación directa de strings
-                        const y = orderDate.getFullYear();
-                        const m = String(orderDate.getMonth() + 1).padStart(2, '0');
-                        const d = String(orderDate.getDate()).padStart(2, '0');
-                        const orderDateStr = `${y}-${m}-${d}`;
-                        
-                        if (ordersDateFrom && orderDateStr < ordersDateFrom) return false;
-                        if (ordersDateTo && orderDateStr > ordersDateTo) return false;
+                        const orderDate = parseAnyDate(order.fecha_de_orden_del_pedido || order.created_at || order.date);
+                        if (!orderDate) return false;
+                        const start = ordersDateFrom ? parseAnyDate(ordersDateFrom) : null;
+                        const end = ordersDateTo ? parseAnyDate(ordersDateTo) : null;
+                        if (start && orderDate < start) return false;
+                        if (end) {
+                            end.setHours(23, 59, 59, 999);
+                            if (orderDate > end) return false;
+                        }
                     }
                     
                     // Filtro por método de pago

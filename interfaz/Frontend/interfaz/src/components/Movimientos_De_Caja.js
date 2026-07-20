@@ -91,19 +91,15 @@ const Movimientos_De_Caja = ({ cashMovements }) => {
         if (cashDateFrom || cashDateTo) {
             filtered = filtered.filter(movement => {
                 const movementDate = parseAnyDate(movement.date);
+                const start = cashDateFrom ? parseAnyDate(cashDateFrom) : null;
+                const end = cashDateTo ? parseAnyDate(cashDateTo) : null;
                 if (!movementDate) return false;
-
-                // Formateamos a YYYY-MM-DD para comparar strings fácilmente
-                const y = movementDate.getFullYear();
-                const m = String(movementDate.getMonth() + 1).padStart(2, '0');
-                const d = String(movementDate.getDate()).padStart(2, '0');
-                const mDateStr = `${y}-${m}-${d}`;
-
-                let matches = true;
-                if (cashDateFrom && mDateStr < cashDateFrom) matches = false;
-                if (cashDateTo && mDateStr > cashDateTo) matches = false;
-
-                return matches;
+                if (start && movementDate < start) return false;
+                if (end) {
+                    end.setHours(23, 59, 59, 999);
+                    if (movementDate > end) return false;
+                }
+                return true;
             });
         }
         

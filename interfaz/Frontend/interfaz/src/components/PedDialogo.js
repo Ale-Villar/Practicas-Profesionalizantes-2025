@@ -28,6 +28,22 @@ function PedDialogo({ orders, setOrders, isOpen, onClose, onMinimize, isMinimize
     const [ordersIdFilterOp, setOrdersIdFilterOp] = useState('equals');
     const [ordersCustomerFilter, setOrdersCustomerFilter] = useState('');
     const [ordersCustomerFilterOp, setOrdersCustomerFilterOp] = useState('contains');
+    const parseAnyDate = (dateStr) => {
+        if (!dateStr) return null;
+        if (dateStr instanceof Date) return dateStr;
+        const trimmed = String(dateStr).trim();
+        if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+            const [year, month, day] = trimmed.split('-').map(Number);
+            return new Date(year, month - 1, day);
+        }
+        if (/^\d{2}\/\d{2}\/\d{4}$/.test(trimmed)) {
+            const [day, month, year] = trimmed.split('/').map(Number);
+            return new Date(year, month - 1, day);
+        }
+        const date = new Date(trimmed);
+        return isNaN(date.getTime()) ? null : date;
+    };
+
     const [ordersDateFromYear, setOrdersDateFromYear] = useState('');
     const [ordersDateFromMonth, setOrdersDateFromMonth] = useState('');
     const [ordersDateFromDay, setOrdersDateFromDay] = useState('');
@@ -136,7 +152,8 @@ function PedDialogo({ orders, setOrders, isOpen, onClose, onMinimize, isMinimize
         // Filtro por fecha granular
         if (ordersDateFromYear || ordersDateFromMonth || ordersDateFromDay || ordersDateFromHour || ordersDateFromMinute ||
             ordersDateToYear || ordersDateToMonth || ordersDateToDay || ordersDateToHour || ordersDateToMinute) {
-            const orderDate = new Date(order.fecha_de_orden_del_pedido);
+            const orderDate = parseAnyDate(order.fecha_de_orden_del_pedido || order.created_at || order.date);
+            if (!orderDate) return false;
             
             if (ordersDateFromYear || ordersDateFromMonth || ordersDateFromDay || ordersDateFromHour || ordersDateFromMinute) {
                 const fromYear = ordersDateFromYear ? parseInt(ordersDateFromYear) : null;

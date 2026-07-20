@@ -72,13 +72,18 @@ const PurchaseHistory = ({ purchases, onDeletePurchase, confirmDelete, onCancelD
     
     const parseAnyDate = (dateStr) => {
         if (!dateStr) return null;
-        try {
-            const date = new Date(dateStr);
-            if (isNaN(date.getTime())) return null;
-            return date;
-        } catch (e) {
-            return null;
+        if (dateStr instanceof Date) return dateStr;
+        const trimmed = String(dateStr).trim();
+        if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+            const [year, month, day] = trimmed.split('-').map(Number);
+            return new Date(year, month - 1, day);
         }
+        if (/^\d{2}\/\d{2}\/\d{4}$/.test(trimmed)) {
+            const [day, month, year] = trimmed.split('/').map(Number);
+            return new Date(year, month - 1, day);
+        }
+        const date = new Date(trimmed);
+        return isNaN(date.getTime()) ? null : date;
     };
     
     // Normalizar y filtrar compras
@@ -132,17 +137,14 @@ const PurchaseHistory = ({ purchases, onDeletePurchase, confirmDelete, onCancelD
     if (purchasesDateFrom || purchasesDateTo) {
         filteredPurchases = filteredPurchases.filter(purchase => {
             const purchaseDate = parseAnyDate(purchase.date);
+            const start = purchasesDateFrom ? parseAnyDate(purchasesDateFrom) : null;
+            const end = purchasesDateTo ? parseAnyDate(purchasesDateTo) : null;
             if (!purchaseDate) return false;
-            
-            // Formato YYYY-MM-DD para comparar strings
-            const y = purchaseDate.getFullYear();
-            const m = String(purchaseDate.getMonth() + 1).padStart(2, '0');
-            const d = String(purchaseDate.getDate()).padStart(2, '0');
-            const pDateStr = `${y}-${m}-${d}`;
-            
-            if (purchasesDateFrom && pDateStr < purchasesDateFrom) return false;
-            if (purchasesDateTo && pDateStr > purchasesDateTo) return false;
-            
+            if (start && purchaseDate < start) return false;
+            if (end) {
+                end.setHours(23, 59, 59, 999);
+                if (purchaseDate > end) return false;
+            }
             return true;
         });
     }

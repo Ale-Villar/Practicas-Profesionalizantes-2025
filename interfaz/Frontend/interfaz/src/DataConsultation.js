@@ -257,8 +257,8 @@ export default function DataConsultation(props) {
         // Verificación de fechas: solo requerida si no hay filtros específicos
         const hasSpecificFilters = stockIdFilter || stockNameFilter || stockQuantityFilter || stockPriceFilter || stockTypeFilter || stockStatusFilter.length > 0;
         
-        if (!hasSpecificFilters && (!startDate || !endDate)) {
-            setMessage('Por favor, ingrese una fecha de inicio y una de fin o use filtros específicos.');
+        if (!hasSpecificFilters && !startDate && !endDate) {
+            setMessage('Por favor, ingrese al menos una fecha de inicio o una de fin, o use filtros específicos.');
             return;
         }
 
@@ -630,8 +630,8 @@ export default function DataConsultation(props) {
         const hasGranularFilters = salesDateFromYear || salesDateFromMonth || salesDateFromDay || salesDateFromHour || salesDateFromMinute || salesDateToYear || salesDateToMonth || salesDateToDay || salesDateToHour || salesDateToMinute;
         const hasOtherFilters = salesIdFilter || salesProductFilter || salesUserFilter || salesTotalFilter || salesQuantityFilter;
         
-        if (!hasGranularFilters && !hasOtherFilters && (!startDate || !endDate)) {
-            setMessage('Por favor, ingrese una fecha de inicio y una de fin o use filtros específicos.');
+        if (!hasGranularFilters && !hasOtherFilters && !startDate && !endDate) {
+            setMessage('Por favor, ingrese al menos una fecha de inicio o una fecha de fin, o use filtros específicos.');
             return;
         }
 
@@ -826,16 +826,18 @@ export default function DataConsultation(props) {
             });
         }
         // Filtro por fechas estándar (startDate/endDate) - solo si no hay filtros granulares
-        else if (startDate && endDate && !hasOtherFilters) {
+        else if ((startDate || endDate) && !hasOtherFilters) {
             filteredSales = filteredSales.filter(sale => {
-                const saleDate = parseAnyDate(sale.date) || null;
-                const start = parseAnyDate(startDate);
-                const end = parseAnyDate(endDate);
+                const saleDate = parseAnyDate(sale.date);
+                const start = startDate ? parseAnyDate(startDate) : null;
+                const end = endDate ? parseAnyDate(endDate) : null;
+                if (!saleDate) return false;
+                if (start && saleDate < start) return false;
                 if (end) {
                     end.setHours(23, 59, 59, 999);
+                    if (saleDate > end) return false;
                 }
-                if (!saleDate || !start || !end) return false;
-                return saleDate >= start && saleDate <= end;
+                return true;
             });
         }
         
@@ -894,7 +896,9 @@ export default function DataConsultation(props) {
                 totalRevenue: filteredSales.reduce((sum, sale) => sum + (Number(sale.total) || 0), 0),
                 period: hasGranularFilters 
                     ? `Filtro personalizado por fechas` 
-                    : startDate && endDate ? `${formatDateForDisplay(startDate)} - ${formatDateForDisplay(endDate)}` : 'Todos los períodos'
+                    : startDate && endDate ? `${formatDateForDisplay(startDate)} - ${formatDateForDisplay(endDate)}` 
+                    : startDate ? `Desde ${formatDateForDisplay(startDate)}` 
+                    : endDate ? `Hasta ${formatDateForDisplay(endDate)}` : 'Todos los períodos'
             }, 
             data: filteredSales.map(r=>({ id: r.id, date: r.date, product: r.product, quantity: r.quantity, total: r.total, user: r.user })) 
         };
@@ -908,8 +912,8 @@ export default function DataConsultation(props) {
         const hasGranularFilters = purchasesDateFromYear || purchasesDateFromMonth || purchasesDateFromDay || purchasesDateFromHour || purchasesDateFromMinute || purchasesDateToYear || purchasesDateToMonth || purchasesDateToDay || purchasesDateToHour || purchasesDateToMinute;
         const hasOtherFilters = purchasesIdFilter.trim() || purchasesSupplierFilter.trim() || purchasesTotalFilter.trim() || purchasesTypeFilter.length > 0 || purchasesProductFilter.trim();
         
-        if (!hasGranularFilters && !hasOtherFilters && (!startDate || !endDate)) {
-            setMessage('Por favor, ingrese una fecha de inicio y una de fin o use filtros específicos.');
+        if (!hasGranularFilters && !hasOtherFilters && !startDate && !endDate) {
+            setMessage('Por favor, ingrese al menos una fecha de inicio o una fecha de fin, o use filtros específicos.');
             return;
         }
 
@@ -1022,17 +1026,19 @@ export default function DataConsultation(props) {
                 
                 return matches;
             });
-        } else if (startDate && endDate) {
+        } else if (startDate || endDate) {
             // Filtros de fecha estándar (startDate/endDate)
             filteredPurchases = filteredPurchases.filter(purchase => {
                 const purchaseDate = parseAnyDate(purchase.date);
-                const start = parseAnyDate(startDate);
-                const end = parseAnyDate(endDate);
+                const start = startDate ? parseAnyDate(startDate) : null;
+                const end = endDate ? parseAnyDate(endDate) : null;
+                if (!purchaseDate) return false;
+                if (start && purchaseDate < start) return false;
                 if (end) {
                     end.setHours(23, 59, 59, 999);
+                    if (purchaseDate > end) return false;
                 }
-                if (!purchaseDate || !start || !end) return false;
-                return purchaseDate >= start && purchaseDate <= end;
+                return true;
             });
         }
         
@@ -1179,7 +1185,9 @@ export default function DataConsultation(props) {
                 },
                 period: (purchasesDateFromYear || purchasesDateToYear) 
                     ? `Filtro personalizado por fechas` 
-                    : startDate && endDate ? `${formatDateForDisplay(startDate)} - ${formatDateForDisplay(endDate)}` : 'Todos los períodos'
+                    : startDate && endDate ? `${formatDateForDisplay(startDate)} - ${formatDateForDisplay(endDate)}` 
+                    : startDate ? `Desde ${formatDateForDisplay(startDate)}` 
+                    : endDate ? `Hasta ${formatDateForDisplay(endDate)}` : 'Todos los períodos'
             }, 
             data: filteredPurchases.map(p => ({
                 id: p.id, 
@@ -1199,8 +1207,8 @@ export default function DataConsultation(props) {
         const hasGranularFilters = ordersDateFromYear || ordersDateFromMonth || ordersDateFromDay || ordersDateFromHour || ordersDateFromMinute || ordersDateToYear || ordersDateToMonth || ordersDateToDay || ordersDateToHour || ordersDateToMinute;
         const hasOtherFilters = ordersIdFilter.trim() || ordersCustomerFilter.trim() || ordersPaymentMethodFilter.length > 0 || ordersStatusFilter.length > 0 || ordersProductFilter.trim() || ordersUnitsFilter.trim();
         
-        if (!hasGranularFilters && !hasOtherFilters && (!startDate || !endDate)) {
-            setMessage('Por favor, ingrese una fecha de inicio y una de fin o use filtros específicos.');
+        if (!hasGranularFilters && !hasOtherFilters && !startDate && !endDate) {
+            setMessage('Por favor, ingrese al menos una fecha de inicio o una fecha de fin, o use filtros específicos.');
             return;
         }
 
@@ -1356,17 +1364,19 @@ export default function DataConsultation(props) {
                 
                 return matches;
             });
-        } else if (startDate && endDate) {
+        } else if (startDate || endDate) {
             // Filtro por fechas estándar (startDate/endDate) - solo si no hay filtros granulares
             filteredOrders = filteredOrders.filter(order => {
                 const orderDate = parseAnyDate(order.created_at || order.date);
-                const start = parseAnyDate(startDate);
-                const end = parseAnyDate(endDate);
+                const start = startDate ? parseAnyDate(startDate) : null;
+                const end = endDate ? parseAnyDate(endDate) : null;
+                if (!orderDate) return false;
+                if (start && orderDate < start) return false;
                 if (end) {
                     end.setHours(23, 59, 59, 999);
+                    if (orderDate > end) return false;
                 }
-                if (!orderDate || !start || !end) return false;
-                return orderDate >= start && orderDate <= end;
+                return true;
             });
         }
         
@@ -1484,7 +1494,9 @@ export default function DataConsultation(props) {
                 canceledOrders: filteredOrders.filter(o => o.status === 'Cancelado').length,
                 period: (ordersDateFromYear || ordersDateToYear) 
                     ? `Filtro personalizado por fechas` 
-                    : startDate && endDate ? `${formatDateForDisplay(startDate)} - ${formatDateForDisplay(endDate)}` : 'Todos los períodos'
+                    : startDate && endDate ? `${formatDateForDisplay(startDate)} - ${formatDateForDisplay(endDate)}` 
+                    : startDate ? `Desde ${formatDateForDisplay(startDate)}` 
+                    : endDate ? `Hasta ${formatDateForDisplay(endDate)}` : 'Todos los períodos'
             }, 
             data: filteredOrders.map(order => { 
                 let itemsArray = Array.isArray(order.items) ? order.items : [];
@@ -1556,8 +1568,8 @@ export default function DataConsultation(props) {
         const hasGranularFilters = cashDateFromYear || cashDateFromMonth || cashDateFromDay || cashDateFromHour || cashDateFromMinute || cashDateToYear || cashDateToMonth || cashDateToDay || cashDateToHour || cashDateToMinute;
         const hasOtherFilters = cashIdFilter.trim() || cashAmountFilter.trim() || cashDescriptionFilter.trim() || cashUserFilter.trim() || cashTypeFilter || cashPaymentMethodFilter.length > 0;
         
-        if (!hasGranularFilters && !hasOtherFilters && (!startDate || !endDate)) {
-            setMessage('Por favor, ingrese una fecha de inicio y una de fin o use filtros específicos.');
+        if (!hasGranularFilters && !hasOtherFilters && !startDate && !endDate) {
+            setMessage('Por favor, ingrese al menos una fecha de inicio o una fecha de fin, o use filtros específicos.');
             return;
         }
 
@@ -1710,17 +1722,19 @@ export default function DataConsultation(props) {
                 
                 return matches;
             });
-        } else if (startDate && endDate) {
+        } else if (startDate || endDate) {
             // Filtro por fechas estándar (startDate/endDate) - solo si no hay filtros granulares
             filteredMovements = filteredMovements.filter(movement => {
                 const movementDate = parseAnyDate(movement.date);
-                const start = parseAnyDate(startDate);
-                const end = parseAnyDate(endDate);
+                const start = startDate ? parseAnyDate(startDate) : null;
+                const end = endDate ? parseAnyDate(endDate) : null;
+                if (!movementDate) return false;
+                if (start && movementDate < start) return false;
                 if (end) {
                     end.setHours(23, 59, 59, 999);
+                    if (movementDate > end) return false;
                 }
-                if (!movementDate || !start || !end) return false;
-                return movementDate >= start && movementDate <= end;
+                return true;
             });
         }
         
@@ -1850,7 +1864,9 @@ export default function DataConsultation(props) {
                 totalExpenses: safeToFixed(totalExpenses),
                 period: (cashDateFromYear || cashDateToYear) 
                     ? `Filtro personalizado por fechas` 
-                    : startDate && endDate ? `${formatDateForDisplay(startDate)} - ${formatDateForDisplay(endDate)}` : 'Todos los períodos'
+                    : startDate && endDate ? `${formatDateForDisplay(startDate)} - ${formatDateForDisplay(endDate)}` 
+                    : startDate ? `Desde ${formatDateForDisplay(startDate)}` 
+                    : endDate ? `Hasta ${formatDateForDisplay(endDate)}` : 'Todos los períodos'
             }, 
             data: filteredMovements.map(movement => ({ id: movement.id, date: movement.date, type: movement.type, amount: movement.amount, description: movement.description, user: movement.user, payment_method: movement.payment_method })) 
         };

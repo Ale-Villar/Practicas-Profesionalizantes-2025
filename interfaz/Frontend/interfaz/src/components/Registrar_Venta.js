@@ -9,53 +9,13 @@ const Registrar_Venta = ({ products, loadProducts, loadCashMovements }) => {
         { method: 'efectivo', amount: '' }
     ]);
     const [message, setMessage] = useState('');
-    const [showMobileTicket, setShowMobileTicket] = useState(false);
-    const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1200);
-    const [showProductsModal, setShowProductsModal] = useState(false);
+    const [showFilters, setShowFilters] = useState(true);
     
     // Estados de filtros
     const [stockComparator, setStockComparator] = useState('');
     const [stockValue, setStockValue] = useState('');
     const [priceComparator, setPriceComparator] = useState('');
     const [priceValue, setPriceValue] = useState('');
-
-    // Estados para drag del modal
-    const [isDragging, setIsDragging] = useState(false);
-    const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
-    const [modalPosition, setModalPosition] = useState({ x: window.innerWidth / 2 - 300, y: window.innerHeight / 2 - 300 });
-
-    useEffect(() => {
-        const handleResize = () => setWindowWidth(window.innerWidth);
-        window.addEventListener('resize', handleResize);
-        return () => window.removeEventListener('resize', handleResize);
-    }, []);
-
-    useEffect(() => {
-        const handleMouseMove = (e) => {
-            if (isDragging) {
-                const dx = e.clientX - dragStart.x;
-                const dy = e.clientY - dragStart.y;
-                setModalPosition(prev => ({
-                    x: prev.x + dx,
-                    y: prev.y + dy
-                }));
-                setDragStart({ x: e.clientX, y: e.clientY });
-            }
-        };
-
-        const handleMouseUp = () => {
-            setIsDragging(false);
-        };
-
-        if (isDragging) {
-            document.addEventListener('mousemove', handleMouseMove);
-            document.addEventListener('mouseup', handleMouseUp);
-            return () => {
-                document.removeEventListener('mousemove', handleMouseMove);
-                document.removeEventListener('mouseup', handleMouseUp);
-            };
-        }
-    }, [isDragging, dragStart]);
 
     const compareValues = (productValue, filterValue, comparator) => {
         const pVal = parseFloat(productValue);
@@ -112,24 +72,15 @@ const Registrar_Venta = ({ products, loadProducts, loadCashMovements }) => {
     };
 
     const updateQuantity = (productId, newQuantity) => {
-        if (newQuantity === "") {
-            setCartItems(prevItems =>
-                prevItems.map(item =>
-                    item.product.id === productId
-                        ? { ...item, quantity: "" }
-                        : item
-                )
-            );
-            return;
-        }
-
-        if (parseInt(newQuantity) < 1) {
+        if (newQuantity === '' || Number.isNaN(parseInt(newQuantity, 10)) || parseInt(newQuantity, 10) <= 0) {
             removeFromCart(productId);
             return;
         }
 
         const product = products.find(p => p.id === productId);
-        if (parseInt(newQuantity) > product.stock) {
+        const parsedQuantity = parseInt(newQuantity, 10);
+
+        if (parsedQuantity > product.stock) {
             setMessage(`No puedes vender más de ${product.stock} unidades de ${product.name}.`);
             setTimeout(() => setMessage(''), 3000);
             return;
@@ -138,10 +89,30 @@ const Registrar_Venta = ({ products, loadProducts, loadCashMovements }) => {
         setCartItems(prevItems =>
             prevItems.map(item =>
                 item.product.id === productId
-                    ? { ...item, quantity: parseInt(newQuantity) || 0 }
+                    ? { ...item, quantity: parsedQuantity }
                     : item
             )
         );
+    };
+
+    const handleQuantityInputChange = (product, value) => {
+        if (value === '') {
+            updateQuantity(product.id, '');
+            return;
+        }
+
+        const integerValue = value.replace(/\D/g, '');
+        if (integerValue === '') {
+            updateQuantity(product.id, '');
+            return;
+        }
+
+        updateQuantity(product.id, integerValue);
+    };
+
+    const getCartQuantity = (productId) => {
+        const item = cartItems.find(cartItem => cartItem.product.id === productId);
+        return item ? item.quantity : 0;
     };
 
     const removeFromCart = (productId) => {
@@ -169,8 +140,12 @@ const Registrar_Venta = ({ products, loadProducts, loadCashMovements }) => {
         }
     };
 
+    const round2 = (value) => Math.round((Number(value) + Number.EPSILON) * 100) / 100;
     const totalPaid = paymentMethods.reduce((sum, pm) => sum + (parseFloat(pm.amount) || 0), 0);
-    const remaining = total - totalPaid;
+    const cashPaid = paymentMethods.reduce((sum, pm) => pm.method === 'efectivo' ? sum + (parseFloat(pm.amount) || 0) : sum, 0);
+    const remaining = round2(total - totalPaid);
+    const change = round2(Math.max(0, totalPaid - total));
+    const canConfirmSale = cartItems.length > 0 && remaining <= 0 && (change <= 0.01 || cashPaid >= change - 0.01);
 
     const clearCart = () => {
         setCartItems([]);
@@ -192,8 +167,23 @@ const Registrar_Venta = ({ products, loadProducts, loadCashMovements }) => {
             return;
         }
 
-        if (Math.abs(remaining) > 0.01) {
-            setMessage(`Faltan: $${remaining.toFixed(2)}. El total debe estar completo.`);
+        const roundedRemaining = round2(total - totalPaid);
+        const roundedChange = round2(Math.max(0, totalPaid - total));
+
+        if (roundedRemaining > 0.01) {
+            setMessage(`Faltan: $${roundedRemaining.toFixed(2)}. El total debe estar completo.`);
+            setTimeout(() => setMessage(''), 3000);
+            return;
+        }
+
+        if (roundedRemaining < -0.01 && cashPaid < roundedChange - 0.01) {
+            setMessage('Para dar vuelto, el pago en efectivo debe cubrir el cambio.');
+            setTimeout(() => setMessage(''), 3000);
+            return;
+        }
+
+        if (roundedChange > 0.01 && cashPaid < roundedChange - 0.01) {
+            setMessage('Para dar vuelto, el pago en efectivo debe cubrir el cambio.');
             setTimeout(() => setMessage(''), 3000);
             return;
         }
@@ -212,14 +202,25 @@ const Registrar_Venta = ({ products, loadProducts, loadCashMovements }) => {
                 items: saleItems
             });
 
+            const itemsForThisMethod = cartItems.map(item => 
+                `${item.product.name} x${item.quantity}`
+            ).join(', ');
+
+            let remainingChange = change;
+
             for (const pm of paymentMethods) {
-                const itemsForThisMethod = cartItems.map(item => 
-                    `${item.product.name} x${item.quantity}`
-                ).join(', ');
-                
+                const tenderedAmount = parseFloat(pm.amount) || 0;
+                const settledAmount = pm.method === 'efectivo' && remainingChange > 0
+                    ? Math.max(0, tenderedAmount - remainingChange)
+                    : tenderedAmount;
+
+                if (pm.method === 'efectivo' && remainingChange > 0) {
+                    remainingChange = Math.max(0, remainingChange - tenderedAmount);
+                }
+
                 await api.post('/cash-movements/', {
                     type: 'Entrada',
-                    amount: parseFloat(pm.amount),
+                    amount: settledAmount,
                     description: `Venta: ${itemsForThisMethod}`,
                     payment_method: pm.method
                 });
@@ -250,77 +251,167 @@ const Registrar_Venta = ({ products, loadProducts, loadCashMovements }) => {
             <div className="w-full max-w-[3000px] mx-auto px-2">
                 <div className="grid grid-cols-1 md:grid-cols-12 gap-2 md:gap-3 items-start">
                     
-                    {/* Columna izquierda: Filtros */}
-                    <div className="md:col-span-3 lg:col-span-2 xl:col-span-2 2xl:col-span-2">
-                        <div className="bg-white rounded-lg shadow-md p-4 sticky top-0">
-                            <h3 className="text-lg font-bold text-gray-800 mb-4">🔍 Filtros</h3>
-                            
-                            <div className="mb-4">
-                                <label className="block text-sm font-semibold text-gray-700 mb-2">Stock</label>
-                                <select
-                                    value={stockComparator}
-                                    onChange={(e) => setStockComparator(e.target.value)}
-                                    className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent mb-2"
-                                >
-                                    <option value="">Sin filtro</option>
-                                    <option value="gt">Mayor que</option>
-                                    <option value="gte">Mayor o igual</option>
-                                    <option value="lt">Menor que</option>
-                                    <option value="lte">Menor o igual</option>
-                                    <option value="eq">Igual a</option>
-                                </select>
-                                {stockComparator && (
-                                    <input
-                                        type="number"
-                                        value={stockValue}
-                                        onChange={(e) => setStockValue(e.target.value)}
-                                        placeholder="Cantidad"
-                                        className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                    />
+                    {/* Columna izquierda: Filtros y total */}
+                    <div className="md:col-span-3 lg:col-span-3 xl:col-span-3 2xl:col-span-3 space-y-3 sticky top-0">
+                            <div className="bg-white rounded-lg shadow-md p-4">
+                                <div className="flex items-center justify-between mb-2">
+                                    <h3 className="text-lg font-bold text-gray-800">🔍 Filtros</h3>
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowFilters(prev => !prev)}
+                                        className="text-sm font-medium text-blue-600 hover:text-blue-700"
+                                    >
+                                        {showFilters ? 'Ocultar' : 'Mostrar'}
+                                    </button>
+                                </div>
+
+                                {showFilters && (
+                                    <>
+                                        <div className="mb-4">
+                                            <label className="block text-sm font-semibold text-gray-700 mb-2">Stock</label>
+                                            <select
+                                                value={stockComparator}
+                                                onChange={(e) => setStockComparator(e.target.value)}
+                                                className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent mb-2"
+                                            >
+                                                <option value="">Sin filtro</option>
+                                                <option value="gt">Mayor que</option>
+                                                <option value="gte">Mayor o igual</option>
+                                                <option value="lt">Menor que</option>
+                                                <option value="lte">Menor o igual</option>
+                                                <option value="eq">Igual a</option>
+                                            </select>
+                                            {stockComparator && (
+                                                <input
+                                                    type="number"
+                                                    value={stockValue}
+                                                    onChange={(e) => setStockValue(e.target.value)}
+                                                    placeholder="Cantidad"
+                                                    className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                                />
+                                            )}
+                                        </div>
+
+                                        <div className="mb-4">
+                                            <label className="block text-sm font-semibold text-gray-700 mb-2">Precio</label>
+                                            <select
+                                                value={priceComparator}
+                                                onChange={(e) => setPriceComparator(e.target.value)}
+                                                className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent mb-2"
+                                            >
+                                                <option value="">Sin filtro</option>
+                                                <option value="gt">Mayor que</option>
+                                                <option value="gte">Mayor o igual</option>
+                                                <option value="lt">Menor que</option>
+                                                <option value="lte">Menor o igual</option>
+                                                <option value="eq">Igual a</option>
+                                            </select>
+                                            {priceComparator && (
+                                                <input
+                                                    type="number"
+                                                    value={priceValue}
+                                                    onChange={(e) => setPriceValue(e.target.value)}
+                                                    placeholder="Monto"
+                                                    className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                                />
+                                            )}
+                                        </div>
+
+                                        <button
+                                            onClick={() => {
+                                                setStockComparator('');
+                                                setStockValue('');
+                                                setPriceComparator('');
+                                                setPriceValue('');
+                                            }}
+                                            className="w-full py-2 bg-gray-500 hover:bg-gray-600 text-white text-sm font-medium rounded-lg transition-colors"
+                                        >
+                                            Limpiar filtros
+                                        </button>
+                                    </>
                                 )}
                             </div>
 
+                        <div className="bg-white rounded-lg shadow-md p-4">
+                            <div className="flex items-center justify-between mb-3">
+                                <h3 className="text-lg font-bold text-gray-800">Total</h3>
+                                <button onClick={clearCart} className="text-red-600 hover:text-red-700 text-sm font-medium">
+                                    Limpiar carrito
+                                </button>
+                            </div>
+
+                            <div className="border-t-2 border-gray-300 pt-3 mb-4">
+                                <div className="flex justify-between items-center text-xl font-bold">
+                                    <span>Total</span>
+                                    <span className="text-black">${total.toFixed(2)}</span>
+                                </div>
+                            </div>
+
                             <div className="mb-4">
-                                <label className="block text-sm font-semibold text-gray-700 mb-2">Precio</label>
-                                <select
-                                    value={priceComparator}
-                                    onChange={(e) => setPriceComparator(e.target.value)}
-                                    className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent mb-2"
-                                >
-                                    <option value="">Sin filtro</option>
-                                    <option value="gt">Mayor que</option>
-                                    <option value="gte">Mayor o igual</option>
-                                    <option value="lt">Menor que</option>
-                                    <option value="lte">Menor o igual</option>
-                                    <option value="eq">Igual a</option>
-                                </select>
-                                {priceComparator && (
-                                    <input
-                                        type="number"
-                                        value={priceValue}
-                                        onChange={(e) => setPriceValue(e.target.value)}
-                                        placeholder="Monto"
-                                        className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                    />
-                                )}
+                                <div className="flex justify-between items-center mb-3">
+                                    <h4 className="font-semibold text-gray-700">Desglose de Pago</h4>
+                                    <button onClick={addPaymentMethod} className="text-blue-600 hover:text-blue-700 text-sm font-medium">
+                                        + Agregar medio
+                                    </button>
+                                </div>
+
+                                <div className="space-y-3">
+                                    {paymentMethods.map((pm, index) => (
+                                        <div key={index} className="flex gap-2 items-center">
+                                            <select
+                                                value={pm.method}
+                                                onChange={(e) => updatePaymentMethod(index, 'method', e.target.value)}
+                                                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                                            >
+                                                <option value="efectivo">Efectivo</option>
+                                                <option value="debito">Débito</option>
+                                                <option value="credito">Crédito</option>
+                                                <option value="transferencia">Transferencia</option>
+                                            </select>
+                                            <input
+                                                type="number"
+                                                value={pm.amount}
+                                                onChange={(e) => updatePaymentMethod(index, 'amount', e.target.value)}
+                                                placeholder="Monto"
+                                                className="w-24 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                                            />
+                                            {paymentMethods.length > 1 && (
+                                                <button onClick={() => removePaymentMethod(index)} className="text-red-500 hover:text-red-700">
+                                                    🗑️
+                                                </button>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+
+                                <div className="mt-3 text-sm space-y-1">
+                                    <div className="flex justify-between text-gray-600">
+                                        <span>Total a pagar:</span>
+                                        <span>${total.toFixed(2)}</span>
+                                    </div>
+                                    <div className="flex justify-between text-gray-600">
+                                        <span>Total ingresado:</span>
+                                        <span>${totalPaid.toFixed(2)}</span>
+                                    </div>
+                                    <div className={`flex justify-between font-bold ${remaining > 0 ? 'text-red-600' : remaining < 0 ? 'text-yellow-600' : 'text-green-600'}`}>
+                                        <span>{remaining > 0 ? 'Faltan:' : remaining < 0 ? 'Vuelto:' : 'Completo:'}</span>
+                                        <span>${Math.abs(remaining).toFixed(2)}</span>
+                                    </div>
+                                </div>
                             </div>
 
                             <button
-                                onClick={() => {
-                                    setStockComparator('');
-                                    setStockValue('');
-                                    setPriceComparator('');
-                                    setPriceValue('');
-                                }}
-                                className="w-full py-2 bg-gray-500 hover:bg-gray-600 text-white text-sm font-medium rounded-lg transition-colors"
+                                onClick={handleConfirmSale}
+                                disabled={!canConfirmSale}
+                                className="w-full py-3 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-bold rounded-lg transition-colors duration-200"
                             >
-                                Limpiar filtros
+                                ✅ Confirmar Venta
                             </button>
                         </div>
                     </div>
 
                     {/* Columna central: Buscador y Productos (NUEVA TABLA) */}
-                    <div className="md:col-span-5 lg:col-span-6 xl:col-span-7 2xl:col-span-7 space-y-2">
+                    <div className="md:col-span-9 lg:col-span-9 xl:col-span-9 2xl:col-span-9 space-y-2">
                         <div className="bg-white rounded-lg shadow-md p-2 w-full">
                             <div className="relative w-full">
                                 <input
@@ -340,13 +431,15 @@ const Registrar_Venta = ({ products, loadProducts, loadCashMovements }) => {
                                         <tr>
                                             <th className="py-3 px-4 w-16 text-center">Marcar</th>
                                             <th className="py-3 px-4">Producto</th>
-                                            <th className="py-3 px-4 text-right">Precio</th>
+                                            <th className="py-3 px-4 text-right">Precio por unidad</th>
+                                            <th className="py-3 px-4 text-center">Cantidad</th>
                                             <th className="py-3 px-4 text-center">Stock</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-100 text-sm">
                                         {availableProducts.map(product => {
-                                            const isInCart = cartItems.some(item => item.product.id === product.id);
+                                            const isInCart = getCartQuantity(product.id) > 0;
+                                            const cartQuantity = getCartQuantity(product.id);
                                             return (
                                                 <tr key={product.id} className="hover:bg-slate-50 transition-colors">
                                                     <td className="py-2.5 px-4 text-center">
@@ -365,6 +458,18 @@ const Registrar_Venta = ({ products, loadProducts, loadCashMovements }) => {
                                                     </td>
                                                     <td className="py-2.5 px-4 font-medium text-slate-800">{product.name}</td>
                                                     <td className="py-2.5 px-4 text-right font-bold text-slate-700">${product.price}</td>
+                                                    <td className="py-2.5 px-4 text-center">
+                                                        <input
+                                                            type="number"
+                                                            min="0"
+                                                            step="1"
+                                                            inputMode="numeric"
+                                                            pattern="[0-9]*"
+                                                            value={cartQuantity}
+                                                            onChange={(e) => handleQuantityInputChange(product, e.target.value)}
+                                                            className="w-24 px-2 py-1 border border-gray-300 rounded-lg text-center focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                                        />
+                                                    </td>
                                                     <td className="py-2.5 px-4 text-center text-slate-500">{parseInt(product.stock, 10)}</td>
                                                 </tr>
                                             );
@@ -376,316 +481,6 @@ const Registrar_Venta = ({ products, loadProducts, loadCashMovements }) => {
                                 )}
                             </div>
                         </div>
-                    </div>
-
-                    {/* Columna derecha: Ticket (MANTIENE MISMA ESTRUCTURA) */}
-                    <div className="md:col-span-4 lg:col-span-4 xl:col-span-3 2xl:col-span-3">
-                        {windowWidth >= 800 && (
-                            <div className="bg-white rounded-lg shadow-md p-4 sticky top-0 w-full min-h-[500px]">
-                                <div className="flex items-center justify-between mb-4">
-                                    <button onClick={clearCart} className="text-red-600 hover:text-red-700 text-sm font-medium">
-                                        Limpiar
-                                    </button>
-                                </div>
-
-                                {cartItems.length > 0 ? (
-                                    <div className="mb-4">
-                                        <button
-                                            onClick={() => setShowProductsModal(true)}
-                                            className="w-full bg-blue-50 hover:bg-blue-100 border-2 border-blue-200 rounded-lg p-3 transition-colors"
-                                        >
-                                            <div className="flex justify-between items-center">
-                                                <div className="flex items-center gap-2">
-                                                    <span className="text-2xl">🛒</span>
-                                                    <div className="text-left">
-                                                        <p className="font-bold text-gray-800">{cartItems.length} producto{cartItems.length !== 1 ? 's' : ''}</p>
-                                                        <p className="text-sm text-gray-600">{cartItems.reduce((sum, item) => sum + (parseInt(item.quantity) || 0), 0)} unidades</p>
-                                                        <p className="text-xs text-gray-500 mt-1 line-clamp-2 break-words">
-                                                            {cartItems.map(item => item.product.name).join(', ')}
-                                                        </p>
-                                                    </div>
-                                                </div>
-                                                <span className="text-blue-600 font-medium">Ver detalle →</span>
-                                            </div>
-                                        </button>
-                                    </div>
-                                ) : (
-                                    <div className="mb-4">
-                                        <p className="text-center text-gray-400 py-8">Carrito vacío</p>
-                                    </div>
-                                )}
-
-                                <div className="border-t-2 border-gray-300 pt-3 mb-4">
-                                    <div className="flex justify-between items-center text-xl font-bold">
-                                        <span>Total</span>
-                                        <span className="text-black">${total.toFixed(2)}</span>
-                                    </div>
-                                </div>
-
-                                <div className="mb-4">
-                                    <div className="flex justify-between items-center mb-3">
-                                        <h4 className="font-semibold text-gray-700"> Desglose de Pago</h4>
-                                        <button onClick={addPaymentMethod} className="text-blue-600 hover:text-blue-700 text-sm font-medium">
-                                            + Agregar medio
-                                        </button>
-                                    </div>
-
-                                    <div className="space-y-3">
-                                        {paymentMethods.map((pm, index) => (
-                                            <div key={index} className="flex gap-2 items-center">
-                                                <select
-                                                    value={pm.method}
-                                                    onChange={(e) => updatePaymentMethod(index, 'method', e.target.value)}
-                                                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-                                                >
-                                                    <option value="efectivo">Efectivo</option>
-                                                    <option value="debito">Débito</option>
-                                                    <option value="credito">Crédito</option>
-                                                    <option value="transferencia">Transferencia</option>
-                                                </select>
-                                                <input
-                                                    type="number"
-                                                    value={pm.amount}
-                                                    onChange={(e) => updatePaymentMethod(index, 'amount', e.target.value)}
-                                                    placeholder="Monto"
-                                                    className="w-24 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-                                                />
-                                                {paymentMethods.length > 1 && (
-                                                    <button onClick={() => removePaymentMethod(index)} className="text-red-500 hover:text-red-700">
-                                                        🗑️
-                                                    </button>
-                                                )}
-                                            </div>
-                                        ))}
-                                    </div>
-
-                                    <div className="mt-3 text-sm space-y-1">
-                                        <div className="flex justify-between text-gray-600">
-                                            <span>Total a pagar:</span>
-                                            <span>${total.toFixed(2)}</span>
-                                        </div>
-                                        <div className="flex justify-between text-gray-600">
-                                            <span>Total ingresado:</span>
-                                            <span>${totalPaid.toFixed(2)}</span>
-                                        </div>
-                                        <div className={`flex justify-between font-bold ${remaining > 0 ? 'text-red-600' : remaining < 0 ? 'text-yellow-600' : 'text-green-600'}`}>
-                                            <span>{remaining > 0 ? 'Faltan:' : remaining < 0 ? 'Sobra:' : 'Completo:'}</span>
-                                            <span>${Math.abs(remaining).toFixed(2)}</span>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <button
-                                    onClick={handleConfirmSale}
-                                    disabled={cartItems.length === 0 || Math.abs(remaining) > 0.01}
-                                    className="w-full py-3 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-bold rounded-lg transition-colors duration-200"
-                                >
-                                    ✓ Confirmar Venta
-                                </button>
-                            </div>
-                        )}
-
-                        {/* Modal de detalle (Desktop) */}
-                        {showProductsModal && windowWidth >= 800 && (
-                            <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4" onClick={() => setShowProductsModal(false)}>
-                                <div 
-                                    className="bg-white rounded-lg shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-hidden products-modal"
-                                    style={{
-                                        position: 'absolute',
-                                        left: `${modalPosition.x}px`,
-                                        top: `${modalPosition.y}px`,
-                                        transform: 'none'
-                                    }}
-                                    onClick={(e) => e.stopPropagation()}
-                                >
-                                    <div 
-                                        className="flex justify-between items-center p-4 border-b border-gray-200 cursor-move bg-blue-600 text-white select-none"
-                                        onMouseDown={(e) => {
-                                            setIsDragging(true);
-                                            setDragStart({ x: e.clientX, y: e.clientY });
-                                        }}
-                                    >
-                                        <h3 className="text-xl font-bold">📋 Detalle de productos</h3>
-                                        <button
-                                            onClick={() => setShowProductsModal(false)}
-                                            className="text-white hover:text-gray-200 text-2xl font-bold"
-                                            onMouseDown={(e) => e.stopPropagation()}
-                                        >
-                                            ✕
-                                        </button>
-                                    </div>
-                                    <div className="p-4 overflow-y-auto max-h-[calc(80vh-80px)]">
-                                        <div className="grid grid-cols-1 gap-3 products-modal-grid">
-                                            {cartItems.map(item => (
-                                                <div key={item.product.id} className="border border-gray-200 rounded-lg p-3 bg-gray-50">
-                                                    <div className="flex justify-between items-start mb-2">
-                                                        <span className="font-medium text-gray-800 flex-1 break-words">{item.product.name}</span>
-                                                        <button
-                                                            onClick={() => removeFromCart(item.product.id)}
-                                                            className="text-red-500 hover:text-red-700 ml-2 flex-shrink-0"
-                                                        >
-                                                            🗑️
-                                                        </button>
-                                                    </div>
-                                                    <div className="flex items-center justify-between">
-                                                        <div className="flex items-center gap-2">
-                                                            <span className="text-sm text-gray-600">${item.product.price} x</span>
-                                                            <input
-                                                                type="number"
-                                                                value={item.quantity}
-                                                                onChange={(e) => updateQuantity(item.product.id, e.target.value)}
-                                                                min="1"
-                                                                max={item.product.stock}
-                                                                className="w-16 px-2 py-1 border border-gray-300 rounded text-center focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                                            />
-                                                        </div>
-                                                        <span className="font-bold text-gray-800">
-                                                            ${(item.product.price * item.quantity).toFixed(2)}
-                                                        </span>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-                    
-                        {/* Ticket móvil (Botón desplegable) */}
-                        {cartItems.length > 0 && windowWidth < 800 && (
-                            <div className="fixed bottom-0 left-0 right-0 z-50">
-                                <button
-                                    onClick={() => setShowMobileTicket(!showMobileTicket)}
-                                    className="w-full bg-gray-800 text-white p-4 flex justify-between items-center shadow-lg"
-                                >
-                                    <div className="flex items-center gap-2">
-                                        <span className="bg-orange-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold">
-                                            {cartItems.length}
-                                        </span>
-                                        <span className="font-medium">Ver pedido</span>
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-xl font-bold">${total.toFixed(2)}</span>
-                                        <span className="text-2xl">{showMobileTicket ? '∨' : '∧'}</span>
-                                    </div>
-                                </button>
-
-                                {showMobileTicket && (
-                                    <div className="bg-white border-t-2 border-gray-200 max-h-[70vh] overflow-y-auto shadow-2xl">
-                                        <div className="p-4">
-                                            <div className="flex items-center justify-between mb-4">
-                                                <button onClick={clearCart} className="text-red-600 hover:text-red-700 text-sm font-medium">
-                                                    Limpiar
-                                                </button>
-                                            </div>
-
-                                            <div className="grid grid-cols-1 gap-3 mb-4 ticket-items-mobile">
-                                                {cartItems.map(item => (
-                                                    <div key={item.product.id} className="border-b border-gray-200 pb-3">
-                                                        <div className="flex justify-between items-start mb-2">
-                                                            <span className="font-medium text-gray-800 flex-1">{item.product.name}</span>
-                                                            <button onClick={() => removeFromCart(item.product.id)} className="text-red-600 hover:text-red-700 ml-2">
-                                                                ✕
-                                                            </button>
-                                                        </div>
-                                                        <div className="flex justify-between items-center">
-                                                            <div className="flex items-center gap-2">
-                                                                <button
-                                                                    onClick={() => updateQuantity(item.product.id, Math.max(1, item.quantity - 1))}
-                                                                    className="bg-gray-200 hover:bg-gray-300 text-gray-700 w-7 h-7 rounded flex items-center justify-center font-bold"
-                                                                >
-                                                                    -
-                                                                </button>
-                                                                <span className="w-8 text-center font-medium">{item.quantity}</span>
-                                                                <button
-                                                                    onClick={() => updateQuantity(item.product.id, item.quantity + 1)}
-                                                                    className="bg-gray-200 hover:bg-gray-300 text-gray-700 w-7 h-7 rounded flex items-center justify-center font-bold"
-                                                                >
-                                                                    +
-                                                                </button>
-                                                            </div>
-                                                            <span className="font-bold text-gray-800">${(item.product.price * item.quantity).toFixed(2)}</span>
-                                                        </div>
-                                                    </div>
-                                                ))}
-                                            </div>
-
-                                            {cartItems.length === 0 && (
-                                                <p className="text-center text-gray-400 py-8">Carrito vacío</p>
-                                            )}
-
-                                            <div className="border-t-2 border-gray-300 pt-3 mb-4">
-                                                <div className="flex justify-between items-center text-xl font-bold">
-                                                    <span>Total</span>
-                                                    <span className="text-black">${total.toFixed(2)}</span>
-                                                </div>
-                                            </div>
-
-                                            <div className="mb-4">
-                                                <div className="flex justify-between items-center mb-2">
-                                                    <h4 className="font-semibold text-gray-700"> Desglose de Pago</h4>
-                                                    <button onClick={addPaymentMethod} className="text-blue-600 hover:text-blue-700 text-sm font-medium">
-                                                        + Agregar medio
-                                                    </button>
-                                                </div>
-
-                                                <div className="space-y-3">
-                                                    {paymentMethods.map((pm, index) => (
-                                                        <div key={index} className="flex gap-2 items-center">
-                                                            <select
-                                                                value={pm.method}
-                                                                onChange={(e) => updatePaymentMethod(index, 'method', e.target.value)}
-                                                                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-                                                            >
-                                                                <option value="efectivo">Efectivo</option>
-                                                                <option value="debito">Débito</option>
-                                                                <option value="credito">Crédito</option>
-                                                                <option value="transferencia">Transferencia</option>
-                                                            </select>
-                                                            <input
-                                                                type="number"
-                                                                value={pm.amount}
-                                                                onChange={(e) => updatePaymentMethod(index, 'amount', e.target.value)}
-                                                                placeholder="Monto"
-                                                                className="w-24 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-                                                            />
-                                                            {paymentMethods.length > 1 && (
-                                                                <button onClick={() => removePaymentMethod(index)} className="text-red-600 hover:text-red-700 p-2">
-                                                                    ✕
-                                                                </button>
-                                                            )}
-                                                        </div>
-                                                    ))}
-                                                </div>
-
-                                                <div className="mt-3 p-3 bg-gray-50 rounded-lg space-y-1 text-sm">
-                                                    <div className="flex justify-between text-gray-600">
-                                                        <span>Total a pagar:</span>
-                                                        <span>${total.toFixed(2)}</span>
-                                                    </div>
-                                                    <div className="flex justify-between text-gray-600">
-                                                        <span>Total ingresado:</span>
-                                                        <span>${totalPaid.toFixed(2)}</span>
-                                                    </div>
-                                                    <div className={`flex justify-between font-bold ${remaining > 0 ? 'text-red-600' : remaining < 0 ? 'text-yellow-600' : 'text-green-600'}`}>
-                                                        <span>{remaining > 0 ? 'Faltan:' : remaining < 0 ? 'Sobra:' : 'Completo:'}</span>
-                                                        <span>${Math.abs(remaining).toFixed(2)}</span>
-                                                    </div>
-                                                </div>
-                                            </div>
-
-                                            <button
-                                                onClick={handleConfirmSale}
-                                                disabled={cartItems.length === 0 || Math.abs(remaining) > 0.01}
-                                                className="w-full py-3 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-bold rounded-lg transition-colors duration-200"
-                                            >
-                                                ✓ Confirmar Venta
-                                            </button>
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                        )}
                     </div>
                 </div>
             </div>
