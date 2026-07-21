@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import ReactDOM from 'react-dom';
 import api from '../services/api';
+import { formatStockDisplay, parseLocaleDecimal, formatDecimalInput, isValidDecimalInput } from '../utils/format';
 
 const EditarInsumos = ({ products, setProducts, loadProducts, isLoading, showEditPanel, setShowEditPanel }) => {
     // Solo mostrar insumos (category === 'Insumo')
@@ -21,6 +22,7 @@ const EditarInsumos = ({ products, setProducts, loadProducts, isLoading, showEdi
     });
     const [message, setMessage] = useState('');
     const [confirmDelete, setConfirmDelete] = useState(false);
+    const [highStockMultiplierInput, setHighStockMultiplierInput] = useState(null);
     const [deleteAllConfirm, setDeleteAllConfirm] = useState(false);
     const [showLoadingMessage, setShowLoadingMessage] = useState(false);
     const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -72,6 +74,7 @@ const EditarInsumos = ({ products, setProducts, loadProducts, isLoading, showEdi
             return;
         }
         setSelectedProduct(product);
+        setHighStockMultiplierInput(null);
         
         const convertThresholdFromBaseUnit = (threshold, unit) => {
             if (unit === 'g') return threshold / 1000;
@@ -408,10 +411,8 @@ const EditarInsumos = ({ products, setProducts, loadProducts, isLoading, showEdi
                                                 <div className="form-group" style={{marginBottom: 0}}>
                                                     <label>Stock Actual {selectedProduct?.unit && `(${selectedProduct.unit === 'g' ? 'Kg' : selectedProduct.unit === 'ml' ? 'L' : 'Unidades'})`}</label>
                                                     <input 
-                                                        type="number" 
-                                                        value={selectedProduct?.unit === 'g' ? (editingProduct.stock / 1000).toFixed(3) : 
-                                                               selectedProduct?.unit === 'ml' ? (editingProduct.stock / 1000).toFixed(3) : 
-                                                               editingProduct.stock} 
+                                                        type="text"
+                                                        value={formatStockDisplay(editingProduct.stock, selectedProduct?.unit)} 
                                                         readOnly
                                                         disabled
                                                         style={{ backgroundColor: '#f5f5f5', cursor: 'not-allowed' }}
@@ -446,15 +447,27 @@ const EditarInsumos = ({ products, setProducts, loadProducts, isLoading, showEdi
                                             <div className="form-group">
                                                 <label>Multiplicador para Stock Alto *</label>
                                                 <input 
-                                                    type="number" 
-                                                    step="0.1"
-                                                    value={editingProduct.highStockMultiplier} 
+                                                    type="text"
+                                                    inputMode="decimal"
+                                                    value={highStockMultiplierInput ?? formatDecimalInput(editingProduct.highStockMultiplier, { maximumFractionDigits: 1 })}
                                                     onChange={e => {
-                                                        const value = e.target.value === '' ? 2.0 : parseFloat(e.target.value) || 2.0;
-                                                        setEditingProduct({...editingProduct, highStockMultiplier: value});
-                                                    }} 
-                                                    placeholder="Ej: 2.0 = duplicar, 3.5 = triplicar y medio"
-                                                    min="1.1"
+                                                        const val = e.target.value;
+                                                        if (!isValidDecimalInput(val)) return;
+                                                        setHighStockMultiplierInput(val);
+                                                        const parsed = parseLocaleDecimal(val);
+                                                        if (parsed !== null) {
+                                                            setEditingProduct({...editingProduct, highStockMultiplier: parsed});
+                                                        }
+                                                    }}
+                                                    onBlur={() => {
+                                                        const parsed = parseLocaleDecimal(
+                                                            highStockMultiplierInput ?? formatDecimalInput(editingProduct.highStockMultiplier, { maximumFractionDigits: 1 })
+                                                        );
+                                                        const final = Math.max(1.1, parsed ?? 2.0);
+                                                        setEditingProduct({...editingProduct, highStockMultiplier: final});
+                                                        setHighStockMultiplierInput(null);
+                                                    }}
+                                                    placeholder="Ej: 2,0 = duplicar, 3,5 = triplicar y medio"
                                                     required 
                                                 />
                                                 <small className="form-helper-text">

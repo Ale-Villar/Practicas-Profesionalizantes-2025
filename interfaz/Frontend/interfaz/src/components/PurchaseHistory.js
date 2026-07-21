@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
+import { formatMoney } from '../utils/format';
 
 const PurchaseHistory = ({ purchases, onDeletePurchase, confirmDelete, onCancelDelete, userRole, inventory = [] }) => {
     // Estados para filtros
@@ -688,7 +689,7 @@ const PurchaseHistory = ({ purchases, onDeletePurchase, confirmDelete, onCancelD
                                     </svg>
                                     <span className="text-[10px] sm:text-xs text-slate-500 uppercase tracking-wide flex-shrink-0">Total:</span>
                                     <span className="text-base sm:text-lg font-bold text-green-600">
-                                        ${(purchase.total || 0).toFixed(2)}
+                                        {formatMoney(purchase.total || 0)}
                                     </span>
                                 </div>
 

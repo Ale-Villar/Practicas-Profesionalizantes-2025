@@ -3,6 +3,7 @@ import Select from 'react-select';
 import api from '../services/api';
 import DialogoHistorialDePerdidas from './dialogoHistorialDePerdidas';
 import HistorialPerdidasMovil from './historial_De_Perdidas_Para_Pantallas_Menores_Que_1200_width';
+import { formatStockDisplay } from '../utils/format';
 
 const LossManagement = ({ products, userRole, loadProducts }) => {
     const [activeSubTab, setActiveSubTab] = useState('register'); // 'register', 'history'
@@ -27,20 +28,7 @@ const LossManagement = ({ products, userRole, loadProducts }) => {
         description: ''
     });
 
-    // Función para convertir y mostrar el stock en las unidades correctas
-    const getDisplayStock = (product) => {
-        const stock = parseFloat(product.stock) || 0;
-        switch (product.unit) {
-            case 'g':
-                return `${(stock / 1000).toFixed(3)} kg`; // Convertir gramos a kilos
-            case 'ml':
-                return `${(stock / 1000).toFixed(3)} l`; // Convertir mililitros a litros
-            case 'unidades':
-                return `${stock} unidades`;
-            default:
-                return `${stock} ${product.unit}`;
-        }
-    };
+    const getDisplayStock = (product) => formatStockDisplay(product.stock, product.unit);
 
     // Opciones para el selector de productos
     const productOptions = products.map(p => ({ 

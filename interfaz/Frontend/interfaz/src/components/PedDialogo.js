@@ -1,11 +1,7 @@
 // PedDialogo.js
 import React, { useState, useEffect, useRef } from 'react';
 import { updateOrderStatus } from '../services/api';
-
-const safeToFixed = (value, decimals = 2) => {
-    const num = parseFloat(value);
-    return isNaN(num) ? (0).toFixed(decimals) : num.toFixed(decimals);
-};
+import { safeToFixed } from '../utils/format';
 
 const formatMovementDate = (dateInput) => {
     if (!dateInput) return 'N/A';

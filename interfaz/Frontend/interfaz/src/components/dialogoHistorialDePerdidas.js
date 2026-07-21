@@ -1,26 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Search, Filter, X, Maximize2, Minimize2, ExternalLink, MoreVertical, PieChart, Sliders, GripHorizontal, AlignLeft, Tag, ChevronDown, ChevronUp, RotateCcw } from 'lucide-react';
 import { getLossRecords } from '../services/api';
+import { formatMoney, formatLossQuantity } from '../utils/format';
 
 // --- UTILIDADES ---
-// Formato de moneda completo
-const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(parseFloat(amount) || 0);
-};
-
-// Función para formatear la unidad de cantidad
-const formatQuantityWithUnit = (quantity, unit) => {
-    const qty = parseFloat(quantity) || 0;
-    switch (unit) {
-        case 'g':
-            return `${(qty / 1000).toFixed(3)} Kg`;
-        case 'ml':
-            return `${(qty / 1000).toFixed(3)} L`;
-        case 'unidades':
-        default:
-            return `${qty} unid.`;
-    }
-};
 
 // Mapeo de categorías a texto legible
 const categoryLabels = {
@@ -685,7 +668,7 @@ export default function DialogoHistorialDePerdidas({ onClose, isWindowMode = fal
                             
                             <div className="flex justify-between items-center text-xs text-slate-500 px-1">
                                 <span>{filteredData.length} registros</span>
-                                <span className="font-mono font-bold text-slate-700">Total: {formatCurrency(totalLossValue)}</span>
+                                <span className="font-mono font-bold text-slate-700">Total: {formatMoney(totalLossValue)}</span>
                             </div>
                             
                             {/* Pestañas: Todos, Insumos, Productos */}
@@ -756,7 +739,7 @@ export default function DialogoHistorialDePerdidas({ onClose, isWindowMode = fal
                                                 </div>
                                             </td>
                                             <td className="px-2 py-3 text-right font-mono text-slate-600 text-xs whitespace-nowrap">
-                                                {formatQuantityWithUnit(item.quantity, item.product_unit)}
+                                                {formatLossQuantity(item.quantity, item.product_unit)}
                                             </td>
                                             <td className="px-2 py-3 text-center text-slate-300">
                                                 <MoreVertical size={14} />
@@ -796,13 +779,13 @@ export default function DialogoHistorialDePerdidas({ onClose, isWindowMode = fal
                                     <div className="bg-white p-4 sm:p-5 rounded-xl border border-slate-200 shadow-sm min-w-0">
                                         <span className="text-xs uppercase font-bold text-slate-400 mb-1 block">Costo Estimado</span>
                                         <span className="text-lg sm:text-2xl font-mono font-bold text-slate-800">
-                                            {formatCurrency(selectedLoss.cost_estimate || 0)}
+                                            {formatMoney(selectedLoss.cost_estimate || 0)}
                                         </span>
                                     </div>
                                     <div className="bg-white p-4 sm:p-5 rounded-xl border border-slate-200 shadow-sm min-w-0">
                                         <span className="text-xs uppercase font-bold text-slate-400 mb-1 block">Cantidad Perdida</span>
                                         <span className="text-lg sm:text-2xl font-bold text-slate-800">
-                                            {formatQuantityWithUnit(selectedLoss.quantity, selectedLoss.product_unit)}
+                                            {formatLossQuantity(selectedLoss.quantity, selectedLoss.product_unit)}
                                         </span>
                                     </div>
                                 </div>

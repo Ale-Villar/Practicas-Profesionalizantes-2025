@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Select from 'react-select';
 import api from '../services/api';
+import { formatMoney } from '../utils/format';
 import PurchaseRequests from './PurchaseRequests';
 import PurchaseHistory from './PurchaseHistory';
 import DialogoCompras from './Dialogo_Compras';
@@ -886,7 +887,7 @@ const PurchaseManagement = ({ userRole, inventory = [], suppliers = [], products
                                                 <div className="flex justify-between items-center pt-2.5 border-t border-slate-200 mt-2.5">
                                                     <span className="text-xs text-slate-500">Total:</span>
                                                     <span className="text-base font-bold text-slate-800">
-                                                        ${(item.total || 0).toFixed(2)}
+                                                        {formatMoney(item.total || 0)}
                                                     </span>
                                                 </div>
                                             </div>
@@ -895,7 +896,7 @@ const PurchaseManagement = ({ userRole, inventory = [], suppliers = [], products
                                 )}
 
                                 <div className="total-section mt-4">
-                                    <h4>Total de la Compra: ${calculatePurchaseTotal().toFixed(2)}</h4>
+                                    <h4>Total de la Compra: {formatMoney(calculatePurchaseTotal())}</h4>
                                 </div>
 
                                 <button 

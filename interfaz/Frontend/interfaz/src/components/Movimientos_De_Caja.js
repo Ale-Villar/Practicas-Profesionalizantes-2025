@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { formatMovementDate } from '../utils/date';
+import { formatMoney } from '../utils/format';
 
 const Movimientos_De_Caja = ({ cashMovements }) => {
     const [cashSortOrder, setCashSortOrder] = useState('desc');
@@ -214,6 +215,14 @@ const Movimientos_De_Caja = ({ cashMovements }) => {
                             dateTo: ''
                         };
                         
+                        function formatMoney(amount) {
+                            const num = Number(amount) || 0;
+                            return '$' + new Intl.NumberFormat('es-AR', {
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2
+                            }).format(num);
+                        }
+                        
                         function formatDate(dateStr) {
                             if (!dateStr) return '';
                             const date = new Date(dateStr);
@@ -302,7 +311,7 @@ const Movimientos_De_Caja = ({ cashMovements }) => {
                                     <div class="border border-gray-200 rounded-lg p-4 bg-white hover:bg-gray-50 transition-colors hover:shadow-md">
                                         <div class="flex justify-between items-start mb-3">
                                             <span class="text-xs text-gray-500">\${formatDate(m.date)}</span>
-                                            <span class="text-lg font-bold text-green-600">$\${Number(m.amount).toFixed(2)}</span>
+                                            <span class="text-lg font-bold text-green-600">\${formatMoney(m.amount)}</span>
                                         </div>
                                         <div class="font-medium text-gray-800 text-sm">
                                             <p class="line-clamp-2 mb-2">\${m.description}</p>
@@ -461,7 +470,7 @@ const Movimientos_De_Caja = ({ cashMovements }) => {
                         <div className="text-center">
                             <p className="text-sm text-gray-600 mb-1">SALDO ACTUAL</p>
                             <p className={`text-3xl font-bold ${currentBalance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                ${currentBalance.toFixed(2)}
+                                {formatMoney(currentBalance)}
                             </p>
                         </div>
                     </div>
@@ -790,7 +799,7 @@ const Movimientos_De_Caja = ({ cashMovements }) => {
                             <div className="text-center">
                                 <p className="text-sm text-gray-600 mb-1">SALDO ACTUAL</p>
                                 <p className={`text-3xl font-bold ${currentBalance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                    ${currentBalance.toFixed(2)}
+                                    {formatMoney(currentBalance)}
                                 </p>
                             </div>
                         </div>
@@ -830,7 +839,7 @@ const Movimientos_De_Caja = ({ cashMovements }) => {
                                         >
                                             <div className="flex justify-between items-start mb-2">
                                                 <span className="text-xs text-gray-500">{formatMovementDate(movement.date)}</span>
-                                                <span className="text-lg font-bold text-green-600">${movement.amount.toFixed(2)}</span>
+                                                <span className="text-lg font-bold text-green-600">{formatMoney(movement.amount)}</span>
                                             </div>
                                             <div className="font-medium text-gray-800 text-sm">
                                                 {movement.description}
@@ -1058,7 +1067,7 @@ const Movimientos_De_Caja = ({ cashMovements }) => {
                                                 >
                                                     <div className="flex justify-between items-start mb-2">
                                                         <span className="text-xs text-gray-500">{formatMovementDate(movement.date)}</span>
-                                                        <span className="text-base font-bold text-green-600">${movement.amount.toFixed(2)}</span>
+                                                        <span className="text-base font-bold text-green-600">{formatMoney(movement.amount)}</span>
                                                     </div>
                                                     <div className="font-medium text-gray-800 text-sm">
                                                         <p className="line-clamp-2">{movement.description}</p>

@@ -2,6 +2,14 @@ import React, { useState, useEffect } from 'react';
 import Select from 'react-select';
 import './App.css';
 import { formatMovementDate } from './utils/date';
+import {
+    safeToFixed,
+    formatStockDisplay,
+    formatThresholdDisplay,
+    formatDisplayQuantity,
+    formatCompraItemLine,
+    formatMoney,
+} from './utils/format';
 import api, { backendLogin, backendLogout, setInMemoryToken, clearInMemoryToken, getInMemoryToken, getPendingPurchases, approvePurchase, rejectPurchase, getPurchaseHistory, getRecipe, addRecipeIngredient, updateRecipeIngredient, deleteRecipeIngredient, getIngredients, getIngredientsWithSuggestedUnit, updateOrderStatus } from './services/api';
 import userStorage from './services/userStorage';
 import DataConsultation from './DataConsultation';
@@ -130,12 +138,6 @@ const removeAccessToken = async () => {
         if (console.debug) console.debug('Error eliminando token:', error && error.message);
         return true; // Devolver true para no bloquear el logout
     }
-};
-
-// Función helper para convertir valores a números de forma segura antes de usar toFixed
-const safeToFixed = (value, decimals = 2) => {
-  const num = parseFloat(value);
-  return isNaN(num) ? (0).toFixed(decimals) : num.toFixed(decimals);
 };
 
 // Use shared formatMovementDate from ./utils/date
@@ -1554,57 +1556,6 @@ const App = () => {
         // Calcular total de alertas
         const totalAlerts = lowStockProducts.length + lowStockSupplies.length;
 
-        const formatStockDisplay = (stock, unit) => {
-            const stockNum = parseFloat(stock);
-            if (isNaN(stockNum)) {
-                return `0 unid`;
-            }
-
-            let displayValue;
-            let displayUnit;
-
-            if (unit === 'g') {
-                displayValue = stockNum / 1000;
-                displayUnit = 'kilos';
-            } else if (unit === 'ml') {
-                displayValue = stockNum / 1000;
-                displayUnit = 'litros';
-            } else if (unit === 'kg') {
-                displayValue = stockNum;
-                displayUnit = 'kilos';
-            } else if (unit === 'l') {
-                displayValue = stockNum;
-                displayUnit = 'litros';
-            } else {
-                displayValue = stockNum;
-                displayUnit = 'unid';
-            }
-
-            // Format number to remove trailing zeros from decimals, up to 3 decimal places
-            const formattedValue = Number(displayValue.toFixed(3));
-
-            return `${formattedValue} ${displayUnit}`;
-        };
-
-        const formatThresholdDisplay = (threshold, unit) => {
-            const thresholdNum = parseFloat(threshold) || 10;
-            if (isNaN(thresholdNum)) {
-                return `10`;
-            }
-
-            let displayValue;
-
-            if (unit === 'g') {
-                displayValue = thresholdNum / 1000;
-            } else if (unit === 'ml') {
-                displayValue = thresholdNum / 1000;
-            } else {
-                displayValue = thresholdNum;
-            }
-
-            return Number(displayValue.toFixed(3));
-        };
-
         return (
             <div className="dashboard-container">
                 <div className="dashboard-header">
@@ -1901,16 +1852,7 @@ const App = () => {
                                     return true;
                                 })
                                 .map(item => {
-                                    let stockDisplay;
-                                    const stockNum = parseFloat(item.stock);
-                                    if (item.unit === 'g') {
-                                        stockDisplay = `${parseFloat((stockNum / 1000).toFixed(3))} kilos`;
-                                    } else if (item.unit === 'ml') {
-                                        stockDisplay = `${parseFloat((stockNum / 1000).toFixed(3))} litros`;
-                                    } else {
-                                        stockDisplay = `${stockNum} unidades`;
-                                    }
-                                    
+                                    const stockDisplay = formatStockDisplay(item.stock, item.unit);
                                     const isLowStock = item.stock < (item.lowStockThreshold || item.low_stock_threshold || 0);
                                     
                                     return (
@@ -2049,16 +1991,7 @@ const App = () => {
                                     return true;
                                 })
                                 .map(item => {
-                                    let stockDisplay;
-                                    const stockNum = parseFloat(item.stock);
-                                    if (item.unit === 'g') {
-                                        stockDisplay = `${parseFloat((stockNum / 1000).toFixed(3))} kilos`;
-                                    } else if (item.unit === 'ml') {
-                                        stockDisplay = `${parseFloat((stockNum / 1000).toFixed(3))} litros`;
-                                    } else {
-                                        stockDisplay = `${stockNum} unidades`;
-                                    }
-                                    
+                                    const stockDisplay = formatStockDisplay(item.stock, item.unit);
                                     const isLowStock = item.stock < (item.lowStockThreshold || item.low_stock_threshold || 0);
                                     
                                     return (
@@ -2254,7 +2187,7 @@ const App = () => {
                         <li key={movement.id} className="list-item">
                             <span>{formatMovementDate(movement.date)} - {movement.description}</span>
                             <span className={movement.type === 'Entrada' ? 'positive' : 'negative'}>
-                                {movement.type === 'Entrada' ? '+' : '-'} ${movement.amount}
+                                {movement.type === 'Entrada' ? '+' : '-'} {formatMoney(movement.amount)}
                             </span>
                         </li>
                     ))}
@@ -2639,11 +2572,15 @@ const App = () => {
                                 <div className="purchase-items">
                                     <strong>Productos:</strong>
                                     <ul>
-                                        {purchase.items.map((item, index) => (
+                                        {purchase.items.map((item, index) => {
+                                            const foundProduct = inventory.find(p => p.name?.toLowerCase() === item.productName?.toLowerCase());
+                                            const unit = foundProduct?.unit || item.unit || 'u';
+                                            return (
                                             <li key={index}>
-                                                {item.productName} - {item.quantity} x ${item.unitPrice} = ${safeToFixed(item.total)}
+                                                {formatCompraItemLine(item.productName, item.quantity, unit)} x ${safeToFixed(item.unitPrice)} = ${safeToFixed(item.total)}
                                             </li>
-                                        ))}
+                                            );
+                                        })}
                                     </ul>
                                 </div>
                                 <div className="purchase-total-display">
@@ -2722,7 +2659,7 @@ const PurchaseRequests = () => {
                             <ul>
                                 {request.items.map((item, index) => (
                                     <li key={index}>
-                                        {item.productName} - {item.quantity} x ${item.unitPrice} = ${safeToFixed(item.total)}
+                                        {formatCompraItemLine(item.productName, item.quantity, item.unit || 'u')} x ${safeToFixed(item.unitPrice)} = ${safeToFixed(item.total)}
                                     </li>
                                 ))}
                             </ul>
@@ -2804,22 +2741,6 @@ const PurchaseRequests = () => {
             const [selectedProducts, setSelectedProducts] = useState([{ id: '', product: null }]);
             const [message, setMessage] = useState('');
             const [notification, setNotification] = useState('');
-        
-            // Función para formatear el stock con la unidad apropiada
-            const formatStock = (stock, unit) => {
-                if (!unit) return stock;
-                
-                switch(unit.toLowerCase()) {
-                    case 'g':
-                        return `${(stock / 1000).toFixed(2)} Kg`;
-                    case 'ml':
-                        return `${(stock / 1000).toFixed(2)} L`;
-                    case 'u':
-                        return `${Math.round(stock)} U`;
-                    default:
-                        return `${stock} ${unit}`;
-                }
-            };
         
             const handleAddProduct = () => {
                 setSelectedProducts([...selectedProducts, { id: Date.now(), product: null }]);

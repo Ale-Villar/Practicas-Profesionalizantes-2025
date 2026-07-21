@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Select from 'react-select';
+import { formatMoney } from '../utils/format';
 
 const DialogoCompras = ({ 
     isOpen, 
@@ -429,6 +430,14 @@ const DialogoCompras = ({
                         }
                     };
                     
+                    function formatMoney(amount) {
+                        const num = Number(amount) || 0;
+                        return '$' + new Intl.NumberFormat('es-AR', {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2
+                        }).format(num);
+                    }
+                    
                     // Función para generar HTML de una fila de tabla (TR)
                     window.generateItemRowHTML = function(item) {
                         const isUnit = item.unit === 'u';
@@ -489,7 +498,7 @@ const DialogoCompras = ({
                                     />
                                 </td>
                                 <td class="py-3 px-4 w-32 font-bold text-slate-800 text-right">
-                                    $\${(item.total || 0).toFixed(2)}
+                                    \${formatMoney(item.total || 0)}
                                 </td>
                                 <td class="py-3 px-4 w-12 text-center">
                                     <button 
@@ -544,7 +553,7 @@ const DialogoCompras = ({
                     
                     window.updateTotal = function(total) {
                         const el = document.getElementById('purchase-total');
-                        if (el) el.textContent = 'Total Compra: $' + total.toFixed(2);
+                        if (el) el.textContent = 'Total Compra: ' + formatMoney(total);
                     };
                     
                     window.updateSuppliers = function(selectedIds) {
@@ -979,7 +988,7 @@ const DialogoCompras = ({
                                                             />
                                                         </td>
                                                         <td className="py-2.5 px-4 text-right font-bold text-slate-800">
-                                                            ${(item.total || 0).toFixed(2)}
+                                                            {formatMoney(item.total || 0)}
                                                         </td>
                                                         <td className="py-2.5 px-4 text-center">
                                                             <button
@@ -1006,7 +1015,7 @@ const DialogoCompras = ({
                     {/* Footer */}
                     <div className="flex justify-between items-center px-6 py-4 bg-white border-t border-slate-200">
                         <div className="text-xl font-black text-blue-700">
-                            Total Compra: ${calculatePurchaseTotal().toFixed(2)}
+                            Total Compra: {formatMoney(calculatePurchaseTotal())}
                         </div>
                         <div className="flex gap-3">
                             <button

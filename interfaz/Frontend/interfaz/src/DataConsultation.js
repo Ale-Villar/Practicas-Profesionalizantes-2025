@@ -1,6 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { api } from './services/api';
 import { formatMovementDate } from './utils/date';
+import {
+    safeToFixed as defaultSafeToFixed,
+    formatStockWithUnit,
+    formatStockTotal,
+    formatDisplayQuantity,
+    formatNumber,
+} from './utils/format';
 import { 
     Search, Calendar, Download, Filter, 
     Package, Users, TrendingUp, ShoppingCart, 
@@ -23,7 +30,7 @@ export default function DataConsultation(props) {
         cashMovements = [],
         sales = [],
         headerTranslationMap = {},
-        safeToFixed = (v) => (Number(v)||0).toFixed(2)
+        safeToFixed = defaultSafeToFixed
     } = props;
 
     // mount/unmount side-effects intentionally silent in production UI
@@ -263,22 +270,6 @@ export default function DataConsultation(props) {
         }
 
         // Formatear unidades correctamente - convertir de unidades base a unidades de visualización
-        const formatStockWithUnit = (stock, unit) => {
-            const stockNum = parseFloat(stock) || 0;
-            
-            if (!unit || unit === 'u' || unit === 'unidades' || unit === 'Unidades') {
-                return `${stockNum}U`;
-            } else if (unit === 'g' || unit === 'gramos') {
-                // Convertir gramos a kilogramos
-                const kg = (stockNum / 1000).toFixed(3);
-                return `${parseFloat(kg)}Kg`;
-            } else if (unit === 'ml' || unit === 'mililitros') {
-                // Convertir mililitros a litros
-                const liters = (stockNum / 1000).toFixed(3);
-                return `${parseFloat(liters)}L`;
-            }
-            return `${stockNum}${unit}`;
-        };
 
         // Aplicar filtros independientes
         let filteredInventory = [...(inventory || [])];
@@ -408,10 +399,7 @@ export default function DataConsultation(props) {
                 }
             });
             
-            const formatTotal = (value, unitSymbol) => {
-                if (value === 0) return null;
-                return `${value.toFixed(2)}${unitSymbol}`;
-            };
+            const formatTotal = (value, unitSymbol) => formatStockTotal(value, unitSymbol);
             
             const productTotals = [
                 formatTotal(totals.productos.kg, 'Kg'),
@@ -1906,12 +1894,13 @@ export default function DataConsultation(props) {
                 if (typeof item === 'string' || typeof item === 'number') return String(item);
                 const name = item.productName || item.product_name || item.product || item.name || item.productName;
                 const qty = item.quantity ?? item.cantidad ?? item.qty ?? '';
-                const unit = item.unitPrice ?? item.unit_price ?? item.price ?? '';
+                const unitPrice = item.unitPrice ?? item.unit_price ?? item.price ?? '';
+                const productUnit = item.unit ?? item.product_unit ?? 'u';
                 const total = item.total ?? item.totalAmount ?? item.total_amount ?? '';
                 const parts = [];
                 if (name) parts.push(String(name));
-                if (qty !== '') parts.push(String(qty));
-                if (unit !== '') parts.push(`x ${safeToFixed(unit)}`);
+                if (qty !== '') parts.push(formatDisplayQuantity(qty, productUnit, { withSuffix: true }));
+                if (unitPrice !== '') parts.push(`x ${safeToFixed(unitPrice)}`);
                 if (total !== '') parts.push(`= ${safeToFixed(total)}`);
                 return parts.join(' ');
             }).filter(Boolean).join('; ');
@@ -1920,11 +1909,12 @@ export default function DataConsultation(props) {
             const name = value.productName || value.product_name || value.name;
             if (name) {
                 const qty = value.quantity ?? value.cantidad ?? value.qty ?? '';
-                const unit = value.unitPrice ?? value.unit_price ?? value.price ?? '';
+                const unitPrice = value.unitPrice ?? value.unit_price ?? value.price ?? '';
+                const productUnit = value.unit ?? value.product_unit ?? 'u';
                 const total = value.total ?? value.totalAmount ?? value.total_amount ?? '';
                 const parts = [String(name)];
-                if (qty !== '') parts.push(String(qty));
-                if (unit !== '') parts.push(`x ${safeToFixed(unit)}`);
+                if (qty !== '') parts.push(formatDisplayQuantity(qty, productUnit, { withSuffix: true }));
+                if (unitPrice !== '') parts.push(`x ${safeToFixed(unitPrice)}`);
                 if (total !== '') parts.push(`= ${safeToFixed(total)}`);
                 return parts.join(' ');
             }
@@ -2733,7 +2723,7 @@ export default function DataConsultation(props) {
                                             {headerTranslationMap[key] || key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}
                                         </span>
                                         <span className="text-base sm:text-xl font-bold text-slate-800">
-                                            {typeof value === 'number' ? value.toLocaleString() : value}
+                                            {typeof value === 'number' ? formatNumber(value) : value}
                                         </span>
                                     </div>
                                 );

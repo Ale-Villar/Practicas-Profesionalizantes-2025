@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import api from '../services/api';
+import { formatMoney } from '../utils/format';
 
 const Registrar_Venta = ({ products, loadProducts, loadCashMovements }) => {
     const [cartItems, setCartItems] = useState([]);
@@ -175,7 +176,7 @@ const Registrar_Venta = ({ products, loadProducts, loadCashMovements }) => {
         }
 
         if (remaining > 0.01) {
-            setMessage(`Faltan: $${remaining.toFixed(2)}. El total debe estar completo.`);
+            setMessage(`Faltan: ${formatMoney(remaining)}. El total debe estar completo.`);
             setTimeout(() => setMessage(''), 3000);
             return;
         }
@@ -341,7 +342,7 @@ const Registrar_Venta = ({ products, loadProducts, loadCashMovements }) => {
                             <div className="border-t-2 border-gray-300 pt-3 mb-4">
                                 <div className="flex justify-between items-center text-xl font-bold">
                                     <span>Total</span>
-                                    <span className="text-black">${total.toFixed(2)}</span>
+                                    <span className="text-black">{formatMoney(total)}</span>
                                 </div>
                             </div>
 
@@ -385,15 +386,15 @@ const Registrar_Venta = ({ products, loadProducts, loadCashMovements }) => {
                                 <div className="mt-3 text-sm space-y-1">
                                     <div className="flex justify-between text-gray-600">
                                         <span>Total a pagar:</span>
-                                        <span>${total.toFixed(2)}</span>
+                                        <span>{formatMoney(total)}</span>
                                     </div>
                                     <div className="flex justify-between text-gray-600">
                                         <span>Total ingresado:</span>
-                                        <span>${totalPaid.toFixed(2)}</span>
+                                        <span>{formatMoney(totalPaid)}</span>
                                     </div>
                                     <div className={`flex justify-between font-bold ${remaining > 0 ? 'text-red-600' : remaining < 0 ? 'text-yellow-600' : 'text-green-600'}`}>
                                         <span>{remaining > 0 ? 'Faltan:' : remaining < 0 ? 'Vuelto:' : 'Completo:'}</span>
-                                        <span>${Math.abs(remaining).toFixed(2)}</span>
+                                        <span>{formatMoney(Math.abs(remaining))}</span>
                                     </div>
                                 </div>
                             </div>
@@ -496,7 +497,7 @@ const Registrar_Venta = ({ products, loadProducts, loadCashMovements }) => {
                                 <span className="font-medium">Ver pedido</span>
                             </div>
                             <div className="flex items-center gap-2">
-                                <span className="text-xl font-bold">${total.toFixed(2)}</span>
+                                <span className="text-xl font-bold">{formatMoney(total)}</span>
                                 <span className="text-2xl">{showMobileTicket ? '∨' : '∧'}</span>
                             </div>
                         </button>
@@ -535,7 +536,7 @@ const Registrar_Venta = ({ products, loadProducts, loadCashMovements }) => {
                                                             +
                                                         </button>
                                                     </div>
-                                                    <span className="font-bold text-gray-800">${(item.product.price * item.quantity).toFixed(2)}</span>
+                                                    <span className="font-bold text-gray-800">{formatMoney(item.product.price * item.quantity)}</span>
                                                 </div>
                                             </div>
                                         ))}
@@ -548,7 +549,7 @@ const Registrar_Venta = ({ products, loadProducts, loadCashMovements }) => {
                                     <div className="border-t-2 border-gray-300 pt-3 mb-4">
                                         <div className="flex justify-between items-center text-xl font-bold">
                                             <span>Total</span>
-                                            <span className="text-black">${total.toFixed(2)}</span>
+                                            <span className="text-black">{formatMoney(total)}</span>
                                         </div>
                                     </div>
 
@@ -592,15 +593,15 @@ const Registrar_Venta = ({ products, loadProducts, loadCashMovements }) => {
                                         <div className="mt-3 p-3 bg-gray-50 rounded-lg space-y-1 text-sm">
                                             <div className="flex justify-between text-gray-600">
                                                 <span>Total a pagar:</span>
-                                                <span>${total.toFixed(2)}</span>
+                                                <span>{formatMoney(total)}</span>
                                             </div>
                                             <div className="flex justify-between text-gray-600">
                                                 <span>Total ingresado:</span>
-                                                <span>${totalPaid.toFixed(2)}</span>
+                                                <span>{formatMoney(totalPaid)}</span>
                                             </div>
                                             <div className={`flex justify-between font-bold ${remaining > 0 ? 'text-red-600' : remaining < 0 ? 'text-yellow-600' : 'text-green-600'}`}>
                                                 <span>{remaining > 0 ? 'Faltan:' : remaining < 0 ? 'Vuelto:' : 'Completo:'}</span>
-                                                <span>${Math.abs(remaining).toFixed(2)}</span>
+                                                <span>{formatMoney(Math.abs(remaining))}</span>
                                             </div>
                                         </div>
                                     </div>

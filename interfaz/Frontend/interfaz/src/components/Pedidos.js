@@ -1,12 +1,8 @@
 import React, { useState } from 'react';
 import Select from 'react-select';
 import { formatMovementDate } from '../utils/date';
+import { safeToFixed } from '../utils/format';
 import api, { updateOrderStatus } from '../services/api';
-
-const safeToFixed = (value, decimals = 2) => {
-    const num = parseFloat(value);
-    return isNaN(num) ? (0).toFixed(decimals) : num.toFixed(decimals);
-};
 
 const Pedidos = ({ orders, setOrders, products }) => {
     const [showAddOrder, setShowAddOrder] = useState(false);

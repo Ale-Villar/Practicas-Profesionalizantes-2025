@@ -1,5 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { formatMovementDate } from '../utils/date';
+import {
+    safeToFixed as defaultSafeToFixed,
+    formatStockWithUnit,
+    formatCompraItemLine,
+    formatMoney,
+    formatNumber,
+} from '../utils/format';
 
 /**
  * Dialogo_interfaz_Consultar_Datos
@@ -20,7 +27,7 @@ export default function Dialogo_interfaz_Consultar_Datos(props) {
         cashMovements = [],
         sales = [],
         headerTranslationMap = {},
-        safeToFixed = (v) => (Number(v)||0).toFixed(2),
+        safeToFixed = defaultSafeToFixed,
         isFullscreen = false,
         onClose = () => {}
     } = props;
@@ -202,22 +209,6 @@ export default function Dialogo_interfaz_Consultar_Datos(props) {
     };
 
     // Formatear stock con unidades correctamente (igual que DataConsultation.js)
-    const formatStockWithUnit = (stock, unit) => {
-        const stockNum = parseFloat(stock) || 0;
-        
-        if (!unit || unit === 'u' || unit === 'unidades' || unit === 'Unidades') {
-            return `${stockNum}U`;
-        } else if (unit === 'g' || unit === 'gramos') {
-            // Convertir gramos a kilogramos
-            const kg = (stockNum / 1000).toFixed(3);
-            return `${parseFloat(kg)}Kg`;
-        } else if (unit === 'ml' || unit === 'mililitros') {
-            // Convertir mililitros a litros
-            const liters = (stockNum / 1000).toFixed(3);
-            return `${parseFloat(liters)}L`;
-        }
-        return `${stockNum}${unit}`;
-    };
 
     // Calcular el estado del stock
     const getStockStatus = (item) => {
@@ -598,7 +589,7 @@ export default function Dialogo_interfaz_Consultar_Datos(props) {
             title: 'Reporte de Ventas',
             summary: {
                 totalSales: filtered.length,
-                totalRevenue: `$${totalRevenue.toFixed(2)}`,
+                totalRevenue: formatMoney(totalRevenue),
                 period: hasGranularFilters 
                     ? 'Filtro personalizado por fechas' 
                     : startDate && endDate ? `${formatDateForDisplay(startDate)} - ${formatDateForDisplay(endDate)}` : 'Todos los períodos'
@@ -944,7 +935,7 @@ export default function Dialogo_interfaz_Consultar_Datos(props) {
             title: 'Reporte de Compras',
             summary: {
                 totalPurchases: filtered.length,
-                totalAmount: `$${totalAmount.toFixed(2)}`,
+                totalAmount: formatMoney(totalAmount),
                 byType: {
                     Producto: filtered.filter(p => p.type === 'Producto').length,
                     Insumo: filtered.filter(p => p.type === 'Insumo').length,
@@ -1074,8 +1065,8 @@ export default function Dialogo_interfaz_Consultar_Datos(props) {
             title: 'Movimientos de Caja',
             summary: {
                 totalMovements: filtered.length,
-                totalIncome: `$${totalIncome.toFixed(2)}`,
-                totalExpenses: `$${totalExpenses.toFixed(2)}`,
+                totalIncome: formatMoney(totalIncome),
+                totalExpenses: formatMoney(totalExpenses),
                 period: startDate && endDate ? `${formatDateForDisplay(startDate)} - ${formatDateForDisplay(endDate)}` : 'Todos los períodos'
             },
             data: filtered.map(m => ({
@@ -1176,16 +1167,9 @@ export default function Dialogo_interfaz_Consultar_Datos(props) {
                 );
                 
                 if (foundProduct && quantity > 0) {
-                    const unit = foundProduct.unit;
-                    if (unit === 'g') {
-                        return `${productName} ${quantity}Kg`;
-                    } else if (unit === 'ml') {
-                        return `${productName} ${quantity}L`;
-                    } else {
-                        return `${productName} ${quantity}U`;
-                    }
+                    return formatCompraItemLine(productName, quantity, foundProduct.unit);
                 } else if (quantity > 0) {
-                    return `${productName} ${quantity}U`;
+                    return formatCompraItemLine(productName, quantity, 'u');
                 } else {
                     return productName;
                 }
@@ -2055,7 +2039,7 @@ export default function Dialogo_interfaz_Consultar_Datos(props) {
                                     return (
                                         <div key={key} className="text-sm">
                                             <span className="text-gray-500">{headerTranslationMap[key] || key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}:</span>
-                                            <span className="font-semibold ml-1">{typeof value === 'number' ? value.toLocaleString() : value}</span>
+                                            <span className="font-semibold ml-1">{typeof value === 'number' ? formatNumber(value) : value}</span>
                                         </div>
                                     );
                                 })}
