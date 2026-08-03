@@ -49,6 +49,10 @@ class User(AbstractUser):
     )
     # Quitar default='Cajero' para que sea obligatorio
     role = models.ForeignKey(Role, on_delete=models.SET_NULL, null=True, blank=True, db_column='role')
+    
+    # 👇 ESTA ES LA LÍNEA AGREGADA PARA SOLUCIONAR EL ERROR 👇
+    REQUIRED_FIELDS = ['email', 'role']
+    
     # Añadimos la columna `is_active` por defecto
     is_active = models.BooleanField(default=True)
     # Campos para tracking de intentos de login

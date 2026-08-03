@@ -28,37 +28,17 @@ function PedDialogo({ orders, setOrders, isOpen, onClose, onMinimize, isMinimize
     const [ordersIdFilterOp, setOrdersIdFilterOp] = useState('equals');
     const [ordersCustomerFilter, setOrdersCustomerFilter] = useState('');
     const [ordersCustomerFilterOp, setOrdersCustomerFilterOp] = useState('contains');
-    const parseAnyDate = (dateStr) => {
-        if (!dateStr) return null;
-        if (dateStr instanceof Date) return dateStr;
-        const trimmed = String(dateStr).trim();
-        if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
-            const [year, month, day] = trimmed.split('-').map(Number);
-            return new Date(year, month - 1, day);
-        }
-        if (/^\d{2}\/\d{2}\/\d{4}$/.test(trimmed)) {
-            const [day, month, year] = trimmed.split('/').map(Number);
-            return new Date(year, month - 1, day);
-        }
-        const date = new Date(trimmed);
-        return isNaN(date.getTime()) ? null : date;
-    };
+    
+    // ESTADOS DE FECHA SIMPLIFICADOS
+    const [ordersDateFrom, setOrdersDateFrom] = useState('');
+    const [ordersDateTo, setOrdersDateTo] = useState('');
 
-    const [ordersDateFromYear, setOrdersDateFromYear] = useState('');
-    const [ordersDateFromMonth, setOrdersDateFromMonth] = useState('');
-    const [ordersDateFromDay, setOrdersDateFromDay] = useState('');
-    const [ordersDateFromHour, setOrdersDateFromHour] = useState('');
-    const [ordersDateFromMinute, setOrdersDateFromMinute] = useState('');
-    const [ordersDateToYear, setOrdersDateToYear] = useState('');
-    const [ordersDateToMonth, setOrdersDateToMonth] = useState('');
-    const [ordersDateToDay, setOrdersDateToDay] = useState('');
-    const [ordersDateToHour, setOrdersDateToHour] = useState('');
-    const [ordersDateToMinute, setOrdersDateToMinute] = useState('');
     const [ordersPaymentMethodFilter, setOrdersPaymentMethodFilter] = useState([]);
     const [ordersStatusFilter, setOrdersStatusFilter] = useState([]);
     const [ordersProductFilter, setOrdersProductFilter] = useState('');
     const [ordersUnitsFilter, setOrdersUnitsFilter] = useState('');
     const [ordersUnitsFilterOp, setOrdersUnitsFilterOp] = useState('equals');
+    
     // Estado para controlar qué pedidos tienen abierto el menú de productos
     const [openProducts, setOpenProducts] = useState({});
     // Estado para controlar si los filtros están desplegados
@@ -149,38 +129,28 @@ function PedDialogo({ orders, setOrders, isOpen, onClose, onMinimize, isMinimize
             if (ordersCustomerFilterOp === 'equals' && customerName !== filterLower) return false;
         }
         
-        // Filtro por fecha granular
-        if (ordersDateFromYear || ordersDateFromMonth || ordersDateFromDay || ordersDateFromHour || ordersDateFromMinute ||
-            ordersDateToYear || ordersDateToMonth || ordersDateToDay || ordersDateToHour || ordersDateToMinute) {
-            const orderDate = parseAnyDate(order.fecha_de_orden_del_pedido || order.created_at || order.date);
-            if (!orderDate) return false;
+        // FILTRO DE FECHAS (Corrección de zona horaria y formato simplificado)
+        if (ordersDateFrom || ordersDateTo) {
+            const rawDate = order.fecha_de_orden_del_pedido || order.created_at || order.date;
+            if (!rawDate) return false;
             
-            if (ordersDateFromYear || ordersDateFromMonth || ordersDateFromDay || ordersDateFromHour || ordersDateFromMinute) {
-                const fromYear = ordersDateFromYear ? parseInt(ordersDateFromYear) : null;
-                const fromMonth = ordersDateFromMonth ? parseInt(ordersDateFromMonth) : null;
-                const fromDay = ordersDateFromDay ? parseInt(ordersDateFromDay) : null;
-                const fromHour = ordersDateFromHour ? parseInt(ordersDateFromHour) : null;
-                const fromMinute = ordersDateFromMinute ? parseInt(ordersDateFromMinute) : null;
-                
-                if (fromYear !== null && orderDate.getFullYear() < fromYear) return false;
-                if (fromMonth !== null && orderDate.getMonth() + 1 < fromMonth) return false;
-                if (fromDay !== null && orderDate.getDate() < fromDay) return false;
-                if (fromHour !== null && orderDate.getHours() < fromHour) return false;
-                if (fromMinute !== null && orderDate.getMinutes() < fromMinute) return false;
+            const orderDate = new Date(rawDate);
+            if (isNaN(orderDate.getTime())) return false;
+            
+            orderDate.setHours(0, 0, 0, 0);
+
+            if (ordersDateFrom) {
+                const [year, month, day] = ordersDateFrom.split('-');
+                const startDate = new Date(year, month - 1, day);
+                startDate.setHours(0, 0, 0, 0);
+                if (orderDate < startDate) return false;
             }
-            
-            if (ordersDateToYear || ordersDateToMonth || ordersDateToDay || ordersDateToHour || ordersDateToMinute) {
-                const toYear = ordersDateToYear ? parseInt(ordersDateToYear) : null;
-                const toMonth = ordersDateToMonth ? parseInt(ordersDateToMonth) : null;
-                const toDay = ordersDateToDay ? parseInt(ordersDateToDay) : null;
-                const toHour = ordersDateToHour ? parseInt(ordersDateToHour) : null;
-                const toMinute = ordersDateToMinute ? parseInt(ordersDateToMinute) : null;
-                
-                if (toYear !== null && orderDate.getFullYear() > toYear) return false;
-                if (toMonth !== null && orderDate.getMonth() + 1 > toMonth) return false;
-                if (toDay !== null && orderDate.getDate() > toDay) return false;
-                if (toHour !== null && orderDate.getHours() > toHour) return false;
-                if (toMinute !== null && orderDate.getMinutes() > toMinute) return false;
+
+            if (ordersDateTo) {
+                const [year, month, day] = ordersDateTo.split('-');
+                const endDate = new Date(year, month - 1, day);
+                endDate.setHours(0, 0, 0, 0);
+                if (orderDate > endDate) return false;
             }
         }
         
@@ -366,162 +336,34 @@ function PedDialogo({ orders, setOrders, isOpen, onClose, onMinimize, isMinimize
                             />
                         </div>
 
-                        {/* Filtro Fecha Granular */}
+                        {/* Filtro Fecha (Calendario Nativo) */}
                         <div className="mb-4">
-                            <label className="font-medium text-gray-700 block mb-2">Fecha (granular):</label>
+                            <label className="font-medium text-gray-700 block mb-2">Filtrar por Fechas:</label>
                             <p className="text-sm text-gray-600 italic mb-3">
-                                💡 <strong>Filtro inteligente:</strong> Si completas solo "Desde", filtra exactamente ese período. Si completas "Hasta", filtra como rango.
+                                🗓️ <strong>Filtro inteligente:</strong> Selecciona el rango para filtrar el historial de pedidos.
                             </p>
                             
-                            {isFullscreen ? (
-                                <div className="mb-3 flex gap-4">
-                                    <div className="flex-1 bg-gray-50 p-4 rounded-md">
-                                        <h5 className="font-semibold text-gray-700 mb-2">Desde (opcional):</h5>
-                                        <div className="flex flex-wrap gap-3">
-                                            <div className="flex items-center gap-2">
-                                                <label className="text-sm font-medium text-gray-600">Año:</label>
-                                                <input type="number" placeholder="2024" min="2020" max="2030" 
-                                                       value={ordersDateFromYear} onChange={e => setOrdersDateFromYear(e.target.value)} 
-                                                       className="w-24 px-2 py-1 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500" />
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                <label className="text-sm font-medium text-gray-600">Mes:</label>
-                                                <input type="number" placeholder="1-12" min="1" max="12" 
-                                                       value={ordersDateFromMonth} onChange={e => setOrdersDateFromMonth(e.target.value)} 
-                                                       className="w-16 px-2 py-1 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500" />
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                <label className="text-sm font-medium text-gray-600">Día:</label>
-                                                <input type="number" placeholder="1-31" min="1" max="31" 
-                                                       value={ordersDateFromDay} onChange={e => setOrdersDateFromDay(e.target.value)} 
-                                                       className="w-16 px-2 py-1 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500" />
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                <label className="text-sm font-medium text-gray-600">Hora:</label>
-                                                <input type="number" placeholder="0-23" min="0" max="23" 
-                                                       value={ordersDateFromHour} onChange={e => setOrdersDateFromHour(e.target.value)} 
-                                                       className="w-16 px-2 py-1 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500" />
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                <label className="text-sm font-medium text-gray-600">Min:</label>
-                                                <input type="number" placeholder="0-59" min="0" max="59" 
-                                                       value={ordersDateFromMinute} onChange={e => setOrdersDateFromMinute(e.target.value)} 
-                                                       className="w-16 px-2 py-1 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500" />
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div className="flex-1 bg-gray-50 p-4 rounded-md">
-                                        <h5 className="font-semibold text-gray-700 mb-2">Hasta (opcional):</h5>
-                                        <div className="flex flex-wrap gap-3">
-                                            <div className="flex items-center gap-2">
-                                                <label className="text-sm font-medium text-gray-600">Año:</label>
-                                                <input type="number" placeholder="2024" min="2020" max="2030" 
-                                                       value={ordersDateToYear} onChange={e => setOrdersDateToYear(e.target.value)} 
-                                                       className="w-24 px-2 py-1 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500" />
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                <label className="text-sm font-medium text-gray-600">Mes:</label>
-                                                <input type="number" placeholder="1-12" min="1" max="12" 
-                                                       value={ordersDateToMonth} onChange={e => setOrdersDateToMonth(e.target.value)} 
-                                                       className="w-16 px-2 py-1 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500" />
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                <label className="text-sm font-medium text-gray-600">Día:</label>
-                                                <input type="number" placeholder="1-31" min="1" max="31" 
-                                                       value={ordersDateToDay} onChange={e => setOrdersDateToDay(e.target.value)} 
-                                                       className="w-16 px-2 py-1 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500" />
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                <label className="text-sm font-medium text-gray-600">Hora:</label>
-                                                <input type="number" placeholder="0-23" min="0" max="23" 
-                                                       value={ordersDateToHour} onChange={e => setOrdersDateToHour(e.target.value)} 
-                                                       className="w-16 px-2 py-1 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500" />
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                <label className="text-sm font-medium text-gray-600">Min:</label>
-                                                <input type="number" placeholder="0-59" min="0" max="59" 
-                                                       value={ordersDateToMinute} onChange={e => setOrdersDateToMinute(e.target.value)} 
-                                                       className="w-16 px-2 py-1 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500" />
-                                            </div>
-                                        </div>
-                                    </div>
+                            <div className={`flex gap-4 ${isFullscreen ? 'flex-row' : 'flex-col sm:flex-row'}`}>
+                                <div className="flex-1 bg-gray-50 p-4 rounded-md border border-gray-200">
+                                    <label className="text-sm font-semibold text-gray-700 mb-2 block uppercase tracking-wide">Desde:</label>
+                                    <input 
+                                        type="date" 
+                                        value={ordersDateFrom} 
+                                        onChange={e => setOrdersDateFrom(e.target.value)}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm" 
+                                    />
                                 </div>
-                            ) : (
-                                <>
-                                    <div className="bg-gray-50 p-4 rounded-md mb-3">
-                                        <h5 className="font-semibold text-gray-700 mb-2">Desde (opcional):</h5>
-                                        <div className="flex flex-wrap gap-3">
-                                            <div className="flex items-center gap-2">
-                                                <label className="text-sm font-medium text-gray-600">Año:</label>
-                                                <input type="number" placeholder="2024" min="2020" max="2030" 
-                                                       value={ordersDateFromYear} onChange={e => setOrdersDateFromYear(e.target.value)} 
-                                                       className="w-24 px-2 py-1 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500" />
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                <label className="text-sm font-medium text-gray-600">Mes:</label>
-                                                <input type="number" placeholder="1-12" min="1" max="12" 
-                                                       value={ordersDateFromMonth} onChange={e => setOrdersDateFromMonth(e.target.value)} 
-                                                       className="w-16 px-2 py-1 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500" />
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                <label className="text-sm font-medium text-gray-600">Día:</label>
-                                                <input type="number" placeholder="1-31" min="1" max="31" 
-                                                       value={ordersDateFromDay} onChange={e => setOrdersDateFromDay(e.target.value)} 
-                                                       className="w-16 px-2 py-1 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500" />
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                <label className="text-sm font-medium text-gray-600">Hora:</label>
-                                                <input type="number" placeholder="0-23" min="0" max="23" 
-                                                       value={ordersDateFromHour} onChange={e => setOrdersDateFromHour(e.target.value)} 
-                                                       className="w-16 px-2 py-1 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500" />
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                <label className="text-sm font-medium text-gray-600">Min:</label>
-                                                <input type="number" placeholder="0-59" min="0" max="59" 
-                                                       value={ordersDateFromMinute} onChange={e => setOrdersDateFromMinute(e.target.value)} 
-                                                       className="w-16 px-2 py-1 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500" />
-                                            </div>
-                                        </div>
-                                    </div>
-                                    
-                                    <div className="bg-gray-50 p-4 rounded-md">
-                                        <h5 className="font-semibold text-gray-700 mb-2">Hasta (opcional):</h5>
-                                        <div className="flex flex-wrap gap-3">
-                                            <div className="flex items-center gap-2">
-                                                <label className="text-sm font-medium text-gray-600">Año:</label>
-                                                <input type="number" placeholder="2024" min="2020" max="2030" 
-                                                       value={ordersDateToYear} onChange={e => setOrdersDateToYear(e.target.value)} 
-                                                       className="w-24 px-2 py-1 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500" />
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                <label className="text-sm font-medium text-gray-600">Mes:</label>
-                                                <input type="number" placeholder="1-12" min="1" max="12" 
-                                                       value={ordersDateToMonth} onChange={e => setOrdersDateToMonth(e.target.value)} 
-                                                       className="w-16 px-2 py-1 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500" />
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                <label className="text-sm font-medium text-gray-600">Día:</label>
-                                                <input type="number" placeholder="1-31" min="1" max="31" 
-                                                       value={ordersDateToDay} onChange={e => setOrdersDateToDay(e.target.value)} 
-                                                       className="w-16 px-2 py-1 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500" />
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                <label className="text-sm font-medium text-gray-600">Hora:</label>
-                                                <input type="number" placeholder="0-23" min="0" max="23" 
-                                                       value={ordersDateToHour} onChange={e => setOrdersDateToHour(e.target.value)} 
-                                                       className="w-16 px-2 py-1 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500" />
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                <label className="text-sm font-medium text-gray-600">Min:</label>
-                                                <input type="number" placeholder="0-59" min="0" max="59" 
-                                                       value={ordersDateToMinute} onChange={e => setOrdersDateToMinute(e.target.value)} 
-                                                       className="w-16 px-2 py-1 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500" />
-                                            </div>
-                                        </div>
-                                    </div>
-                                </>
-                            )}
+
+                                <div className="flex-1 bg-gray-50 p-4 rounded-md border border-gray-200">
+                                    <label className="text-sm font-semibold text-gray-700 mb-2 block uppercase tracking-wide">Hasta:</label>
+                                    <input 
+                                        type="date" 
+                                        value={ordersDateTo} 
+                                        onChange={e => setOrdersDateTo(e.target.value)}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm" 
+                                    />
+                                </div>
+                            </div>
                         </div>
                         
                         {/* Filtro Métodos de Pago + Estados (en pantalla completa lado a lado) */}

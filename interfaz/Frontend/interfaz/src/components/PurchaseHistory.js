@@ -70,22 +70,6 @@ const PurchaseHistory = ({ purchases, onDeletePurchase, confirmDelete, onCancelD
         return `Precio por ${unitName}`;
     };
     
-    const parseAnyDate = (dateStr) => {
-        if (!dateStr) return null;
-        if (dateStr instanceof Date) return dateStr;
-        const trimmed = String(dateStr).trim();
-        if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
-            const [year, month, day] = trimmed.split('-').map(Number);
-            return new Date(year, month - 1, day);
-        }
-        if (/^\d{2}\/\d{2}\/\d{4}$/.test(trimmed)) {
-            const [day, month, year] = trimmed.split('/').map(Number);
-            return new Date(year, month - 1, day);
-        }
-        const date = new Date(trimmed);
-        return isNaN(date.getTime()) ? null : date;
-    };
-    
     // Normalizar y filtrar compras
     const normalizedPurchases = purchases.map(purchase => {
         const itemsArray = Array.isArray(purchase.items) ? purchase.items.map(it => { 
@@ -133,18 +117,35 @@ const PurchaseHistory = ({ purchases, onDeletePurchase, confirmDelete, onCancelD
     
     let filteredPurchases = normalizedPurchases;
 
-    // 1. FILTRO DE FECHAS SIMPLIFICADO (Calendario)
+    // 1. FILTRO DE FECHAS (Corrección de zona horaria y formato)
     if (purchasesDateFrom || purchasesDateTo) {
         filteredPurchases = filteredPurchases.filter(purchase => {
-            const purchaseDate = parseAnyDate(purchase.date);
-            const start = purchasesDateFrom ? parseAnyDate(purchasesDateFrom) : null;
-            const end = purchasesDateTo ? parseAnyDate(purchasesDateTo) : null;
-            if (!purchaseDate) return false;
-            if (start && purchaseDate < start) return false;
-            if (end) {
-                end.setHours(23, 59, 59, 999);
-                if (purchaseDate > end) return false;
+            if (!purchase.date) return false;
+            
+            // Convertimos la fecha de la compra a un objeto Date
+            const purchaseDate = new Date(purchase.date);
+            if (isNaN(purchaseDate.getTime())) return false;
+            
+            // Normalizamos a la medianoche local para evitar saltos de día por la zona horaria
+            purchaseDate.setHours(0, 0, 0, 0);
+
+            if (purchasesDateFrom) {
+                // Extraemos año, mes y día directamente del string YYYY-MM-DD
+                const [year, month, day] = purchasesDateFrom.split('-');
+                const startDate = new Date(year, month - 1, day);
+                startDate.setHours(0, 0, 0, 0);
+                
+                if (purchaseDate < startDate) return false;
             }
+
+            if (purchasesDateTo) {
+                const [year, month, day] = purchasesDateTo.split('-');
+                const endDate = new Date(year, month - 1, day);
+                endDate.setHours(0, 0, 0, 0);
+                
+                if (purchaseDate > endDate) return false;
+            }
+
             return true;
         });
     }
@@ -423,7 +424,7 @@ const PurchaseHistory = ({ purchases, onDeletePurchase, confirmDelete, onCancelD
                 {/* FILTROS DE FECHA (Calendario Nativo) */}
                 <div className="border-t border-slate-200 pt-2 sm:pt-3 md:pt-4 overflow-hidden">
                     <p className="text-[10px] sm:text-xs md:text-sm text-slate-500 italic mb-1.5 sm:mb-2 md:mb-3">
-                        ?? <strong>Fechas:</strong> Selecciona el rango para filtrar el historial.
+                        🗓️ <strong>Fechas:</strong> Selecciona el rango para filtrar el historial.
                     </p>
                     
                     <div className="flex flex-col sm:flex-row gap-4">

@@ -1,7 +1,7 @@
 
 Importante Realizar esto primero‼️ 
 # Versión de Python requerida
-Python 3.11 o superior
+Python 3.12 o superior
 1. Instalar Python desde python.org
 Instalar Node.js (versión 18 o superior)
 
