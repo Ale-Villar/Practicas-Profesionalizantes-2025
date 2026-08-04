@@ -1,0 +1,8 @@
+{
+    "chat.tools.terminal.autoApprove": {
+        "/^cd /workspaces/Practicas-Profesionalizantes-2025/interfaz/Frontend/interfaz && python3 - <<'PY'\nfrom pathlib import Path\npath = Path\\('src/DataConsultation\\.js'\\)\nlines = path\\.read_text\\(\\)\\.splitlines\\(\\)\nfor i in range\\(40, 110\\):\n    print\\(f'\\{i\\+1\\}: \\{lines\\[i\\]\\}'\\)\nPY$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
+    }
+}
