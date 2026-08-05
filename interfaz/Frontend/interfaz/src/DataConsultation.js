@@ -203,13 +203,6 @@ export default function DataConsultation(props) {
     };
 
     const executeStockQuery = async () => {
-        const hasSpecificFilters = stockIdFilter || stockNameFilter || stockQuantityFilter || stockPriceFilter || stockTypeFilter || stockStatusFilter.length > 0;
-        
-        if (!hasSpecificFilters && !startDate && !endDate) {
-            setMessage('Por favor, ingrese al menos una fecha de inicio o una de fin, o use filtros específicos.');
-            return;
-        }
-
         const formatStockWithUnit = (stock, unit) => {
             const stockNum = parseFloat(stock) || 0;
             if (!unit || unit === 'u' || unit === 'unidades' || unit === 'Unidades') {
@@ -1322,37 +1315,40 @@ export default function DataConsultation(props) {
                                         </div>
                                     </div>
 
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                        <div>
-                                            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Fecha Inicio</label>
-                                            <div className="relative">
-                                                <Calendar size={14} className="absolute left-2 sm:left-3 top-3 text-slate-400" />
-                                                <input 
-                                                    type="date" 
-                                                    value={startDate} 
-                                                    onChange={e => setStartDate(e.target.value)} 
-                                                    className="w-full pl-7 sm:pl-8 pr-2 sm:pr-3 py-2 bg-white border border-slate-300 rounded-lg text-sm text-slate-700 outline-none focus:ring-2 focus:ring-blue-500"
-                                                />
+                                    {/* Ocultar Fechas para Stock y Proveedores */}
+                                    {selectedQuery !== 'stock' && selectedQuery !== 'proveedores' && (
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                            <div>
+                                                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Fecha Inicio</label>
+                                                <div className="relative">
+                                                    <Calendar size={14} className="absolute left-2 sm:left-3 top-3 text-slate-400" />
+                                                    <input 
+                                                        type="date" 
+                                                        value={startDate} 
+                                                        onChange={e => setStartDate(e.target.value)} 
+                                                        className="w-full pl-7 sm:pl-8 pr-2 sm:pr-3 py-2 bg-white border border-slate-300 rounded-lg text-sm text-slate-700 outline-none focus:ring-2 focus:ring-blue-500"
+                                                    />
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Fecha Fin</label>
+                                                <div className="relative">
+                                                    <Calendar size={14} className="absolute left-2 sm:left-3 top-3 text-slate-400" />
+                                                    <input 
+                                                        type="date" 
+                                                        value={endDate} 
+                                                        onChange={e => setEndDate(e.target.value)} 
+                                                        className="w-full pl-7 sm:pl-8 pr-2 sm:pr-3 py-2 bg-white border border-slate-300 rounded-lg text-sm text-slate-700 outline-none focus:ring-2 focus:ring-blue-500"
+                                                    />
+                                                </div>
                                             </div>
                                         </div>
-                                        <div>
-                                            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Fecha Fin</label>
-                                            <div className="relative">
-                                                <Calendar size={14} className="absolute left-2 sm:left-3 top-3 text-slate-400" />
-                                                <input 
-                                                    type="date" 
-                                                    value={endDate} 
-                                                    onChange={e => setEndDate(e.target.value)} 
-                                                    className="w-full pl-7 sm:pl-8 pr-2 sm:pr-3 py-2 bg-white border border-slate-300 rounded-lg text-sm text-slate-700 outline-none focus:ring-2 focus:ring-blue-500"
-                                                />
-                                            </div>
-                                        </div>
-                                    </div>
+                                    )}
                                 </div>
                             )}
                         </div>
 
-                        {/* === MODIFICACIÓN: Botones de Filtros y Consultar FUERA DEL REBATIBLE === */}
+                        {/* Botones de Filtros y Consultar FUERA DEL REBATIBLE */}
                         <div className="p-3 sm:p-4 bg-white flex justify-end gap-2 sm:gap-3 rounded-b-xl">
                             {selectedQuery && (
                                 <button 
