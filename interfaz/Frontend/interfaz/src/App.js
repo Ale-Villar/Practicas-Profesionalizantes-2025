@@ -279,28 +279,28 @@ const App = () => {
     // Preservar estado crítico en sessionStorage para resistir remontajes de HMR
     useEffect(() => {
         sessionStorage.setItem('failedAttempts', failedAttempts.toString());
-        console.log('🔄 failedAttempts cambió a:', failedAttempts, '- Guardado en sessionStorage');
+        console.log('?? failedAttempts cambió a:', failedAttempts, '- Guardado en sessionStorage');
     }, [failedAttempts]);
     
     useEffect(() => {
         sessionStorage.setItem('isLocked', isLocked.toString());
-        console.log('🔒 isLocked cambió a:', isLocked, '- Guardado en sessionStorage');
-    }, [isLocked]);
+        console.log('?? isLocked cambió a:', isLocked, '- Guardado en sessionStorage');
+    }, [lockType]);
     
     useEffect(() => {
         sessionStorage.setItem('lockType', lockType);
-        console.log('🔐 lockType cambió a:', lockType, '- Guardado en sessionStorage');
+        console.log('?? lockType cambió a:', lockType, '- Guardado en sessionStorage');
     }, [lockType]);
     
     useEffect(() => {
         sessionStorage.setItem('currentEmail', currentEmail);
-        console.log('📧 currentEmail cambió a:', currentEmail, '- Guardado en sessionStorage');
+        console.log('?? currentEmail cambió a:', currentEmail, '- Guardado en sessionStorage');
     }, [currentEmail]);
     
     // Verificar si se alcanzó el máximo de intentos y bloquear automáticamente
     useEffect(() => {
         if (failedAttempts >= maxAttempts && !isLocked) {
-            console.log('🚫 Máximo de intentos alcanzado, bloqueando cuenta');
+            console.log('?? Máximo de intentos alcanzado, bloqueando cuenta');
             setIsLocked(true);
             // NO mostrar modal, solo usar el texto de error en el formulario
         }
@@ -308,7 +308,7 @@ const App = () => {
     
     // Monitorear cambios en isLoggedIn
     useEffect(() => {
-        console.log('🔐 isLoggedIn cambió a:', isLoggedIn);
+        console.log('?? isLoggedIn cambió a:', isLoggedIn);
     }, [isLoggedIn]);
      
     // Estado para el rol del usuario actualmente autenticado.
@@ -418,12 +418,12 @@ const App = () => {
         // Manejo de login: realiza petición al backend, guarda token y actualiza estado
         const handleLogin = async (e, { email: userEmail, password: userPassword }) => {
         // NO llamar preventDefault aquí ya que se llama en onSubmit
-        console.log('🔐 handleLogin llamado con:', { email: userEmail });
-        console.log('🔢 failedAttempts al inicio de handleLogin:', failedAttempts);
+        console.log('?? handleLogin llamado con:', { email: userEmail });
+        console.log('?? failedAttempts al inicio de handleLogin:', failedAttempts);
         
         // Verificar si el email cambió y resetear intentos si es necesario
         if (userEmail && userEmail !== currentEmail) {
-            console.log('📧 Email cambió de', currentEmail, 'a', userEmail, '- Reseteando intentos fallidos');
+            console.log('?? Email cambió de', currentEmail, 'a', userEmail, '- Reseteando intentos fallidos');
             setCurrentEmail(userEmail);
             setFailedAttempts(0);
             setIsLocked(false);
@@ -532,79 +532,79 @@ const App = () => {
                 loadSales(),
                 loadRoles()
             ]);
-            console.log('🔐 Login completo y datos iniciales cargados');
+            console.log('?? Login completo y datos iniciales cargados');
         } catch (error) {
             console.error('Error de login con backend:', error?.response?.data || error?.message || error);
             
             // Manejar errores específicos del backend
             const errorData = error?.response?.data?.error;
-            console.log('🔍 DEBUG - errorData completo:', JSON.stringify(errorData, null, 2));
-            console.log('🔍 DEBUG - error.response.data:', JSON.stringify(error?.response?.data, null, 2));
+            console.log('?? DEBUG - errorData completo:', JSON.stringify(errorData, null, 2));
+            console.log('?? DEBUG - error.response.data:', JSON.stringify(error?.response?.data, null, 2));
             if (errorData) {
                 // Actualizar intentos fallidos desde el backend
                 if (typeof errorData.failed_attempts === 'number') {
-                    console.log('🔢 Actualizando intentos fallidos desde backend:', errorData.failed_attempts);
+                    console.log('?? Actualizando intentos fallidos desde backend:', errorData.failed_attempts);
                     setFailedAttempts(errorData.failed_attempts);
                 } else {
-                    console.log('🔢 Incrementando intentos fallidos localmente');
+                    console.log('?? Incrementando intentos fallidos localmente');
                     setFailedAttempts(prev => {
                         const newValue = prev + 1;
-                        console.log('🔢 Nuevos intentos fallidos:', newValue);
+                        console.log('?? Nuevos intentos fallidos:', newValue);
                         return newValue;
                     });
                 }
                 
                 // Verificar si la cuenta está bloqueada
                 if (errorData.code === 'account_locked') {
-                    console.log('🔒 Cuenta bloqueada detectada');
-                    console.log('🔍 DEBUG - error.response.data COMPLETO:', JSON.stringify(error?.response?.data, null, 2));
-                    console.log('🔍 DEBUG - errorData.lock_type RAW:', errorData.lock_type);
-                    console.log('🔍 DEBUG - tipo:', typeof errorData.lock_type);
-                    console.log('🔍 DEBUG - errorData.lock_type === null?:', errorData.lock_type === null);
-                    console.log('🔍 DEBUG - errorData.lock_type === undefined?:', errorData.lock_type === undefined);
+                    console.log('?? Cuenta bloqueada detectada');
+                    console.log('?? DEBUG - error.response.data COMPLETO:', JSON.stringify(error?.response?.data, null, 2));
+                    console.log('?? DEBUG - errorData.lock_type RAW:', errorData.lock_type);
+                    console.log('?? DEBUG - tipo:', typeof errorData.lock_type);
+                    console.log('?? DEBUG - errorData.lock_type === null?:', errorData.lock_type === null);
+                    console.log('?? DEBUG - errorData.lock_type === undefined?:', errorData.lock_type === undefined);
                     setIsLocked(true);
                     
                     // Si lock_type es null, undefined o vacío, usar 'automatic'
                     let lockTypeFromServer = errorData.lock_type;
                     if (!lockTypeFromServer || lockTypeFromServer === null || lockTypeFromServer === undefined || lockTypeFromServer === '') {
-                        console.warn('⚠️ lock_type es null/undefined/vacío, usando automatic');
+                        console.warn('?? lock_type es null/undefined/vacío, usando automatic');
                         lockTypeFromServer = 'automatic';
                     }
                     
-                    console.log('🔍 DEBUG - lockTypeFromServer FINAL:', lockTypeFromServer);
-                    console.log('🔍 DEBUG - lockTypeFromServer === "manual"?:', lockTypeFromServer === 'manual');
-                    console.log('🔍 DEBUG - String(lockTypeFromServer):', String(lockTypeFromServer));
+                    console.log('?? DEBUG - lockTypeFromServer FINAL:', lockTypeFromServer);
+                    console.log('?? DEBUG - lockTypeFromServer === "manual"?:', lockTypeFromServer === 'manual');
+                    console.log('?? DEBUG - String(lockTypeFromServer):', String(lockTypeFromServer));
                     
                     // Normalizar el lockType antes de guardarlo
                     const lockTypeStr = String(lockTypeFromServer).toLowerCase().trim();
-                    console.log('🔍 DEBUG - lockTypeStr normalizado:', lockTypeStr);
+                    console.log('?? DEBUG - lockTypeStr normalizado:', lockTypeStr);
                     setLockType(lockTypeStr);
                     
                     if (lockTypeStr === 'manual') {
-                        console.log('✅ Mostrando mensaje MANUAL');
-                        setLoginError('🔒 Tu cuenta ha sido bloqueada por el administrador.');
+                        console.log('? Mostrando mensaje MANUAL');
+                        setLoginError('?? Tu cuenta ha sido bloqueada por el administrador.');
                     } else {
-                        console.log('⚠️ Mostrando mensaje AUTOMÁTICO (lockType=' + lockTypeStr + ')');
-                        setLoginError('🔒 Cuenta bloqueada por múltiples intentos fallidos. Contacte al administrador para desbloquearla.');
+                        console.log('?? Mostrando mensaje AUTOMÁTICO (lockType=' + lockTypeStr + ')');
+                        setLoginError('?? Cuenta bloqueada por múltiples intentos fallidos. Contacte al administrador para desbloquearla.');
                     }
                 } else if (errorData.code === 'invalid_credentials') {
                     // Mostrar solo "Credenciales inválidas" sin mencionar intentos (ya tenemos el contador)
-                    setLoginError('❌ Credenciales inválidas');
+                    setLoginError('? Credenciales inválidas');
                 } else if (errorData.code === 'inactive') {
                     setLoginError('La cuenta está inactiva. Contacte al administrador.');
                 } else {
                     setLoginError(errorData.message || 'Error iniciando sesión');
                 }
             } else if (error.response && error.response.status === 401) {
-                console.log('🔢 Error 401 - Incrementando intentos');
+                console.log('?? Error 401 - Incrementando intentos');
                 setFailedAttempts(prev => prev + 1);
                 setLoginError('Credenciales inválidas');
             } else if (error.response && error.response.status === 403) {
-                console.log('🔢 Error 403 - Incrementando intentos');
+                console.log('?? Error 403 - Incrementando intentos');
                 setFailedAttempts(prev => prev + 1);
                 setLoginError('Acceso denegado. Verifica tus credenciales.');
             } else {
-                console.log('🔢 Error genérico - Incrementando intentos');
+                console.log('?? Error genérico - Incrementando intentos');
                 setFailedAttempts(prev => prev + 1);
                 setLoginError('Error iniciando sesión. Revisa la consola.');
             }
@@ -613,7 +613,7 @@ const App = () => {
     
     // Estado para el inventario - SIEMPRE basado en products, PERO products SÍ usa localStorage
     const [inventory, setInventory] = useState(() => {
-        console.log('📋 Inicializando inventario vacío (se generará desde products)');
+        console.log('?? Inicializando inventario vacío (se generará desde products)');
         return []; // Empezar vacío - se generará desde products
     });
     
@@ -622,7 +622,7 @@ const App = () => {
     
     // Movimientos de caja - SIEMPRE cargar desde backend, NO usar localStorage
     const [cashMovements, setCashMovements] = useState(() => {
-        console.log('💰 Inicializando movimientos de caja vacíos (se cargarán desde PostgreSQL)');
+        console.log('?? Inicializando movimientos de caja vacíos (se cargarán desde PostgreSQL)');
         return []; // Empezar vacío - se cargarán desde PostgreSQL
     });
     
@@ -758,7 +758,7 @@ const App = () => {
     useEffect(() => {
         const trySilentRefresh = async () => {
             try {
-                console.debug('🔁 Intentando refresh silencioso al montar');
+                console.debug('?? Intentando refresh silencioso al montar');
                 // Si existía un access token almacenado localmente, limpiarlo antes de intentar
                 // restaurar sesión desde la cookie HttpOnly. Esto evita usar un token stale
                 // que pueda provocar que la UI muestre pantalla de cajero aun cuando el
@@ -766,8 +766,8 @@ const App = () => {
                 try {
                     const prev = getInMemoryToken();
                     if (prev) {
-                        console.debug('💾 Token previo detectado en storage — limpiando antes del refresh');
-                        try { await removeAccessToken(); } catch (e) { console.debug('⚠️ No se pudo eliminar token previo:', e && e.message); }
+                        console.debug('?? Token previo detectado en storage — limpiando antes del refresh');
+                        try { await removeAccessToken(); } catch (e) { console.debug('?? No se pudo eliminar token previo:', e && e.message); }
                         try { clearInMemoryToken(); } catch (e) { /* silent */ }
                     }
                 } catch (e) { /* silent */ }
@@ -777,15 +777,15 @@ const App = () => {
                     const data = await resp.json();
                     // Backend puede devolver { access: null } si el usuario fue borrado/inactivo
                     if (!data || !data.access) {
-                        console.debug('🔐 Refresh silencioso: no hay access (usuario ausente o inactivo). Limpiando sesión.');
+                        console.debug('?? Refresh silencioso: no hay access (usuario ausente o inactivo). Limpiando sesión.');
                         try { await removeAccessToken(); } catch (e) {}
                         try { clearInMemoryToken(); } catch (e) {}
                         try { setIsLoggedIn(false); setCurrentPage('login'); } catch (e) {}
                     } else if (data && data.access) {
                         try { setInMemoryToken(data.access); } catch (e) { /* silent */ }
-                        try { await saveAccessToken(data.access); } catch (e) { console.debug('⚠️ No se pudo guardar access tras refresh silencioso:', e && e.message); }
+                        try { await saveAccessToken(data.access); } catch (e) { console.debug('?? No se pudo guardar access tras refresh silencioso:', e && e.message); }
                         setIsLoggedIn(true);
-                        try { setCurrentPage('dashboard'); } catch (e) { console.debug('⚠️ No se pudo setear currentPage tras refresh silencioso:', e && e.message); }
+                        try { setCurrentPage('dashboard'); } catch (e) { console.debug('?? No se pudo setear currentPage tras refresh silencioso:', e && e.message); }
                         // Asignar el rol devuelto por el backend si existe
                         if (data.role) {
                             setUserRole(data.role);
@@ -796,24 +796,24 @@ const App = () => {
                         // Cargar roles inmediatamente tras restaurar sesión silenciosamente
                         try {
                             await loadRoles();
-                            console.debug('✅ Roles cargados tras refresh silencioso');
+                            console.debug('? Roles cargados tras refresh silencioso');
                         } catch (e) {
-                            console.debug('⚠️ No se pudieron cargar roles tras refresh silencioso:', e && e.message);
+                            console.debug('?? No se pudieron cargar roles tras refresh silencioso:', e && e.message);
                         }
-                        console.debug('✅ Refresh silencioso OK — sesión restablecida');
+                        console.debug('? Refresh silencioso OK — sesión restablecida');
                     }
                     // Indicamos que ya fue chequeda la sesión
                     try { setSessionChecked(true); } catch (e) { /* silent */ }
                 } else {
-                    console.debug('ℹ️ Refresh silencioso no devolvió OK:', resp.status);
+                    console.debug('?? Refresh silencioso no devolvió OK:', resp.status);
                     try { setSessionChecked(true); } catch (e) { /* silent */ }
                 }
             } catch (e) {
-                console.debug('⚠️ Error en refresh silencioso:', e && e.message);
+                console.debug('?? Error en refresh silencioso:', e && e.message);
                 // Si el backend no está disponible (proxy error / ECONNRESET), asegurarnos de
                 // limpiar token y mostrar la pantalla de login en vez de mantener UI de cajero.
                 try {
-                    console.warn('❌ Refresh silencioso falló — probablemente el backend no está accesible. Forzando logout temporalmente. Asegúrate de ejecutar `python manage.py runserver` en el backend.');
+                    console.warn('? Refresh silencioso falló — probablemente el backend no está accesible. Forzando logout temporalmente. Asegúrate de ejecutar `python manage.py runserver` en el backend.');
                 } catch (ee) { /* ignore */ }
                 try { await removeAccessToken(); } catch (err) { /* silent */ }
                 try { clearInMemoryToken(); } catch (e) {}
@@ -829,20 +829,20 @@ const App = () => {
         if (!isLoggedIn) return;
         (async () => {
             try {
-                console.debug('🔔 isLoggedIn=true — cargando movimientos de caja desde backend');
+                console.debug('?? isLoggedIn=true — cargando movimientos de caja desde backend');
                 await loadCashMovements();
                 // Cargar roles también cuando la sesión inicia en esta pestaña
                 try {
                     await loadRoles();
-                    console.debug('✅ Roles cargados tras isLoggedIn=true');
+                    console.debug('? Roles cargados tras isLoggedIn=true');
                 } catch (e) {
-                    console.debug('⚠️ Error cargando roles tras isLoggedIn:', e && e.message);
+                    console.debug('?? Error cargando roles tras isLoggedIn:', e && e.message);
                 }
             } catch (e) {
-                console.warn('⚠️ No se pudo cargar movimientos al autenticar:', e && e.message);
+                console.warn('?? No se pudo cargar movimientos al autenticar:', e && e.message);
                 // Si la razón fue que el backend no está accesible, forzar logout para evitar mostrar UI inconsistente
                 if (e && (e.message && (e.message.includes('NetworkError') || e.message.includes('Failed to fetch') || e.message.includes('ECONNRESET')))) {
-                    try { console.warn('❌ Fallo de red al cargar movimientos — backend inaccesible. Forzando logout.'); } catch (ee) {}
+                    try { console.warn('? Fallo de red al cargar movimientos — backend inaccesible. Forzando logout.'); } catch (ee) {}
                     try { await removeAccessToken(); } catch (err) {}
                     try { clearInMemoryToken(); } catch (e) {}
                     try { setIsLoggedIn(false); setCurrentPage('login'); } catch (err) {}
@@ -852,17 +852,13 @@ const App = () => {
     }, [isLoggedIn]);
 
     const [products, setProducts] = useState(() => {
-        console.log('🎯 Inicializando products - siempre vacío, se carga desde servidor');
+        console.log('?? Inicializando products - siempre vacío, se carga desde servidor');
         // NUNCA usar localStorage para productos - siempre empezar vacío
         return [];
     });
 
     // Estado para indicar cuando se están cargando productos
     const [isLoading, setIsLoading] = useState(false);
-
-    // useEffect para guardar en localStorage (inventory NO se guarda, products SÍ se guarda)
-    // useEffect(() => { saveLS(LS_KEYS.inventory, inventory); }, [inventory]); // DESHABILITADO - inventario se regenera desde products
-    // useEffect(() => { saveLS(LS_KEYS.cashMovements, cashMovements); }, [cashMovements]); // DESHABILITADO - cashMovements se cargan desde PostgreSQL
 
     // Cargar proveedores desde el backend al iniciar sesión
     useEffect(() => {
@@ -886,7 +882,7 @@ const App = () => {
     // Función para cargar usuarios desde el backend
     const loadUsersFromBackend = async () => {
         try {
-            console.log('👥 loadUsersFromBackend llamado - iniciando carga...');
+            console.log('?? loadUsersFromBackend llamado - iniciando carga...');
             const response = await api.get('/users/');
             if (response.data) {
                 // Transformar datos del backend para compatibilidad con componentes nuevos y antiguos
@@ -907,12 +903,12 @@ const App = () => {
                     locked_at: user.locked_at || null, // Fecha de bloqueo
                     hashedPassword: 'backend-managed' // Password manejado por backend
                 }));
-                console.log('👥 setUsers llamado con', backendUsers.length, 'usuarios');
+                console.log('?? setUsers llamado con', backendUsers.length, 'usuarios');
                 try {
                     setUsers(backendUsers);
                     // setUsers ejecutado exitosamente
                 } catch (error) {
-                    console.error('❌ Error en setUsers:', error);
+                    console.error('? Error en setUsers:', error);
                     throw error; // Re-throw para que se pueda investigar
                 }
                 // Usuarios cargados desde backend
@@ -930,9 +926,6 @@ const App = () => {
             loadUsersFromBackend();
         }
     }, [isLoggedIn]);
-    // NOTA: Ya no guardamos `orders` en localStorage para evitar inconsistencias
-    // useEffect(() => { saveLS(LS_KEYS.orders, orders); }, [orders]);
-    // useEffect(() => { saveLS(LS_KEYS.products, products); }, [products]); // DESHABILITADO - products YA NO se guardan automáticamente en localStorage
 
         // useEffect para sincronización productos -> inventario
         useEffect(() => {
@@ -940,7 +933,7 @@ const App = () => {
 
                 // Verificar que products sea un array válido antes de usar map
                 if (!Array.isArray(products)) {
-                        console.log('⚠️ products no es un array válido, usando array vacío');
+                        console.log('?? products no es un array válido, usando array vacío');
                         setInventory([]);
                         return;
                 }
@@ -958,7 +951,7 @@ const App = () => {
                     lowStockThreshold: product.lowStockThreshold    // Compatibilidad con ambos nombres
                 }));
 
-                console.log('🎯 Inventario sincronizado:', newInventory?.length ? `${newInventory.length} productos` : 'Array vacío');
+                console.log('?? Inventario sincronizado:', newInventory?.length ? `${newInventory.length} productos` : 'Array vacío');
 
                 setInventory(newInventory);
         }, [products]);
@@ -1036,18 +1029,18 @@ const App = () => {
                 const lockData = JSON.parse(e.newValue);
                 // Si el usuario bloqueado coincide con el actual, cerrar sesión
                 if (lockData.userId && lockData.userId === currentUserId && lockData.lockType === 'manual') {
-                    setLoginError('🔒 Tu cuenta ha sido bloqueada por el administrador.');
+                    setLoginError('?? Tu cuenta ha sido bloqueada por el administrador.');
                     handleLogout(true);
                 }
             }
             // Escuchar evento de desbloqueo de cuenta (para otras pestañas)
             if (e.key === 'account_unlocked' && e.newValue) {
-                console.log('🔓 Evento de desbloqueo detectado en storage');
+                console.log('?? Evento de desbloqueo detectado en storage');
                 const unlockData = JSON.parse(e.newValue);
                 
                 // Solo recargar si el usuario desbloqueado es el usuario ACTUAL
                 if (unlockData.userId && unlockData.userId === currentUserId) {
-                    console.log('✅ El usuario desbloqueado soy YO (storage), recargando...');
+                    console.log('? El usuario desbloqueado soy YO (storage), recargando...');
                     // Limpiar TODO PRIMERO
                     try {
                         const keys = Object.keys(localStorage);
@@ -1062,7 +1055,7 @@ const App = () => {
                     // Forzar recarga COMPLETA sin cache
                     window.location.href = window.location.origin + window.location.pathname + '?_t=' + Date.now();
                 } else {
-                    console.log('ℹ️ El usuario desbloqueado NO soy yo (storage), ignorando evento');
+                    console.log('?? El usuario desbloqueado NO soy yo (storage), ignorando evento');
                 }
             }
         };
@@ -1071,7 +1064,7 @@ const App = () => {
         const onUserLocked = (e) => {
             const lockData = e.detail;
             if (lockData.userId && lockData.userId === currentUserId && lockData.lockType === 'manual') {
-                setLoginError('🔒 Tu cuenta ha sido bloqueada por el administrador.');
+                setLoginError('?? Tu cuenta ha sido bloqueada por el administrador.');
                 handleLogout(true);
             }
         };
@@ -1079,11 +1072,11 @@ const App = () => {
         // Escuchar CustomEvent para desbloqueo
         const onUserUnlocked = (e) => {
             const unlockData = e.detail;
-            console.log('🔓 CustomEvent de desbloqueo recibido:', unlockData);
+            console.log('?? CustomEvent de desbloqueo recibido:', unlockData);
             
             // Solo recargar si el usuario desbloqueado es el usuario ACTUAL (no el gerente)
             if (unlockData.userId && unlockData.userId === currentUserId) {
-                console.log('✅ El usuario desbloqueado soy YO, recargando...');
+                console.log('? El usuario desbloqueado soy YO, recargando...');
                 // Limpiar TODO localStorage y sessionStorage PRIMERO
                 try {
                     const keys = Object.keys(localStorage);
@@ -1098,7 +1091,7 @@ const App = () => {
                 // Forzar recarga COMPLETA sin cache
                 window.location.href = window.location.origin + window.location.pathname + '?_t=' + Date.now();
             } else {
-                console.log('ℹ️ El usuario desbloqueado NO soy yo, ignorando evento');
+                console.log('?? El usuario desbloqueado NO soy yo, ignorando evento');
             }
         };
         
@@ -1123,9 +1116,9 @@ const App = () => {
                     // Usuario fue bloqueado, cerrar sesión
                     const lockTypeFromServer = response.data.lock_type || 'automatic';
                     if (lockTypeFromServer === 'manual') {
-                        setLoginError('🔒 Tu cuenta ha sido bloqueada por el administrador.');
+                        setLoginError('?? Tu cuenta ha sido bloqueada por el administrador.');
                     } else {
-                        setLoginError('🔒 Cuenta bloqueada por múltiples intentos fallidos. Contacte al administrador para desbloquearla.');
+                        setLoginError('?? Cuenta bloqueada por múltiples intentos fallidos. Contacte al administrador para desbloquearla.');
                     }
                     await handleLogout(true);
                 }
@@ -1252,24 +1245,24 @@ const App = () => {
             // Productos actualizados exitosamente
             return formattedProducts;
           } else {
-            console.log('📋 Productos sin cambios - no se actualiza el estado');
+            console.log('?? Productos sin cambios - no se actualiza el estado');
             return prevProducts;
           }
         });
       } catch (error) {
-        console.log('❌ Error cargando productos del servidor:', error.message);
+        console.log('? Error cargando productos del servidor:', error.message);
         
         // Manejo específico para Safari y otros navegadores
         if (error.response) {
           if (error.response.status === 401) {
-            console.log('🔒 Error de autenticación - reloguear necesario');
+            console.log('?? Error de autenticación - reloguear necesario');
           } else {
-            console.log(`🚫 Error del servidor: ${error.response.status}`);
+            console.log(`?? Error del servidor: ${error.response.status}`);
           }
         } else if (error.request) {
-          console.log('🌐 Error de conexión con el servidor');
+          console.log('?? Error de conexión con el servidor');
         } else {
-          console.log('⚠️ Error de configuración:', error.message);
+          console.log('?? Error de configuración:', error.message);
         }
         
         // Solo actualizar a array vacío si no había productos antes
@@ -1284,7 +1277,7 @@ const App = () => {
     // Función para cargar movimientos de caja desde el backend
         const loadCashMovements = async () => {
             try {
-                console.debug('🔎 loadCashMovements invoked');
+                console.debug('?? loadCashMovements invoked');
                 if (!getInMemoryToken()) {
                     const restored = await ensureInMemoryToken();
                     if (!restored) {
@@ -1293,7 +1286,7 @@ const App = () => {
                     }
                 }
 
-                console.log('💰 Cargando movimientos de caja del servidor...');
+                console.log('?? Cargando movimientos de caja del servidor...');
                 const response = await api.get('/cash-movements/');
 
                 let serverMovements = [];
@@ -1303,7 +1296,7 @@ const App = () => {
                     serverMovements = response.data;
                 }
         
-                console.debug('🔍 Datos recibidos del servidor:', serverMovements.length, 'movimientos');
+                console.debug('?? Datos recibidos del servidor:', serverMovements.length, 'movimientos');
         
                 const formattedMovements = serverMovements.map(movement => ({
                     id: movement.id,
@@ -1315,12 +1308,12 @@ const App = () => {
                     payment_method: movement.payment_method || ''
                 }));
         
-                console.debug('📋 Primeros 3 movimientos formateados:', formattedMovements.slice(0, 3));
+                console.debug('?? Primeros 3 movimientos formateados:', formattedMovements.slice(0, 3));
         
                 setCashMovements(formattedMovements);
-                console.debug('✅ Movimientos de caja cargados:', `${formattedMovements.length} movimientos del servidor`);
+                console.debug('? Movimientos de caja cargados:', `${formattedMovements.length} movimientos del servidor`);
             } catch (error) {
-                console.error('❌ Error cargando movimientos de caja:', error && error.message ? error.message : error);
+                console.error('? Error cargando movimientos de caja:', error && error.message ? error.message : error);
                 setCashMovements(prevMovements => prevMovements.length > 0 ? prevMovements : []);
             }
         };
@@ -1354,7 +1347,7 @@ const App = () => {
                                                                 setSales(serverSales);
                                                                 return serverSales;
       } catch (error) {
-                console.error('❌ Error cargando ventas:', error?.message || error);
+                console.error('? Error cargando ventas:', error?.message || error);
                 return Array.isArray(sales) ? sales : [];
       }
     };
@@ -1362,14 +1355,14 @@ const App = () => {
     // Función para cargar cambios de inventario desde el backend
     const loadInventoryChanges = async () => {
       try {
-        console.log('📦 Cargando cambios de inventario del servidor...');
+        console.log('?? Cargando cambios de inventario del servidor...');
         const response = await api.get('/inventory-changes/');
         const serverChanges = response.data;
         
-        console.log('✅ Cambios de inventario cargados:', `${serverChanges.length} cambios del servidor`);
-        console.log('📋 Cambios:', serverChanges);
+        console.log('? Cambios de inventario cargados:', `${serverChanges.length} cambios del servidor`);
+        console.log('?? Cambios:', serverChanges);
       } catch (error) {
-        console.log('❌ Error cargando cambios de inventario:', error.message);
+        console.log('? Error cargando cambios de inventario:', error.message);
       }
     };
     //función para calcular saldo de caja a partir de los movimientos de caja.
@@ -1383,15 +1376,16 @@ const App = () => {
 
 
     // Componente de la interfaz de inicio de sesión.
+    // Componente de la interfaz de inicio de sesión.
     const Login = () => {
       const [emailInput, setEmailInput] = useState('');
       const [passwordInput, setPasswordInput] = useState('');
 
       const onSubmit = async () => {
-        console.log('🔐 Login clicked, calling handleLogin');
-        console.log('🔢 Estado actual failedAttempts:', failedAttempts);
+        console.log('🔍 Login clicked, calling handleLogin');
+        console.log('📊 Estado actual failedAttempts:', failedAttempts);
         await handleLogin(null, { email: emailInput, password: passwordInput });
-        console.log('🔢 Estado después de handleLogin:', failedAttempts);
+        console.log('📊 Estado después de handleLogin:', failedAttempts);
       };
       
       // Limpiar solo el mensaje de error cuando el usuario empieza a escribir
@@ -1520,6 +1514,99 @@ const App = () => {
     const Navbar = () => {
         const itemsToShow = rolePermissions[userRole] || [];
 
+        // Definimos los grupos lógicos para ordenar el menú
+        if (userRole === 'Gerente' || userRole === 'Encargado') {
+            const menuGroups = [
+                {
+                    title: 'Operaciones',
+                    items: ['Ventas', 'Pedidos', 'Compras']
+                },
+                {
+                    title: 'Inventario & Catálogo',
+                    items: ['Inventario', 'Productos', 'Proveedores', 'Edicion']
+                },
+                {
+                    title: 'Reportes y Alertas',
+                    items: ['Consultas', 'Ver Reportes de Faltantes', 'Reportar Faltantes', 'Gestión de Pérdidas']
+                },
+                {
+                    title: 'Administración',
+                    items: ['Gestión de Usuarios', 'Datos de mi Usuario']
+                }
+            ];
+
+            return (
+                <nav className="bg-[#2c3e50] text-white shadow-md relative z-50">
+                    <div className="max-w-full mx-auto px-4 sm:px-6">
+                        <div className="flex items-center justify-between h-16">
+                            
+                            {/* Grupo Izquierdo: Botones y Desplegables */}
+                            <div className="flex items-center space-x-1 sm:space-x-3">
+                                
+                                {/* Botón Dashboard (Suelto para rápido acceso) */}
+                                {itemsToShow.includes('Dashboard') && (
+                                    <button 
+                                        onClick={() => navigateTo('dashboard')} 
+                                        className={`px-3 py-2 rounded-md text-sm font-bold transition-colors ${
+                                            currentPage === 'dashboard' 
+                                                ? 'bg-blue-600 text-white' 
+                                                : 'text-gray-300 hover:bg-slate-700 hover:text-white'
+                                        }`}
+                                    >
+                                        Dashboard
+                                    </button>
+                                )}
+
+                                {/* Renderizar Menús Desplegables */}
+                                {menuGroups.map((group, idx) => {
+                                    const allowedItems = group.items.filter(item => itemsToShow.includes(item));
+                                    if (allowedItems.length === 0) return null;
+
+                                    return (
+                                        <div key={idx} className="relative group">
+                                            <button className="text-gray-300 hover:bg-slate-700 hover:text-white px-3 py-2 rounded-md text-sm font-bold transition-colors">
+                                                {group.title}
+                                            </button>
+
+                                            {/* Caja del submenú */}
+                                            <div className="absolute left-0 mt-0 pt-2 w-56 hidden group-hover:block z-50">
+                                                <div className="bg-white rounded-lg shadow-xl ring-1 ring-black ring-opacity-5 py-1 overflow-hidden border border-slate-100">
+                                                    {allowedItems.map(item => (
+                                                        <button 
+                                                            key={item}
+                                                            onClick={() => navigateTo(item.toLowerCase())} 
+                                                            className={`block w-full text-left px-4 py-2.5 text-sm transition-colors ${
+                                                                currentPage === item.toLowerCase() 
+                                                                    ? 'bg-blue-50 text-blue-700 font-bold border-l-4 border-blue-600' 
+                                                                    : 'text-slate-700 hover:bg-slate-50 hover:text-blue-600 border-l-4 border-transparent'
+                                                            }`}
+                                                        >
+                                                            {item}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+
+                            {/* Botón Cerrar Sesión (A la derecha) */}
+                            {(isLoggedIn && userRole && currentPage !== 'forgot-password') && (
+                                <button 
+                                    onClick={() => handleLogout(false)} 
+                                    className="ml-4 bg-[#e74c3c] hover:bg-[#c0392b] text-white px-4 py-2 rounded-md text-sm font-bold transition-colors shadow-sm"
+                                >
+                                    Cerrar Sesión
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                </nav>
+            );
+        }
+
+        // De lo contrario (para Cajero y Panadero), mostramos la barra tradicional de botones sueltos
         return (
             <nav className="navbar">
                 <ul className="nav-list">
@@ -1531,9 +1618,8 @@ const App = () => {
                         </li>
                     ))}
                 </ul>
-                {/* Mostrar botón de cerrar sesión solo si está autenticado y no estamos en la pantalla pública de 'forgot-password' */}
                 {(isLoggedIn && userRole && currentPage !== 'forgot-password') && (
-                    <button onClick={handleLogout} className="logout-button">Cerrar Sesión</button>
+                    <button onClick={() => handleLogout(false)} className="logout-button">Cerrar Sesión</button>
                 )}
             </nav>
         );
@@ -1621,7 +1707,7 @@ const App = () => {
                        {/* 
                 //totalAlerts > 0 && (
                 //  <div className="total-alerts-badge">
-                //    <span className="alert-icon">⚠️</span>
+                //    <span className="alert-icon">??</span>
                 //    <span className="alert-text">TOTAL ALERTAS</span>
                 //    <span className="alert-count">{totalAlerts}</span>
                 //  </div>
@@ -1644,14 +1730,14 @@ const App = () => {
                                         <span className="category-title">Insumos Faltantes o con bajo Stock</span>
                                         <span className="category-count">{lowStockSupplies.length}</span>
                                     </div>
-                                    <span className={`collapse-icon ${showSuppliesAlerts ? 'open' : ''}`}>▼</span>
+                                    <span className={`collapse-icon ${showSuppliesAlerts ? 'open' : ''}`}>?</span>
                                 </button>
                                 
                                 {showSuppliesAlerts && (
                                     <div className="alert-grid">
                                         {lowStockSupplies.map(item => (
                                             <div key={item.id} className="alert-card alert-card-red">
-                                                <div className="alert-card-icon">⚠️</div>
+                                                <div className="alert-card-icon">??</div>
                                                 <div className="alert-card-content">
                                                     <h4 className="alert-card-title">{item.name}</h4>
                                                     <div className="alert-card-stock">
@@ -1679,14 +1765,14 @@ const App = () => {
                                         <span className="category-title">Productos Faltantes o con bajo Stock</span>
                                         <span className="category-count">{lowStockProducts.length}</span>
                                     </div>
-                                    <span className={`collapse-icon ${showProductsAlerts ? 'open' : ''}`}>▼</span>
+                                    <span className={`collapse-icon ${showProductsAlerts ? 'open' : ''}`}>?</span>
                                 </button>
                                 
                                 {showProductsAlerts && (
                                     <div className="alert-grid">
                                         {lowStockProducts.map(item => (
                                             <div key={item.id} className="alert-card alert-card-red">
-                                                <div className="alert-card-icon">⚠️</div>
+                                                <div className="alert-card-icon">??</div>
                                                 <div className="alert-card-content">
                                                     <h4 className="alert-card-title">{item.name}</h4>
                                                     <div className="alert-card-stock">
@@ -1793,7 +1879,7 @@ const App = () => {
                 setChange({ productId: '', quantity: '', reason: '' });
                 setShowChangeForm(false);
                 setConfirmOpen(false);
-                console.log('✅ Cambio de inventario registrado y datos recargados desde PostgreSQL');
+                console.log('? Cambio de inventario registrado y datos recargados desde PostgreSQL');
             } catch (err) {
                 console.error('Error registrando cambio de inventario:', err);
                 alert('No se pudo registrar el cambio de inventario.');
@@ -2378,7 +2464,7 @@ const App = () => {
                 await loadCashMovements();
                 setNewMovement({ type: 'Entrada', amount: '', description: '' });
                 setShowMovementForm(false);
-                setMessage('✅ Movimiento registrado exitosamente.');
+                setMessage('? Movimiento registrado exitosamente.');
             } catch (err) {
                 console.error('Error registrando movimiento de caja:', err);
                 setMessage('No se pudo registrar el movimiento.');
@@ -2516,13 +2602,13 @@ const App = () => {
                 );
                 
                 if (invalidItems) {
-                    setMessage('🚫 Error: Todos los productos deben tener nombre, cantidad y precio válidos.');
+                    setMessage('?? Error: Todos los productos deben tener nombre, cantidad y precio válidos.');
                     return;
                 }
                 
                 const selectedSupplier = suppliers.find(s => s.id === parseInt(newPurchase.supplierId));
                 if (!selectedSupplier) {
-                    setMessage('🚫 Error: El proveedor seleccionado no existe.');
+                    setMessage('?? Error: El proveedor seleccionado no existe.');
                     return;
                 }
                 
@@ -2589,10 +2675,10 @@ const App = () => {
                         items: [{ productName: '', quantity: 1, unitPrice: 0, total: 0 }]
                     });
                     setShowAddPurchase(false);
-                    setMessage(userRole === 'Encargado' ? '✅ Solicitud de compra enviada para aprobación.' : '✅ Compra registrada exitosamente y guardada en el servidor.');
+                    setMessage(userRole === 'Encargado' ? '? Solicitud de compra enviada para aprobación.' : '? Compra registrada exitosamente y guardada en el servidor.');
                 } catch (error) {
-                    console.error('❌ Error procesando compra/solicitud:', error);
-                    setMessage('❌ Error: No se pudo procesar la solicitud. Inténtalo nuevamente.');
+                    console.error('? Error procesando compra/solicitud:', error);
+                    setMessage('? Error: No se pudo procesar la solicitud. Inténtalo nuevamente.');
                 }
             };
 
@@ -2604,14 +2690,14 @@ const App = () => {
                         const updatedPurchases = purchases.filter(purchase => purchase.id !== purchaseId);
                         setPurchases(updatedPurchases);
                         setConfirmDelete(null);
-                        setMessage('✅ Compra eliminada del historial exitosamente.');
+                        setMessage('? Compra eliminada del historial exitosamente.');
                     } catch (error) {
-                        console.warn('⚠️ No se pudo eliminar compra en backend:', error);
+                        console.warn('?? No se pudo eliminar compra en backend:', error);
                         setMessage('Error al eliminar la compra.');
                     }
                 } else {
                     setConfirmDelete(purchaseId);
-                    setMessage('⚠️ ¿Estás seguro de que deseas eliminar esta compra del historial? Haz clic nuevamente en "Eliminar" para confirmar.');
+                    setMessage('?? ¿Estás seguro de que deseas eliminar esta compra del historial? Haz clic nuevamente en "Eliminar" para confirmar.');
                 }
             };
 
@@ -2732,7 +2818,7 @@ const App = () => {
                                                         onClick={() => removeItem(index)}
                                                         className="remove-item-button"
                                                     >
-                                                        ❌
+                                                        ?
                                                     </button>
                                                 )}
                                             </div>
@@ -2740,7 +2826,7 @@ const App = () => {
                                     ))}
                             
                             <button type="button" onClick={addItem} className="add-item-button">
-                                ➕ Agregar Producto
+                                ? Agregar Producto
                             </button>
                             
                             <div className="purchase-total">
@@ -2770,13 +2856,13 @@ const App = () => {
                                                             className="action-button danger small"
                                                             onClick={() => handleDeletePurchase(purchase.id)}
                                                         >
-                                                            ✓ Confirmar
+                                                            ? Confirmar
                                                         </button>
                                                         <button 
                                                             className="action-button secondary small"
                                                             onClick={handleCancelDelete}
                                                         >
-                                                            ✕ Cancelar
+                                                            ? Cancelar
                                                         </button>
                                                     </div>
                                                 ) : (
@@ -2784,7 +2870,7 @@ const App = () => {
                                                         className="action-button danger small"
                                                         onClick={() => handleDeletePurchase(purchase.id)}
                                                     >
-                                                        🗑️ Eliminar
+                                                        ??? Eliminar
                                                     </button>
                                                 )}
                                             </div>
@@ -3122,7 +3208,7 @@ const PurchaseRequests = () => {
     const validPages = new Set(['dashboard','inventario','ventas','productos','gestión de usuarios','proveedores','compras','pedidos','consultas', 'datos de mi usuario', 'edicion','login', 'reportar faltantes', 'ver reportes de faltantes', 'gestión de pérdidas', 'generate-token']);
         let pageToRender = currentPage;
         if (!validPages.has(String(currentPage))) {
-            console.warn('⚠️ currentPage inválido detectado, forzando a dashboard:', currentPage);
+            console.warn('?? currentPage inválido detectado, forzando a dashboard:', currentPage);
             pageToRender = 'dashboard';
         }
 
@@ -3217,14 +3303,14 @@ const PurchaseRequests = () => {
         // Verificación especial para Safari - asegurar que el token esté disponible
     const token = getInMemoryToken();
         if (!token) {
-          console.log('⚠️ No hay token disponible, esperando...');
+          console.log('?? No hay token disponible, esperando...');
           // Reintentar en 200ms para Safari
                     setTimeout(() => {
                         const retryToken = getInMemoryToken();
             if (retryToken && isLoggedIn) {
               loadUsers();
               loadProducts(false); // Carga silenciosa en retry
-              console.log('🔐 Usuario logueado - cargando usuarios y productos del servidor (retry)');
+              console.log('?? Usuario logueado - cargando usuarios y productos del servidor (retry)');
             }
           }, 200);
           return;
@@ -3233,7 +3319,7 @@ const PurchaseRequests = () => {
         // Cargar datos del servidor
         loadUsers();
         loadProducts(false); // Carga silenciosa al hacer login
-        console.log('🔐 Usuario logueado - cargando usuarios y productos del servidor');
+        console.log('?? Usuario logueado - cargando usuarios y productos del servidor');
       }
     }, [isLoggedIn]);
 
@@ -3287,7 +3373,7 @@ const PurchaseRequests = () => {
             loadProducts(false); // Sincronización silenciosa automática
             // Sincronización automática de productos
           } else {
-            console.log('⏸️ Sincronización pausada - usuario activo:', {
+            console.log('?? Sincronización pausada - usuario activo:', {
               typing: isTyping,
               forms: !!hasOpenForms,
               recent: recentInteraction,
@@ -3370,12 +3456,12 @@ const PurchaseRequests = () => {
             if (now - lastSync > 30000) { // 30 segundos
               loadProducts(false); // false = no mostrar mensaje de carga
               window.lastFocusSync = now;
-              console.log('👁️ Ventana enfocada - sincronizando productos (sin formularios abiertos)');
+              console.log('??? Ventana enfocada - sincronizando productos (sin formularios abiertos)');
             } else {
-              console.log('⏸️ Sincronización saltada - muy reciente o usuario trabajando');
+              console.log('?? Sincronización saltada - muy reciente o usuario trabajando');
             }
           } else {
-            console.log('⏸️ Sincronización pausada - usuario interactuando con formularios o consultando datos');
+            console.log('?? Sincronización pausada - usuario interactuando con formularios o consultando datos');
           }
         }
       };
@@ -3408,10 +3494,10 @@ const PurchaseRequests = () => {
             if (now - lastSync > 30000) { // 30 segundos
               loadProducts(false); // Sincronización silenciosa
               window.lastVisibilitySync = now;
-              console.log('👁️ Pestaña visible - sincronizando productos (sin formularios abiertos)');
+              console.log('??? Pestaña visible - sincronizando productos (sin formularios abiertos)');
             }
           } else {
-            console.log('⏸️ Sincronización pausada - usuario trabajando o consultando datos');
+            console.log('?? Sincronización pausada - usuario trabajando o consultando datos');
           }
         }
       };
@@ -3498,7 +3584,7 @@ const PurchaseRequests = () => {
         </div>
     );
     } catch (error) {
-        console.error('❌ Error de render en App:', error);
+        console.error('? Error de render en App:', error);
         throw error; // Re-throw para que ErrorBoundary lo atrape
     }
     };

@@ -1,113 +1,181 @@
 
-Importante Realizar esto primero‼️ 
-# Versión de Python requerida
-Python 3.12 o superior
-1. Instalar Python desde python.org
-Instalar Node.js (versión 18 o superior)
+📖 Guía de Instalación y Configuración 
+⚠️ Requisitos Previos
+Antes de empezar, asegurate de tener instalados los siguientes programas en tu computadora:
+Python: Versión 3.12 o superior (descargar desde python.org).
+Node.js: Versión 18 o superior.
+
+Docker y Docker Compose.
+
+🛠️ 1. Configuración de la Base de Datos
+El proyecto utiliza PostgreSQL a través de Docker. El contenedor se llamará proyecto_practicas2025.
+    1-Abrí una terminal en la raíz del proyecto.
+
+    2-Levantá la base de datos ejecutando:
+        Bash
+        docker-compose up -d
+⚙️ 2. Configuración del Backend (Django)
+Abrí una terminal y navegá a la carpeta del backend:
+    1-cd Backend
+    2-Instalá pipenv (si no lo tenés) y creá el entorno virtual:
+        pip install pipenv
+        pipenv install
+    (Esto instalará las dependencias necesarias como: 
+    asgiref                       
+    Django                        
+    django-cors-headers           
+    djangorestframework           
+    djangorestframework_simplejwt 
+    pillow
+    pip
+    psycopg2-binary
+    PyJWT
+    python-dotenv
+    sqlparse
+    reportlab)
+    para chequear que este todo instalado correctamente, ejecutá:
+        pip list
+
+Activá el entorno virtual:
+pipenv shell
 
 
-Esto Segundo❗️❗️☞ Crear un entorno virtual de python con pipenv en la carpeta de Backend: 
-Primero instalar pipenv: pip install pipenv
-Y luego crea el entorno virtual: pipenv install.
-Activar entorno virtual: pipenv shell 
+Navegá a la carpeta de la interfaz:
+Bash
+cd Interfaz
+Variables de entorno: Creá un archivo llamado .env en esta carpeta (Backend/Interfaz/) y agregá lo siguiente:
 
-asgiref                       3.9.1
-Django                        5.2.6
-django-cors-headers           4.7.0
-djangorestframework           3.16.1
-djangorestframework_simplejwt 5.5.1
-pillow                        11.3.0
-pip                           25.2
-psycopg2-binary               2.9.10
-PyJWT                         2.10.1
-python-dotenv                 1.1.1
-sqlparse                      0.5.3
-
-
-
-
-
-Crear un contenedor en docker que se llame proyecto_practicas2025
-
-# Configuración de variables de entorno:
-Crear archivo .env en Backend/Interfaz/ con:
+Fragmento de código
 DATABASE_URL=postgresql://usuario:password@localhost:5432/nombre_db
 SECRET_KEY=tu_secret_key_aqui
+Prepará la base de datos ejecutando las migraciones:
+    python manage.py makemigrations
+    python manage.py migrate
 
-# Base de datos con Docker :
-docker-compose up -d
+🎨 3. Configuración del Frontend (React & Tailwind)
+Abrí una nueva terminal y navegá a la carpeta del frontend:
 
-# Frontend:
 cd Frontend/interfaz
+Instalá las dependencias de Node:
+
 npm install
+(Opcional - Solo si es la primera vez que se configura Tailwind) Instalá e inicializá Tailwind CSS:
+
+Bash
+npm install -D tailwindcss@3
+npx tailwind init -p
+Nota: Esto generará los archivos tailwind.config.js y postcss.config.js.
+
+🚀 ¿Cómo arrancar el proyecto todos los días?
+Para trabajar en el día a día, seguí estos 3 pasos:
+
+Paso 1: Arrancar la Base de Datos
+
+docker start proyecto_practicas2025
+Paso 2: Arrancar el Backend
+En una terminal, navegá a la carpeta Backend, activá el entorno y encendé el servidor:
+
+pipenv shell
+cd Interfaz
+python manage.py runserver
+
+Paso 3: Arrancar el Frontend
+En otra terminal, navegá a la carpeta Frontend/interfaz y encendé React:
+
+Bash
 npm start
+(Para detener los servidores, presioná Ctrl + C en sus respectivas terminales).
 
+🧑‍💻 Usuarios de Prueba (Demo)
+Podés utilizar las siguientes credenciales para probar los distintos roles del sistema:
 
+1- Gerente:
+nombre de usuario: AdminGeneral
+Nombre: "Nombre propio"
+Correo: "correo propio"
+Contraseña: "Contraseña propia"
 
-#Comandos Django
--Hacer migraciones: python manage.py makemigrations
-- Ejecutar migraciones: python manage.py migrate (o tambien puede ser python3 manage.py migrate)
-- Crear superusuario: python manage.py createsuperuser(o tambien puede ser python3 manage.py createsuperuser)
-- Ejecutar servidor: python manage.py runserver (o tambien puede ser  python3 manage.py runserver)
+2- Cajera:
 
-Asignar role al superusuario en django:
+Usuario: sofi_mendoza
 
+Nombre: Sofía Mendoza
+
+Correo: smendoza@churreria-demo.com.ar
+
+Contraseña: Pastelera_2026!
+
+3- Panadero:
+
+Usuario: lucas_riq
+
+Nombre: Lucas Riquelme
+
+Correo: lriquelme@churreria-demo.com.ar
+
+Contraseña: DjangoR3act_25
+
+4- Encargado:
+
+Usuario: valen.sosa
+
+Nombre: Valentina Sosa
+
+Correo: valen.sosa@churreria-demo.com.ar
+
+Contraseña: DulceDeLeche10!
+
+🆘 Solución a Problemas Frecuentes (Troubleshooting)
+Error al crear el Superusuario (ValueError con Role)
+Si intentás usar python manage.py createsuperuser y te da error porque requiere una instancia del modelo Role, seguí estos pasos para crearlo directamente desde la consola interactiva:
+
+En la terminal del backend (Backend/Interfaz), abrí la consola de Django:
+
+Bash
+python manage.py shell
+Copiá, pegá y ejecutá este código (modificá los datos a tu gusto):
+
+Python
+from api.models import Role, User
+
+# Obtenemos el rol deseado (1=Gerente, 2=Encargado, 3=Panadero, 4=Cajero)
+rol_admin = Role.objects.get(id=1) 
+
+# Creamos el superusuario asignándole el objeto del rol
+User.objects.create_superuser(
+    username='AdminGeneral', 
+    email='admin@churreria-demo.com.ar', 
+    password='ContraseñaSegura123', 
+    role=rol_admin
+)
+exit()
+Asignar un rol a un usuario ya creado
+Si creaste el superusuario pero te olvidaste de asignarle el rol, usá este código en la shell:
+
+Python
 from api.models import User, Role
-superuser = User.objects.get(username='NOMBRE_DEL_SUPERUSUARIO')
-gerente_role = Role.objects.get(name='Gerente')  # Ajusta el campo si es diferente
+
+superuser = User.objects.get(username='NOMBRE_DEL_USUARIO')
+gerente_role = Role.objects.get(name='Gerente') 
 superuser.role = gerente_role
 superuser.save()
 
-Verificar que se asigno correctamente el rol:
-
-from api.models import User
-superuser = User.objects.get(is_superuser=True)
+# Para verificar que funcionó:
 print(superuser.username, superuser.role)
+Comandos Útiles de Docker:
 
-#Comandos Docker
+Ver logs (errores de la BD): docker-compose logs
 
-- Ver logs de Docker: docker-compose logs
-- Parar contenedores: docker-compose down
+Apagar y destruir el contenedor: docker-compose down
 
+Si al ejecutar python manage.py migrate el proyecto no puede arrancar porque tira un error del tipo psycopg2.errors.DuplicateColumn (indicando que una columna ya existe en la base de datos), significa que el historial está desincronizado.
 
-#Instalacion Tailwindcss
+Para forzar a Django a omitir esa migración y continuar con las demás, ejecutá una "migración falsa" (fake migration) indicando el nombre de la app y el número de migración problemático. Ejemplo:
 
-Ruta de instalacion interfaz/Frontend/interfaz
+Bash
+# Formato: python manage.py migrate <nombre_app> <nro_migracion> --fake
+python manage.py migrate api 0023 --fake
+Una vez ejecutado, corré el comando de migración normal para aplicar las que falten:
 
-Comandos para instalacion
-
-1- install -D tailwindcss@3
-2- npx tailwind init -p
-
-Despues de haber ejecutado el segundo comando npx tailwind init -p se tienen que generar
-los archivos tailwind.config.js y postcss.config.js .
-
-como arrancar el proyecto:
-1- Arrancar el backend: contenedor de docker con el comando "docker start proyecto_practicas2025"
-                        activar el entorno virtual usando "pipenv shell" (en la carpeta Backend)
-                        activar el servidor de django con "python manage.py runserver" (en la carpeta Backend/Interfaz)
-2- Arrancar el frontend: ir a la carpeta Frontend/interfaz y ejecutar "npm start"(en la carpeta Frontend/interfaz)
-
-3- detener los procesos control c.
-
-
-Usuarios creados:
-
-1-Gerente: alex059villar@gmail.com
-Contraseña:Icop2025
-
-2-Cajera:
-    -usuario:sofi_mendoza
-    -nombre: Sofía Mendoza
-    -correo: smendoza@churreria-demo.com.ar
-    -contraseña: Pastelera_2026!
-3-Panadero:
-    -usuario: lucas_riq
-    -nombre: Lucas Riquelme
-    -correo: lriquelme@churreria-demo.com.ar
-    -contraseña: DjangoR3act_25
-4-Encargado:
-    -usuario: valen.sosa
-    -nombre: Valentina Sosa
-    -correo: valen.sosa@churreria-demo.com.ar
-    -contraseña: DulceDeLeche10!
+Bash
+python manage.py migrate
