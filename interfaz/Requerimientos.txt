@@ -111,3 +111,6 @@ Contraseña:Icop2025
     -nombre: Valentina Sosa
     -correo: valen.sosa@churreria-demo.com.ar
     -contraseña: DulceDeLeche10!
+
+Para ir a la zona de Pruebas:
+git checkout pruebas-experimentales
