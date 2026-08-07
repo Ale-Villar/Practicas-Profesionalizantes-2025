@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { formatMovementDate } from '../utils/date';
 import { formatMoney } from '../utils/format';
 
-const Movimientos_De_Caja = ({ cashMovements }) => {
+const Movimientos_De_Caja = ({ cashMovements, cashBalance }) => {
     const [cashSortOrder, setCashSortOrder] = useState('desc');
     const [cashAmountFilter, setCashAmountFilter] = useState('');
     const [cashAmountFilterOp, setCashAmountFilterOp] = useState('equals');
@@ -26,7 +26,7 @@ const Movimientos_De_Caja = ({ cashMovements }) => {
     const [dialogPosition, setDialogPosition] = useState({ x: 150, y: 50 });
     const [resizeStart, setResizeStart] = useState({ width: 0, height: 0 });
 
-    const currentBalance = cashMovements.reduce((sum, m) => sum + (m.type === 'Entrada' ? m.amount : -m.amount), 0);
+    const currentBalance = cashBalance ?? cashMovements.reduce((sum, m) => sum + (m.type === 'Entrada' ? m.amount : -m.amount), 0);
 
     // Función para parsear fechas
     const parseAnyDate = (dateStr) => {

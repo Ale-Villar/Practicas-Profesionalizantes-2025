@@ -1375,6 +1375,19 @@ class CashMovementViewSet(viewsets.ModelViewSet):
     serializer_class = CashMovementSerializer
     permission_classes = [IsAuthenticated]
 
+    def get_queryset(self):
+        return CashMovement.objects.filter(hidden_from_history=False).order_by('-timestamp')
+
+    @action(detail=False, methods=['get'])
+    def balance(self, request):
+        balance = Decimal('0')
+        for movement in CashMovement.objects.all():
+            if movement.type == 'Entrada':
+                balance += movement.amount
+            else:
+                balance -= movement.amount
+        return Response({'balance': float(balance)})
+
     def perform_create(self, serializer):
         try:
             # Log minimal info for diagnostics (no token values)

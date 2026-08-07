@@ -1,13 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { api } from './services/api';
 import { formatMovementDate } from './utils/date';
-import {
-    safeToFixed as defaultSafeToFixed,
-    formatStockWithUnit,
-    formatStockTotal,
-    formatDisplayQuantity,
-    formatNumber,
-} from './utils/format';
 import { 
     Search, Calendar, Download, Filter, 
     Package, Users, TrendingUp, ShoppingCart, 
@@ -30,7 +23,7 @@ export default function DataConsultation(props) {
         cashMovements = [],
         sales = [],
         headerTranslationMap = {},
-        safeToFixed = defaultSafeToFixed
+        safeToFixed = (v) => (Number(v)||0).toFixed(2)
     } = props;
 
     // mount/unmount side-effects intentionally silent in production UI
@@ -39,16 +32,17 @@ export default function DataConsultation(props) {
     // Estado para UI de filtros avanzados
     const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
     
-    // === MODIFICACIÓN: Estados para filtros colapsables ===
-    const [showQueryDateSection, setShowQueryDateSection] = useState(true); // Sección de consulta y fechas rebatible
-    const [showStockStatusFilter, setShowStockStatusFilter] = useState(false); // Estado (checkboxes) collapsible
-    const [showCashStatusFilter, setShowCashStatusFilter] = useState(false); // Tipo y Método de Pago collapsible
-    const [showOrdersStatusFilter, setShowOrdersStatusFilter] = useState(false); // Estado (checkboxes) collapsible
-    const [showPaymentMethodFilter, setShowPaymentMethodFilter] = useState(false); // Método de Pago collapsible
+    // Estados para filtros colapsables
+    const [showQueryDateSection, setShowQueryDateSection] = useState(true); 
+    const [showStockStatusFilter, setShowStockStatusFilter] = useState(false); 
+    const [showCashStatusFilter, setShowCashStatusFilter] = useState(false); 
+    const [showOrdersStatusFilter, setShowOrdersStatusFilter] = useState(false); 
+    const [showPaymentMethodFilter, setShowPaymentMethodFilter] = useState(false); 
 
     const [selectedQuery, setSelectedQuery] = useState('');
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState('');
+    
     // Filtros para la consulta de stock (filtros independientes)
     const [stockIdFilter, setStockIdFilter] = useState('');
     const [stockIdFilterOp, setStockIdFilterOp] = useState('equals');
@@ -58,8 +52,8 @@ export default function DataConsultation(props) {
     const [stockQuantityUnit, setStockQuantityUnit] = useState('Kg');
     const [stockPriceFilter, setStockPriceFilter] = useState('');
     const [stockPriceOp, setStockPriceOp] = useState('equals');
-    const [stockTypeFilter, setStockTypeFilter] = useState(''); // 'Producto' | 'Insumo'
-    const [stockStatusFilter, setStockStatusFilter] = useState([]); // array de statuses seleccionados
+    const [stockTypeFilter, setStockTypeFilter] = useState(''); 
+    const [stockStatusFilter, setStockStatusFilter] = useState([]); 
     
     // Filtros para la consulta de ventas (filtros independientes)
     const [salesIdFilter, setSalesIdFilter] = useState('');
@@ -70,17 +64,7 @@ export default function DataConsultation(props) {
     const [salesTotalOp, setSalesTotalOp] = useState('equals');
     const [salesQuantityFilter, setSalesQuantityFilter] = useState('');
     const [salesQuantityOp, setSalesQuantityOp] = useState('equals');
-    const [salesDateFromYear, setSalesDateFromYear] = useState('');
-    const [salesDateFromMonth, setSalesDateFromMonth] = useState('');
-    const [salesDateFromDay, setSalesDateFromDay] = useState('');
-    const [salesDateFromHour, setSalesDateFromHour] = useState('');
-    const [salesDateFromMinute, setSalesDateFromMinute] = useState('');
-    const [salesDateToYear, setSalesDateToYear] = useState('');
-    const [salesDateToMonth, setSalesDateToMonth] = useState('');
-    const [salesDateToDay, setSalesDateToDay] = useState('');
-    const [salesDateToHour, setSalesDateToHour] = useState('');
-    const [salesDateToMinute, setSalesDateToMinute] = useState('');
-    
+
     // Filtros independientes para movimientos de caja
     const [cashIdFilter, setCashIdFilter] = useState('');
     const [cashIdFilterOp, setCashIdFilterOp] = useState('equals');
@@ -90,42 +74,20 @@ export default function DataConsultation(props) {
     const [cashDescriptionFilterOp, setCashDescriptionFilterOp] = useState('contains');
     const [cashUserFilter, setCashUserFilter] = useState('');
     const [cashUserFilterOp, setCashUserFilterOp] = useState('contains');
-    // Filtros de fecha granular
-    const [cashDateFromYear, setCashDateFromYear] = useState('');
-    const [cashDateFromMonth, setCashDateFromMonth] = useState('');
-    const [cashDateFromDay, setCashDateFromDay] = useState('');
-    const [cashDateFromHour, setCashDateFromHour] = useState('');
-    const [cashDateFromMinute, setCashDateFromMinute] = useState('');
-    const [cashDateToYear, setCashDateToYear] = useState('');
-    const [cashDateToMonth, setCashDateToMonth] = useState('');
-    const [cashDateToDay, setCashDateToDay] = useState('');
-    const [cashDateToHour, setCashDateToHour] = useState('');
-    const [cashDateToMinute, setCashDateToMinute] = useState('');
-    const [cashTypeFilter, setCashTypeFilter] = useState(''); // Entrada/Salida
-    const [cashPaymentMethodFilter, setCashPaymentMethodFilter] = useState([]); // Array de métodos seleccionados
-    const [cashSortOrder, setCashSortOrder] = useState('desc'); // 'desc' = descendente (más nuevos primero), 'asc' = ascendente
+    const [cashTypeFilter, setCashTypeFilter] = useState(''); 
+    const [cashPaymentMethodFilter, setCashPaymentMethodFilter] = useState([]); 
+    const [cashSortOrder, setCashSortOrder] = useState('desc'); 
     
     // Filtros independientes para pedidos
     const [ordersIdFilter, setOrdersIdFilter] = useState('');
     const [ordersIdFilterOp, setOrdersIdFilterOp] = useState('equals');
     const [ordersCustomerFilter, setOrdersCustomerFilter] = useState('');
     const [ordersCustomerFilterOp, setOrdersCustomerFilterOp] = useState('contains');
-    // Filtros de fecha granular
-    const [ordersDateFromYear, setOrdersDateFromYear] = useState('');
-    const [ordersDateFromMonth, setOrdersDateFromMonth] = useState('');
-    const [ordersDateFromDay, setOrdersDateFromDay] = useState('');
-    const [ordersDateFromHour, setOrdersDateFromHour] = useState('');
-    const [ordersDateFromMinute, setOrdersDateFromMinute] = useState('');
-    const [ordersDateToYear, setOrdersDateToYear] = useState('');
-    const [ordersDateToMonth, setOrdersDateToMonth] = useState('');
-    const [ordersDateToDay, setOrdersDateToDay] = useState('');
-    const [ordersDateToHour, setOrdersDateToHour] = useState('');
-    const [ordersDateToMinute, setOrdersDateToMinute] = useState('');
-    const [ordersPaymentMethodFilter, setOrdersPaymentMethodFilter] = useState([]); // Array de métodos seleccionados como en movimientos de caja
-    const [ordersStatusFilter, setOrdersStatusFilter] = useState([]); // Array de estados seleccionados: En Preparación, Listo, Entregado, Cancelado
-    const [ordersProductFilter, setOrdersProductFilter] = useState(''); // Búsqueda por nombre de producto
-    const [ordersUnitsFilter, setOrdersUnitsFilter] = useState(''); // Filtro por unidades/cantidad
-    const [ordersUnitsFilterOp, setOrdersUnitsFilterOp] = useState('equals'); // Operador para unidades
+    const [ordersPaymentMethodFilter, setOrdersPaymentMethodFilter] = useState([]); 
+    const [ordersStatusFilter, setOrdersStatusFilter] = useState([]); 
+    const [ordersProductFilter, setOrdersProductFilter] = useState(''); 
+    const [ordersUnitsFilter, setOrdersUnitsFilter] = useState(''); 
+    const [ordersUnitsFilterOp, setOrdersUnitsFilterOp] = useState('equals'); 
     
     // Filtros independientes para compras
     const [purchasesIdFilter, setPurchasesIdFilter] = useState('');
@@ -134,22 +96,11 @@ export default function DataConsultation(props) {
     const [purchasesSupplierFilterOp, setPurchasesSupplierFilterOp] = useState('contains');
     const [purchasesTotalFilter, setPurchasesTotalFilter] = useState('');
     const [purchasesTotalFilterOp, setPurchasesTotalFilterOp] = useState('equals');
-    // Filtros de fecha granular
-    const [purchasesDateFromYear, setPurchasesDateFromYear] = useState('');
-    const [purchasesDateFromMonth, setPurchasesDateFromMonth] = useState('');
-    const [purchasesDateFromDay, setPurchasesDateFromDay] = useState('');
-    const [purchasesDateFromHour, setPurchasesDateFromHour] = useState('');
-    const [purchasesDateFromMinute, setPurchasesDateFromMinute] = useState('');
-    const [purchasesDateToYear, setPurchasesDateToYear] = useState('');
-    const [purchasesDateToMonth, setPurchasesDateToMonth] = useState('');
-    const [purchasesDateToDay, setPurchasesDateToDay] = useState('');
-    const [purchasesDateToHour, setPurchasesDateToHour] = useState('');
-    const [purchasesDateToMinute, setPurchasesDateToMinute] = useState('');
-    const [purchasesTypeFilter, setPurchasesTypeFilter] = useState([]); // Array de tipos: Producto, Insumo, Mixto
-    const [purchasesProductFilter, setPurchasesProductFilter] = useState(''); // Búsqueda por nombre de producto/insumo
-    const [purchasesQuantityFilter, setPurchasesQuantityFilter] = useState(''); // Filtro por cantidad
-    const [purchasesQuantityFilterOp, setPurchasesQuantityFilterOp] = useState('equals'); // Operador para cantidad
-    const [purchasesQuantityUnit, setPurchasesQuantityUnit] = useState('Kg'); // Unidad para cantidad
+    const [purchasesTypeFilter, setPurchasesTypeFilter] = useState([]); 
+    const [purchasesProductFilter, setPurchasesProductFilter] = useState(''); 
+    const [purchasesQuantityFilter, setPurchasesQuantityFilter] = useState(''); 
+    const [purchasesQuantityFilterOp, setPurchasesQuantityFilterOp] = useState('equals'); 
+    const [purchasesQuantityUnit, setPurchasesQuantityUnit] = useState('Kg'); 
     
     // Filtros independientes para proveedores
     const [suppliersIdFilter, setSuppliersIdFilter] = useState('');
@@ -178,7 +129,6 @@ export default function DataConsultation(props) {
     const [message, setMessage] = useState('');
     const [isLoading, setIsLoading] = useState(false);
 
-    // No verbose logging on queryResults changes in normal operation
     useEffect(() => {}, [queryResults]);
 
     const loadActiveQuery = async () => {
@@ -197,9 +147,7 @@ export default function DataConsultation(props) {
                 setMessage('');
             }
         } catch (error) {
-            if (error.response?.status === 404) {
-                // No hay consulta guardada
-            } else {
+            if (error.response?.status !== 404) {
                 // Error cargando consulta activa
             }
         } finally { setIsLoading(false); }
@@ -213,43 +161,37 @@ export default function DataConsultation(props) {
             if (items && items.length > 0) {
                 const existing = items[0];
                 const id = existing.id;
-                try { const patchResp = await api.patch(`/user-queries/${id}/`, payload); if (patchResp?.data) return; } catch (patchErr) { /* Error parchando consulta existente, fallback a POST */ }
+                try { const patchResp = await api.patch(`/user-queries/${id}/`, payload); if (patchResp?.data) return; } catch (patchErr) {}
             }
             const postResp = await api.post('/user-queries/', payload);
             if (postResp?.data) return;
         } catch (error) {
-            // Advertencia al guardar consulta, intentando recuperación
             try {
                 const listResp2 = await api.get(`/user-queries/?query_type=${encodeURIComponent(queryType)}`);
                 const items2 = Array.isArray(listResp2.data) ? listResp2.data : (listResp2.data?.results || []);
                 if (items2 && items2.length > 0) {
                     const existing = items2[0]; const id = existing.id; const patchResp2 = await api.patch(`/user-queries/${id}/`, payload); if (patchResp2?.data) return;
                 }
-            } catch (recErr) { /* Error intentando recuperar/actualizar consulta después de fallo */ }
-            // Error final guardando consulta
+            } catch (recErr) { }
         }
     };
 
-    const clearActiveQuery = async () => { try { await api.post('/user-queries/clear_active_query/'); /* Consulta activa limpiada */ } catch (error) { /* Error limpiando consulta */ } };
+    const clearActiveQuery = async () => { try { await api.post('/user-queries/clear_active_query/'); } catch (error) { } };
 
     const parseAnyDate = (dateStr) => {
         if (!dateStr) return null;
         if (dateStr instanceof Date) return dateStr;
 
-        // Handle YYYY-MM-DD from date picker to avoid timezone issues
         if (typeof dateStr === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
             const [year, month, day] = dateStr.split('-').map(Number);
-            // Creates date at 00:00:00 in the local timezone
             return new Date(year, month - 1, day);
         }
 
-        // Handle DD/MM/YYYY
         if (typeof dateStr === 'string' && /^\d{2}\/\d{2}\/\d{4}$/.test(dateStr)) {
             const [day, month, year] = dateStr.split('/').map(Number);
             return new Date(year, month - 1, day);
         }
 
-        // Handle full ISO strings from backend (or other formats)
         const parsed = new Date(dateStr);
         return isNaN(parsed.getTime()) ? null : parsed;
     };
@@ -261,20 +203,22 @@ export default function DataConsultation(props) {
     };
 
     const executeStockQuery = async () => {
-        // Verificación de fechas: solo requerida si no hay filtros específicos
-        const hasSpecificFilters = stockIdFilter || stockNameFilter || stockQuantityFilter || stockPriceFilter || stockTypeFilter || stockStatusFilter.length > 0;
-        
-        if (!hasSpecificFilters && (!startDate || !endDate)) {
-            setMessage('Por favor, ingrese una fecha de inicio y una de fin o use filtros específicos.');
-            return;
-        }
+        const formatStockWithUnit = (stock, unit) => {
+            const stockNum = parseFloat(stock) || 0;
+            if (!unit || unit === 'u' || unit === 'unidades' || unit === 'Unidades') {
+                return `${stockNum}U`;
+            } else if (unit === 'g' || unit === 'gramos') {
+                const kg = (stockNum / 1000).toFixed(3);
+                return `${parseFloat(kg)}Kg`;
+            } else if (unit === 'ml' || unit === 'mililitros') {
+                const liters = (stockNum / 1000).toFixed(3);
+                return `${parseFloat(liters)}L`;
+            }
+            return `${stockNum}${unit}`;
+        };
 
-        // Formatear unidades correctamente - convertir de unidades base a unidades de visualización
-
-        // Aplicar filtros independientes
         let filteredInventory = [...(inventory || [])];
 
-        // 1. Filtro por ID con operadores lógicos
         if (stockIdFilter) {
             const filterValue = parseInt(stockIdFilter);
             if (!isNaN(filterValue)) {
@@ -292,14 +236,12 @@ export default function DataConsultation(props) {
             }
         }
 
-        // 2. Filtro por Nombre
         if (stockNameFilter) {
             filteredInventory = filteredInventory.filter(item => 
                 String(item.name || '').toLowerCase().includes(stockNameFilter.toLowerCase())
             );
         }
 
-        // 3. Filtro por Cantidad/Stock
         if (stockQuantityFilter) {
             filteredInventory = filteredInventory.filter(item => {
                 const itemQuantity = parseFloat(item.stock) || 0;
@@ -307,13 +249,10 @@ export default function DataConsultation(props) {
                 const itemUnit = (item.unit || 'u').toLowerCase();
                 const filterUnit = stockQuantityUnit.toLowerCase();
                 
-                // Convertir a la misma unidad para comparar
                 let normalizedItemQuantity = itemQuantity;
                 let normalizedFilterQuantity = filterQuantity;
                 
-                // Si las unidades no coinciden, convertir
                 if (itemUnit !== filterUnit) {
-                    // Convertir item a unidad de filtro
                     if (filterUnit === 'kg' && itemUnit === 'g') {
                         normalizedItemQuantity = itemQuantity / 1000;
                     } else if (filterUnit === 'l' && itemUnit === 'ml') {
@@ -321,7 +260,6 @@ export default function DataConsultation(props) {
                     } else if (filterUnit === 'u' && (itemUnit === 'unidades' || itemUnit === '')) {
                         normalizedItemQuantity = itemQuantity;
                     } else {
-                        // Unidades incompatibles, no filtrar este item
                         return false;
                     }
                 }
@@ -337,7 +275,6 @@ export default function DataConsultation(props) {
             });
         }
 
-        // 4. Filtro por Precio
         if (stockPriceFilter) {
             filteredInventory = filteredInventory.filter(item => {
                 const itemPrice = parseFloat(item.price || item.unit_price || 0);
@@ -354,14 +291,12 @@ export default function DataConsultation(props) {
             });
         }
 
-        // 5. Filtro por Tipo
         if (stockTypeFilter) {
             filteredInventory = filteredInventory.filter(item => 
                 (item.type || item.category || '').toLowerCase() === stockTypeFilter.toLowerCase()
             );
         }
 
-        // 6. Filtro por Estado (múltiple)
         if (stockStatusFilter.length > 0) {
             filteredInventory = filteredInventory.filter(item => {
                 const threshold = item.low_stock_threshold || item.lowStockThreshold || 10;
@@ -371,7 +306,6 @@ export default function DataConsultation(props) {
             });
         }
 
-        // Calcular totales después de aplicar filtros
         const computeTotals = (itemsList) => {
             const totals = { productos: { kg: 0, l: 0, u: 0 }, insumos: { kg: 0, l: 0, u: 0 } };
             
@@ -399,7 +333,10 @@ export default function DataConsultation(props) {
                 }
             });
             
-            const formatTotal = (value, unitSymbol) => formatStockTotal(value, unitSymbol);
+            const formatTotal = (value, unitSymbol) => {
+                if (value === 0) return null;
+                return `${value.toFixed(2)}${unitSymbol}`;
+            };
             
             const productTotals = [
                 formatTotal(totals.productos.kg, 'Kg'),
@@ -454,137 +391,99 @@ export default function DataConsultation(props) {
     };
 
     const executeSuppliersQuery = async () => {
-        // Verificación: Si no hay filtros específicos, mostrar todos los proveedores
         const hasFilters = suppliersIdFilter.trim() || suppliersNameFilter.trim() || suppliersCuitFilter.trim() || 
                           suppliersPhoneFilter.trim() || suppliersAddressFilter.trim() || suppliersProductFilter.trim();
 
-        // Aplicar filtros independientes
         let filteredSuppliers = suppliers;
 
-        // 1. Filtro de ID (independiente)
         if (suppliersIdFilter.trim()) {
             filteredSuppliers = filteredSuppliers.filter(supplier => {
                 const supplierId = Number(supplier.id);
                 const filterId = Number(suppliersIdFilter);
                 
                 switch (suppliersIdFilterOp) {
-                    case 'equals':
-                        return supplierId === filterId;
-                    case 'lt':
-                        return supplierId < filterId;
-                    case 'lte':
-                        return supplierId <= filterId;
-                    case 'gt':
-                        return supplierId > filterId;
-                    case 'gte':
-                        return supplierId >= filterId;
-                    default:
-                        return supplierId === filterId;
+                    case 'equals': return supplierId === filterId;
+                    case 'lt': return supplierId < filterId;
+                    case 'lte': return supplierId <= filterId;
+                    case 'gt': return supplierId > filterId;
+                    case 'gte': return supplierId >= filterId;
+                    default: return supplierId === filterId;
                 }
             });
         }
 
-        // 2. Filtro de nombre (independiente)
         if (suppliersNameFilter.trim()) {
             filteredSuppliers = filteredSuppliers.filter(supplier => {
                 const name = String(supplier.name || '').toLowerCase();
                 const filterValue = suppliersNameFilter.toLowerCase();
                 
                 switch (suppliersNameFilterOp) {
-                    case 'equals':
-                        return name === filterValue;
-                    case 'contains':
-                        return name.includes(filterValue);
-                    default:
-                        return name.includes(filterValue);
+                    case 'equals': return name === filterValue;
+                    case 'contains': return name.includes(filterValue);
+                    default: return name.includes(filterValue);
                 }
             });
         }
 
-        // 3. Filtro de CUIT (independiente)
         if (suppliersCuitFilter.trim()) {
             filteredSuppliers = filteredSuppliers.filter(supplier => {
                 const cuit = String(supplier.cuit || '').toLowerCase();
                 const filterValue = suppliersCuitFilter.toLowerCase();
                 
                 switch (suppliersCuitFilterOp) {
-                    case 'equals':
-                        return cuit === filterValue;
-                    case 'contains':
-                        return cuit.includes(filterValue);
-                    default:
-                        return cuit.includes(filterValue);
+                    case 'equals': return cuit === filterValue;
+                    case 'contains': return cuit.includes(filterValue);
+                    default: return cuit.includes(filterValue);
                 }
             });
         }
 
-        // 4. Filtro de teléfono (independiente)
         if (suppliersPhoneFilter.trim()) {
             filteredSuppliers = filteredSuppliers.filter(supplier => {
                 const phone = String(supplier.phone || '').toLowerCase();
                 const filterValue = suppliersPhoneFilter.toLowerCase();
                 
                 switch (suppliersPhoneFilterOp) {
-                    case 'equals':
-                        return phone === filterValue;
-                    case 'contains':
-                        return phone.includes(filterValue);
-                    default:
-                        return phone.includes(filterValue);
+                    case 'equals': return phone === filterValue;
+                    case 'contains': return phone.includes(filterValue);
+                    default: return phone.includes(filterValue);
                 }
             });
         }
 
-        // 5. Filtro de dirección (independiente)
         if (suppliersAddressFilter.trim()) {
             filteredSuppliers = filteredSuppliers.filter(supplier => {
                 const address = String(supplier.address || '').toLowerCase();
                 const filterValue = suppliersAddressFilter.toLowerCase();
                 
                 switch (suppliersAddressFilterOp) {
-                    case 'equals':
-                        return address === filterValue;
-                    case 'contains':
-                        return address.includes(filterValue);
-                    default:
-                        return address.includes(filterValue);
+                    case 'equals': return address === filterValue;
+                    case 'contains': return address.includes(filterValue);
+                    default: return address.includes(filterValue);
                 }
             });
         }
 
-        // 6. Filtro de producto/insumo (independiente)
         if (suppliersProductFilter.trim()) {
             filteredSuppliers = filteredSuppliers.filter(supplier => {
                 const filterValue = suppliersProductFilter.toLowerCase().trim();
                 
-                // Si products es un array, buscar en cada elemento
                 if (Array.isArray(supplier.products)) {
                     return supplier.products.some(product => {
                         const productName = String(product.name || product.productName || product || '').toLowerCase().trim();
-                        
                         switch (suppliersProductFilterOp) {
-                            case 'equals':
-                                return productName === filterValue;
-                            case 'contains':
-                                return productName.includes(filterValue);
-                            default:
-                                return productName.includes(filterValue);
+                            case 'equals': return productName === filterValue;
+                            case 'contains': return productName.includes(filterValue);
+                            default: return productName.includes(filterValue);
                         }
                     });
                 } else {
-                    // Si products es un string, dividir por comas y buscar en cada producto
                     const productsStr = String(supplier.products || '');
                     const productList = productsStr.split(',').map(p => p.toLowerCase().trim());
-                    
                     switch (suppliersProductFilterOp) {
-                        case 'equals':
-                            // Buscar coincidencia exacta en alguno de los productos
-                            return productList.some(product => product === filterValue);
-                        case 'contains':
-                            // Buscar si algún producto contiene el texto
-                            return productList.some(product => product.includes(filterValue));
-                        default:
-                            return productList.some(product => product.includes(filterValue));
+                        case 'equals': return productList.some(product => product === filterValue);
+                        case 'contains': return productList.some(product => product.includes(filterValue));
+                        default: return productList.some(product => product.includes(filterValue));
                     }
                 }
             });
@@ -614,12 +513,10 @@ export default function DataConsultation(props) {
     };
 
     const executeSalesQuery = async () => {
-        // Verificación de fechas: solo requerida si no hay filtros específicos
-        const hasGranularFilters = salesDateFromYear || salesDateFromMonth || salesDateFromDay || salesDateFromHour || salesDateFromMinute || salesDateToYear || salesDateToMonth || salesDateToDay || salesDateToHour || salesDateToMinute;
         const hasOtherFilters = salesIdFilter || salesProductFilter || salesUserFilter || salesTotalFilter || salesQuantityFilter;
         
-        if (!hasGranularFilters && !hasOtherFilters && (!startDate || !endDate)) {
-            setMessage('Por favor, ingrese una fecha de inicio y una de fin o use filtros específicos.');
+        if (!hasOtherFilters && !startDate && !endDate) {
+            setMessage('Por favor, ingrese al menos una fecha de inicio o una fecha de fin, o use filtros específicos.');
             return;
         }
 
@@ -652,7 +549,6 @@ export default function DataConsultation(props) {
                     total: (it.total !== undefined && it.total !== null) ? Number(it.total) : ((Number(it.quantity)||0)*(Number(it.price)||0)) 
                 }));
             }
-            // Fallback: si la venta no tiene items detallados
             if (itemsArr.length === 0) {
                 if (s.product) {
                     itemsArr = [{ product: s.product, quantity: s.quantity || 1, total: s.total || s.amount || 0 }];
@@ -667,10 +563,8 @@ export default function DataConsultation(props) {
             }
         }
         
-        // Aplicar filtros independientes
         let filteredSales = rows;
         
-        // 1. Filtro por ID con operadores lógicos
         if (salesIdFilter) {
             const filterValue = parseInt(salesIdFilter);
             if (!isNaN(filterValue)) {
@@ -688,165 +582,37 @@ export default function DataConsultation(props) {
             }
         }
         
-        // 2. Filtro por fechas granular (independiente)
-        if (hasGranularFilters) {
+        if (startDate || endDate) {
             filteredSales = filteredSales.filter(sale => {
                 const saleDate = parseAnyDate(sale.date);
+                const start = startDate ? parseAnyDate(startDate) : null;
+                const end = endDate ? parseAnyDate(endDate) : null;
                 if (!saleDate) return false;
-                
-                // Determinar si hay algún filtro "hasta" definido
-                const hasToFilters = salesDateToYear || salesDateToMonth || salesDateToDay || salesDateToHour || salesDateToMinute;
-                
-                let matches = true;
-                
-                // Filtros "desde"
-                if (salesDateFromYear && matches) {
-                    if (hasToFilters) {
-                        matches = saleDate.getFullYear() >= parseInt(salesDateFromYear);
-                    } else {
-                        matches = saleDate.getFullYear() === parseInt(salesDateFromYear);
-                    }
-                }
-                
-                if (salesDateFromMonth && matches) {
-                    if (hasToFilters) {
-                        if (salesDateFromYear) {
-                            const yearMatches = saleDate.getFullYear() > parseInt(salesDateFromYear);
-                            const yearExact = saleDate.getFullYear() === parseInt(salesDateFromYear);
-                            matches = yearMatches || (yearExact && saleDate.getMonth() >= (parseInt(salesDateFromMonth) - 1));
-                        } else {
-                            matches = saleDate.getMonth() >= (parseInt(salesDateFromMonth) - 1);
-                        }
-                    } else {
-                        const yearMatches = !salesDateFromYear || saleDate.getFullYear() === parseInt(salesDateFromYear);
-                        matches = yearMatches && saleDate.getMonth() === (parseInt(salesDateFromMonth) - 1);
-                    }
-                }
-                
-                if (salesDateFromDay && matches) {
-                    if (hasToFilters) {
-                        const yearMatch = !salesDateFromYear || saleDate.getFullYear() >= parseInt(salesDateFromYear);
-                        const monthMatch = !salesDateFromMonth || saleDate.getMonth() >= (parseInt(salesDateFromMonth) - 1);
-                        if (salesDateFromYear && salesDateFromMonth) {
-                            const exactYearMonth = saleDate.getFullYear() === parseInt(salesDateFromYear) && 
-                                                   saleDate.getMonth() === (parseInt(salesDateFromMonth) - 1);
-                            matches = (!exactYearMonth) || (exactYearMonth && saleDate.getDate() >= parseInt(salesDateFromDay));
-                        } else {
-                            matches = yearMatch && monthMatch && saleDate.getDate() >= parseInt(salesDateFromDay);
-                        }
-                    } else {
-                        const yearMatches = !salesDateFromYear || saleDate.getFullYear() === parseInt(salesDateFromYear);
-                        const monthMatches = !salesDateFromMonth || saleDate.getMonth() === (parseInt(salesDateFromMonth) - 1);
-                        matches = yearMatches && monthMatches && saleDate.getDate() === parseInt(salesDateFromDay);
-                    }
-                }
-                
-                if (salesDateFromHour && matches) {
-                    const yearMatches = !salesDateFromYear || saleDate.getFullYear() === parseInt(salesDateFromYear);
-                    const monthMatches = !salesDateFromMonth || saleDate.getMonth() === (parseInt(salesDateFromMonth) - 1);
-                    const dayMatches = !salesDateFromDay || saleDate.getDate() === parseInt(salesDateFromDay);
-                    
-                    if (hasToFilters) {
-                        if (yearMatches && monthMatches && dayMatches) {
-                            matches = saleDate.getHours() >= parseInt(salesDateFromHour);
-                        }
-                    } else {
-                        matches = yearMatches && monthMatches && dayMatches && saleDate.getHours() === parseInt(salesDateFromHour);
-                    }
-                }
-                
-                if (salesDateFromMinute && matches) {
-                    const yearMatches = !salesDateFromYear || saleDate.getFullYear() === parseInt(salesDateFromYear);
-                    const monthMatches = !salesDateFromMonth || saleDate.getMonth() === (parseInt(salesDateFromMonth) - 1);
-                    const dayMatches = !salesDateFromDay || saleDate.getDate() === parseInt(salesDateFromDay);
-                    const hourMatches = !salesDateFromHour || saleDate.getHours() === parseInt(salesDateFromHour);
-                    
-                    if (hasToFilters) {
-                        if (yearMatches && monthMatches && dayMatches && hourMatches) {
-                            matches = saleDate.getMinutes() >= parseInt(salesDateFromMinute);
-                        }
-                    } else {
-                        matches = yearMatches && monthMatches && dayMatches && hourMatches && saleDate.getMinutes() === parseInt(salesDateFromMinute);
-                    }
-                }
-                
-                // Filtros "hasta" (solo se aplican si hay filtros "hasta" definidos)
-                if (hasToFilters) {
-                    if (salesDateToYear && matches) {
-                        matches = saleDate.getFullYear() <= parseInt(salesDateToYear);
-                    }
-                    if (salesDateToMonth && matches) {
-                        if (salesDateToYear) {
-                            const yearMatches = saleDate.getFullYear() < parseInt(salesDateToYear);
-                            const yearExact = saleDate.getFullYear() === parseInt(salesDateToYear);
-                            matches = yearMatches || (yearExact && saleDate.getMonth() <= (parseInt(salesDateToMonth) - 1));
-                        } else {
-                            matches = saleDate.getMonth() <= (parseInt(salesDateToMonth) - 1);
-                        }
-                    }
-                    if (salesDateToDay && matches) {
-                        const exactYearMonth = (!salesDateToYear || saleDate.getFullYear() === parseInt(salesDateToYear)) && 
-                                               (!salesDateToMonth || saleDate.getMonth() === (parseInt(salesDateToMonth) - 1));
-                        if (exactYearMonth) {
-                            matches = saleDate.getDate() <= parseInt(salesDateToDay);
-                        }
-                    }
-                    if (salesDateToHour && matches) {
-                        const exactDate = (!salesDateToYear || saleDate.getFullYear() === parseInt(salesDateToYear)) &&
-                                          (!salesDateToMonth || saleDate.getMonth() === (parseInt(salesDateToMonth) - 1)) &&
-                                          (!salesDateToDay || saleDate.getDate() === parseInt(salesDateToDay));
-                        if (exactDate) {
-                            matches = saleDate.getHours() <= parseInt(salesDateToHour);
-                        }
-                    }
-                    if (salesDateToMinute && matches) {
-                        const exactDateTime = (!salesDateToYear || saleDate.getFullYear() === parseInt(salesDateToYear)) &&
-                                              (!salesDateToMonth || saleDate.getMonth() === (parseInt(salesDateToMonth) - 1)) &&
-                                              (!salesDateToDay || saleDate.getDate() === parseInt(salesDateToDay)) &&
-                                              (!salesDateToHour || saleDate.getHours() === parseInt(salesDateToHour));
-                        if (exactDateTime) {
-                            matches = saleDate.getMinutes() <= parseInt(salesDateToMinute);
-                        }
-                    }
-                }
-                
-                return matches;
-            });
-        }
-        // Filtro por fechas estándar (startDate/endDate) - solo si no hay filtros granulares
-        else if (startDate && endDate && !hasOtherFilters) {
-            filteredSales = filteredSales.filter(sale => {
-                const saleDate = parseAnyDate(sale.date) || null;
-                const start = parseAnyDate(startDate);
-                const end = parseAnyDate(endDate);
+                if (start && saleDate < start) return false;
                 if (end) {
                     end.setHours(23, 59, 59, 999);
+                    if (saleDate > end) return false;
                 }
-                if (!saleDate || !start || !end) return false;
-                return saleDate >= start && saleDate <= end;
+                return true;
             });
         }
         
-        // 3. Filtro por Producto
         if (salesProductFilter) {
             filteredSales = filteredSales.filter(sale => 
                 String(sale.product || '').toLowerCase().includes(salesProductFilter.toLowerCase())
             );
         }
         
-        // 4. Filtro por Usuario
         if (salesUserFilter) {
             filteredSales = filteredSales.filter(sale => 
                 String(sale.user || '').toLowerCase().includes(salesUserFilter.toLowerCase())
             );
         }
         
-        // 5. Filtro por Total
         if (salesTotalFilter) {
             filteredSales = filteredSales.filter(sale => {
                 const saleTotal = Number(sale.total) || 0;
                 const filterTotal = Number(salesTotalFilter) || 0;
-                
                 switch (salesTotalOp) {
                     case 'equals': return saleTotal === filterTotal;
                     case 'gt': return saleTotal > filterTotal;
@@ -858,12 +624,10 @@ export default function DataConsultation(props) {
             });
         }
         
-        // 6. Filtro por Cantidad
         if (salesQuantityFilter) {
             filteredSales = filteredSales.filter(sale => {
                 const saleQuantity = Number(sale.quantity) || 0;
                 const filterQuantity = Number(salesQuantityFilter) || 0;
-                
                 switch (salesQuantityOp) {
                     case 'equals': return saleQuantity === filterQuantity;
                     case 'gt': return saleQuantity > filterQuantity;
@@ -880,9 +644,9 @@ export default function DataConsultation(props) {
             summary: { 
                 totalSales: filteredSales.length, 
                 totalRevenue: filteredSales.reduce((sum, sale) => sum + (Number(sale.total) || 0), 0),
-                period: hasGranularFilters 
-                    ? `Filtro personalizado por fechas` 
-                    : startDate && endDate ? `${formatDateForDisplay(startDate)} - ${formatDateForDisplay(endDate)}` : 'Todos los períodos'
+                period: startDate && endDate ? `${formatDateForDisplay(startDate)} - ${formatDateForDisplay(endDate)}` 
+                    : startDate ? `Desde ${formatDateForDisplay(startDate)}` 
+                    : endDate ? `Hasta ${formatDateForDisplay(endDate)}` : 'Todos los períodos'
             }, 
             data: filteredSales.map(r=>({ id: r.id, date: r.date, product: r.product, quantity: r.quantity, total: r.total, user: r.user })) 
         };
@@ -892,16 +656,13 @@ export default function DataConsultation(props) {
     };
 
     const executePurchasesQuery = async () => {
-        // Verificación de fechas: solo requerida si no hay filtros granulares ni otros filtros específicos
-        const hasGranularFilters = purchasesDateFromYear || purchasesDateFromMonth || purchasesDateFromDay || purchasesDateFromHour || purchasesDateFromMinute || purchasesDateToYear || purchasesDateToMonth || purchasesDateToDay || purchasesDateToHour || purchasesDateToMinute;
         const hasOtherFilters = purchasesIdFilter.trim() || purchasesSupplierFilter.trim() || purchasesTotalFilter.trim() || purchasesTypeFilter.length > 0 || purchasesProductFilter.trim();
         
-        if (!hasGranularFilters && !hasOtherFilters && (!startDate || !endDate)) {
-            setMessage('Por favor, ingrese una fecha de inicio y una de fin o use filtros específicos.');
+        if (!hasOtherFilters && !startDate && !endDate) {
+            setMessage('Por favor, ingrese al menos una fecha de inicio o una fecha de fin, o use filtros específicos.');
             return;
         }
 
-        // Primero normalizar las compras para asegurar valores consistentes
         const normalizedPurchases = purchases.map(purchase => {
             const itemsArray = Array.isArray(purchase.items) ? purchase.items.map(it => { 
                 const productName = it.productName || it.product_name || it.product || it.name || ''; 
@@ -943,158 +704,71 @@ export default function DataConsultation(props) {
             };
         });
 
-        // Aplicar filtros independientes
         let filteredPurchases = normalizedPurchases;
 
-        // 1. Filtro de fechas granular (independiente)
-        if (purchasesDateFromYear || purchasesDateFromMonth || purchasesDateFromDay || purchasesDateFromHour || purchasesDateFromMinute || purchasesDateToYear || purchasesDateToMonth || purchasesDateToDay || purchasesDateToHour || purchasesDateToMinute) {
+        if (startDate || endDate) {
             filteredPurchases = filteredPurchases.filter(purchase => {
                 const purchaseDate = parseAnyDate(purchase.date);
+                const start = startDate ? parseAnyDate(startDate) : null;
+                const end = endDate ? parseAnyDate(endDate) : null;
                 if (!purchaseDate) return false;
-                
-                let matches = true;
-                
-                // Filtros "desde" - usar >= para rangos, o === para valores exactos si no hay "hasta"
-                if (purchasesDateFromYear) {
-                    if (purchasesDateToYear) {
-                        matches = matches && purchaseDate.getFullYear() >= parseInt(purchasesDateFromYear);
-                    } else {
-                        matches = matches && purchaseDate.getFullYear() === parseInt(purchasesDateFromYear);
-                    }
-                }
-                if (purchasesDateFromMonth) {
-                    if (purchasesDateToMonth) {
-                        matches = matches && purchaseDate.getMonth() >= (parseInt(purchasesDateFromMonth) - 1);
-                    } else {
-                        matches = matches && purchaseDate.getMonth() === (parseInt(purchasesDateFromMonth) - 1);
-                    }
-                }
-                if (purchasesDateFromDay) {
-                    if (purchasesDateToDay) {
-                        matches = matches && purchaseDate.getDate() >= parseInt(purchasesDateFromDay);
-                    } else {
-                        matches = matches && purchaseDate.getDate() === parseInt(purchasesDateFromDay);
-                    }
-                }
-                if (purchasesDateFromHour) {
-                    if (purchasesDateToHour) {
-                        matches = matches && purchaseDate.getHours() >= parseInt(purchasesDateFromHour);
-                    } else {
-                        matches = matches && purchaseDate.getHours() === parseInt(purchasesDateFromHour);
-                    }
-                }
-                if (purchasesDateFromMinute) {
-                    if (purchasesDateToMinute) {
-                        matches = matches && purchaseDate.getMinutes() >= parseInt(purchasesDateFromMinute);
-                    } else {
-                        matches = matches && purchaseDate.getMinutes() === parseInt(purchasesDateFromMinute);
-                    }
-                }
-                
-                // Filtros "hasta" - siempre usar <=
-                if (purchasesDateToYear) {
-                    matches = matches && purchaseDate.getFullYear() <= parseInt(purchasesDateToYear);
-                }
-                if (purchasesDateToMonth) {
-                    matches = matches && purchaseDate.getMonth() <= (parseInt(purchasesDateToMonth) - 1);
-                }
-                if (purchasesDateToDay) {
-                    matches = matches && purchaseDate.getDate() <= parseInt(purchasesDateToDay);
-                }
-                if (purchasesDateToHour) {
-                    matches = matches && purchaseDate.getHours() <= parseInt(purchasesDateToHour);
-                }
-                if (purchasesDateToMinute) {
-                    matches = matches && purchaseDate.getMinutes() <= parseInt(purchasesDateToMinute);
-                }
-                
-                return matches;
-            });
-        } else if (startDate && endDate) {
-            // Filtros de fecha estándar (startDate/endDate)
-            filteredPurchases = filteredPurchases.filter(purchase => {
-                const purchaseDate = parseAnyDate(purchase.date);
-                const start = parseAnyDate(startDate);
-                const end = parseAnyDate(endDate);
+                if (start && purchaseDate < start) return false;
                 if (end) {
                     end.setHours(23, 59, 59, 999);
+                    if (purchaseDate > end) return false;
                 }
-                if (!purchaseDate || !start || !end) return false;
-                return purchaseDate >= start && purchaseDate <= end;
+                return true;
             });
         }
         
-        // 2. Filtro de ID (independiente)
         if (purchasesIdFilter.trim()) {
             filteredPurchases = filteredPurchases.filter(purchase => {
                 const purchaseId = Number(purchase.id);
                 const filterId = Number(purchasesIdFilter);
-                
                 switch (purchasesIdFilterOp) {
-                    case 'equals':
-                        return purchaseId === filterId;
-                    case 'lt':
-                        return purchaseId < filterId;
-                    case 'lte':
-                        return purchaseId <= filterId;
-                    case 'gt':
-                        return purchaseId > filterId;
-                    case 'gte':
-                        return purchaseId >= filterId;
-                    default:
-                        return purchaseId === filterId;
+                    case 'equals': return purchaseId === filterId;
+                    case 'lt': return purchaseId < filterId;
+                    case 'lte': return purchaseId <= filterId;
+                    case 'gt': return purchaseId > filterId;
+                    case 'gte': return purchaseId >= filterId;
+                    default: return purchaseId === filterId;
                 }
             });
         }
         
-        // 3. Filtro de proveedor (independiente)
         if (purchasesSupplierFilter.trim()) {
             filteredPurchases = filteredPurchases.filter(purchase => {
                 const supplierName = String(purchase.supplier || '').toLowerCase();
                 const filterValue = purchasesSupplierFilter.toLowerCase();
-                
                 switch (purchasesSupplierFilterOp) {
-                    case 'equals':
-                        return supplierName === filterValue;
-                    case 'contains':
-                        return supplierName.includes(filterValue);
-                    default:
-                        return supplierName.includes(filterValue);
+                    case 'equals': return supplierName === filterValue;
+                    case 'contains': return supplierName.includes(filterValue);
+                    default: return supplierName.includes(filterValue);
                 }
             });
         }
         
-        // 4. Filtro de total (independiente)
         if (purchasesTotalFilter.trim()) {
             filteredPurchases = filteredPurchases.filter(purchase => {
                 const purchaseTotal = Number(purchase.total) || 0;
                 const filterTotal = Number(purchasesTotalFilter) || 0;
-                
                 switch (purchasesTotalFilterOp) {
-                    case 'equals':
-                        return purchaseTotal === filterTotal;
-                    case 'lt':
-                        return purchaseTotal < filterTotal;
-                    case 'lte':
-                        return purchaseTotal <= filterTotal;
-                    case 'gt':
-                        return purchaseTotal > filterTotal;
-                    case 'gte':
-                        return purchaseTotal >= filterTotal;
-                    default:
-                        return purchaseTotal === filterTotal;
+                    case 'equals': return purchaseTotal === filterTotal;
+                    case 'lt': return purchaseTotal < filterTotal;
+                    case 'lte': return purchaseTotal <= filterTotal;
+                    case 'gt': return purchaseTotal > filterTotal;
+                    case 'gte': return purchaseTotal >= filterTotal;
+                    default: return purchaseTotal === filterTotal;
                 }
             });
         }
         
-        // 5. Filtro de tipos (Producto/Insumo) (independiente)
         if (purchasesTypeFilter.length > 0) {
             filteredPurchases = filteredPurchases.filter(purchase => 
                 purchasesTypeFilter.includes(purchase.type)
             );
         }
         
-        // 6. Filtro por nombre de producto/insumo (independiente)
         if (purchasesProductFilter) {
             filteredPurchases = filteredPurchases.filter(purchase => 
                 purchase.items.some(item => 
@@ -1103,54 +777,33 @@ export default function DataConsultation(props) {
             );
         }
         
-        // 7. Filtro por cantidad (independiente)
         if (purchasesQuantityFilter.trim()) {
             filteredPurchases = filteredPurchases.filter(purchase => {
                 return purchase.items.some(item => {
                     const productName = item.productName || '';
                     let itemQuantity = item.quantity || 0;
-                    
-                    // Buscar el producto en inventory para obtener su unidad
                     const foundProduct = inventory.find(p => 
                         p && p.name && p.name.toLowerCase() === productName.toLowerCase()
                     );
                     
                     if (foundProduct) {
                         const productUnit = foundProduct.unit;
-                        
-                        // Convertir la cantidad del item a la unidad seleccionada en el filtro
                         if (purchasesQuantityUnit === 'Kg' && productUnit === 'g') {
-                            // itemQuantity ya está en Kg (así se almacenan las compras)
                         } else if (purchasesQuantityUnit === 'L' && productUnit === 'ml') {
-                            // itemQuantity ya está en L (así se almacenan las compras)
                         } else if (purchasesQuantityUnit === 'U' && (productUnit !== 'g' && productUnit !== 'ml')) {
-                            // itemQuantity ya está en unidades
-                        } else {
-                            // No coincide la unidad del producto con la unidad del filtro
-                            return false;
-                        }
+                        } else { return false; }
                     } else {
-                        // Si no se encuentra el producto, asumir unidades
-                        if (purchasesQuantityUnit !== 'U') {
-                            return false;
-                        }
+                        if (purchasesQuantityUnit !== 'U') return false;
                     }
                     
                     const filterQuantity = Number(purchasesQuantityFilter);
-                    
                     switch (purchasesQuantityFilterOp) {
-                        case 'equals':
-                            return itemQuantity === filterQuantity;
-                        case 'greater':
-                            return itemQuantity > filterQuantity;
-                        case 'greaterOrEqual':
-                            return itemQuantity >= filterQuantity;
-                        case 'less':
-                            return itemQuantity < filterQuantity;
-                        case 'lessOrEqual':
-                            return itemQuantity <= filterQuantity;
-                        default:
-                            return itemQuantity === filterQuantity;
+                        case 'equals': return itemQuantity === filterQuantity;
+                        case 'greater': return itemQuantity > filterQuantity;
+                        case 'greaterOrEqual': return itemQuantity >= filterQuantity;
+                        case 'less': return itemQuantity < filterQuantity;
+                        case 'lessOrEqual': return itemQuantity <= filterQuantity;
+                        default: return itemQuantity === filterQuantity;
                     }
                 });
             });
@@ -1165,17 +818,12 @@ export default function DataConsultation(props) {
                     Producto: filteredPurchases.filter(p => p.type === 'Producto').length,
                     Insumo: filteredPurchases.filter(p => p.type === 'Insumo').length
                 },
-                period: (purchasesDateFromYear || purchasesDateToYear) 
-                    ? `Filtro personalizado por fechas` 
-                    : startDate && endDate ? `${formatDateForDisplay(startDate)} - ${formatDateForDisplay(endDate)}` : 'Todos los períodos'
+                period: startDate && endDate ? `${formatDateForDisplay(startDate)} - ${formatDateForDisplay(endDate)}` 
+                    : startDate ? `Desde ${formatDateForDisplay(startDate)}` 
+                    : endDate ? `Hasta ${formatDateForDisplay(endDate)}` : 'Todos los períodos'
             }, 
             data: filteredPurchases.map(p => ({
-                id: p.id, 
-                date: p.date, 
-                supplier: p.supplier, 
-                total: p.total, 
-                type: p.type,
-                items: p.items
+                id: p.id, date: p.date, supplier: p.supplier, total: p.total, type: p.type, items: p.items
             }))
         };
         setQueryResults(results);
@@ -1183,22 +831,16 @@ export default function DataConsultation(props) {
     };
 
     const executeOrdersQuery = async () => {
-        // Verificación de fechas: solo requerida si no hay filtros específicos
-        const hasGranularFilters = ordersDateFromYear || ordersDateFromMonth || ordersDateFromDay || ordersDateFromHour || ordersDateFromMinute || ordersDateToYear || ordersDateToMonth || ordersDateToDay || ordersDateToHour || ordersDateToMinute;
         const hasOtherFilters = ordersIdFilter.trim() || ordersCustomerFilter.trim() || ordersPaymentMethodFilter.length > 0 || ordersStatusFilter.length > 0 || ordersProductFilter.trim() || ordersUnitsFilter.trim();
         
-        if (!hasGranularFilters && !hasOtherFilters && (!startDate || !endDate)) {
-            setMessage('Por favor, ingrese una fecha de inicio y una de fin o use filtros específicos.');
+        if (!hasOtherFilters && !startDate && !endDate) {
+            setMessage('Por favor, ingrese al menos una fecha de inicio o una fecha de fin, o use filtros específicos.');
             return;
         }
 
-        // Primero normalizar los pedidos para asegurar valores consistentes de status
         const normalizedOrders = orders.map(order => {
-            // Normalizar status: mantener los estados específicos que maneja el sistema
             let normalizedStatus = order.status || 'Pendiente';
             const statusLower = normalizedStatus.toLowerCase();
-            
-            // Mantener los estados específicos del sistema
             if (statusLower.includes('preparación') || statusLower.includes('preparacion')) {
                 normalizedStatus = 'En Preparación';
             } else if (statusLower.includes('listo') || statusLower === 'ready') {
@@ -1209,221 +851,73 @@ export default function DataConsultation(props) {
                 normalizedStatus = 'Cancelado';
             } else if (statusLower.includes('pendiente') || statusLower === 'pending') {
                 normalizedStatus = 'Pendiente';
-            } else {
-                // Si no reconocemos el status, mantener el original pero logearlo
-                console.warn(`Status no reconocido en pedido ${order.id}: "${order.status}"`);
             }
-            
             return { ...order, status: normalizedStatus };
         });
 
-        // Aplicar filtros independientes
         let filteredOrders = normalizedOrders;
 
-        // 1. Filtro de fechas granular (independiente)
-        if (ordersDateFromYear || ordersDateFromMonth || ordersDateFromDay || ordersDateFromHour || ordersDateFromMinute || ordersDateToYear || ordersDateToMonth || ordersDateToDay || ordersDateToHour || ordersDateToMinute) {
+        if (startDate || endDate) {
             filteredOrders = filteredOrders.filter(order => {
                 const orderDate = parseAnyDate(order.created_at || order.date);
+                const start = startDate ? parseAnyDate(startDate) : null;
+                const end = endDate ? parseAnyDate(endDate) : null;
                 if (!orderDate) return false;
-                
-                // Determinar si hay algún filtro "hasta" definido
-                const hasToFilters = ordersDateToYear || ordersDateToMonth || ordersDateToDay || ordersDateToHour || ordersDateToMinute;
-                
-                let matches = true;
-                
-                // Filtros exactos si no hay "hasta", filtros de rango si hay "hasta"
-                if (ordersDateFromYear && matches) {
-                    if (hasToFilters) {
-                        matches = orderDate.getFullYear() >= parseInt(ordersDateFromYear);
-                    } else {
-                        matches = orderDate.getFullYear() === parseInt(ordersDateFromYear);
-                    }
-                }
-                
-                if (ordersDateFromMonth && matches) {
-                    if (hasToFilters) {
-                        if (ordersDateFromYear) {
-                            const yearMatches = orderDate.getFullYear() > parseInt(ordersDateFromYear);
-                            const yearExact = orderDate.getFullYear() === parseInt(ordersDateFromYear);
-                            matches = yearMatches || (yearExact && orderDate.getMonth() >= (parseInt(ordersDateFromMonth) - 1));
-                        } else {
-                            matches = orderDate.getMonth() >= (parseInt(ordersDateFromMonth) - 1);
-                        }
-                    } else {
-                        const yearMatches = !ordersDateFromYear || orderDate.getFullYear() === parseInt(ordersDateFromYear);
-                        matches = yearMatches && orderDate.getMonth() === (parseInt(ordersDateFromMonth) - 1);
-                    }
-                }
-                
-                if (ordersDateFromDay && matches) {
-                    if (hasToFilters) {
-                        const yearMatch = !ordersDateFromYear || orderDate.getFullYear() >= parseInt(ordersDateFromYear);
-                        const monthMatch = !ordersDateFromMonth || orderDate.getMonth() >= (parseInt(ordersDateFromMonth) - 1);
-                        if (ordersDateFromYear && ordersDateFromMonth) {
-                            const exactYearMonth = orderDate.getFullYear() === parseInt(ordersDateFromYear) && 
-                                                   orderDate.getMonth() === (parseInt(ordersDateFromMonth) - 1);
-                            matches = (!exactYearMonth) || (exactYearMonth && orderDate.getDate() >= parseInt(ordersDateFromDay));
-                        } else {
-                            matches = yearMatch && monthMatch && orderDate.getDate() >= parseInt(ordersDateFromDay);
-                        }
-                    } else {
-                        const yearMatches = !ordersDateFromYear || orderDate.getFullYear() === parseInt(ordersDateFromYear);
-                        const monthMatches = !ordersDateFromMonth || orderDate.getMonth() === (parseInt(ordersDateFromMonth) - 1);
-                        matches = yearMatches && monthMatches && orderDate.getDate() === parseInt(ordersDateFromDay);
-                    }
-                }
-                
-                if (ordersDateFromHour && matches) {
-                    const yearMatches = !ordersDateFromYear || orderDate.getFullYear() === parseInt(ordersDateFromYear);
-                    const monthMatches = !ordersDateFromMonth || orderDate.getMonth() === (parseInt(ordersDateFromMonth) - 1);
-                    const dayMatches = !ordersDateFromDay || orderDate.getDate() === parseInt(ordersDateFromDay);
-                    
-                    if (hasToFilters) {
-                        if (yearMatches && monthMatches && dayMatches) {
-                            matches = orderDate.getHours() >= parseInt(ordersDateFromHour);
-                        }
-                    } else {
-                        matches = yearMatches && monthMatches && dayMatches && orderDate.getHours() === parseInt(ordersDateFromHour);
-                    }
-                }
-                
-                if (ordersDateFromMinute && matches) {
-                    const yearMatches = !ordersDateFromYear || orderDate.getFullYear() === parseInt(ordersDateFromYear);
-                    const monthMatches = !ordersDateFromMonth || orderDate.getMonth() === (parseInt(ordersDateFromMonth) - 1);
-                    const dayMatches = !ordersDateFromDay || orderDate.getDate() === parseInt(ordersDateFromDay);
-                    const hourMatches = !ordersDateFromHour || orderDate.getHours() === parseInt(ordersDateFromHour);
-                    
-                    if (hasToFilters) {
-                        if (yearMatches && monthMatches && dayMatches && hourMatches) {
-                            matches = orderDate.getMinutes() >= parseInt(ordersDateFromMinute);
-                        }
-                    } else {
-                        matches = yearMatches && monthMatches && dayMatches && hourMatches && orderDate.getMinutes() === parseInt(ordersDateFromMinute);
-                    }
-                }
-                
-                // Filtros "hasta" (solo se aplican si hay filtros "hasta" definidos)
-                if (hasToFilters) {
-                    if (ordersDateToYear && matches) {
-                        matches = orderDate.getFullYear() <= parseInt(ordersDateToYear);
-                    }
-                    if (ordersDateToMonth && matches) {
-                        if (ordersDateToYear) {
-                            const yearMatches = orderDate.getFullYear() < parseInt(ordersDateToYear);
-                            const yearExact = orderDate.getFullYear() === parseInt(ordersDateToYear);
-                            matches = yearMatches || (yearExact && orderDate.getMonth() <= (parseInt(ordersDateToMonth) - 1));
-                        } else {
-                            matches = orderDate.getMonth() <= (parseInt(ordersDateToMonth) - 1);
-                        }
-                    }
-                    if (ordersDateToDay && matches) {
-                        const exactYearMonth = (!ordersDateToYear || orderDate.getFullYear() === parseInt(ordersDateToYear)) && 
-                                               (!ordersDateToMonth || orderDate.getMonth() === (parseInt(ordersDateToMonth) - 1));
-                        if (exactYearMonth) {
-                            matches = orderDate.getDate() <= parseInt(ordersDateToDay);
-                        }
-                    }
-                    if (ordersDateToHour && matches) {
-                        const exactDate = (!ordersDateToYear || orderDate.getFullYear() === parseInt(ordersDateToYear)) &&
-                                          (!ordersDateToMonth || orderDate.getMonth() === (parseInt(ordersDateToMonth) - 1)) &&
-                                          (!ordersDateToDay || orderDate.getDate() === parseInt(ordersDateToDay));
-                        if (exactDate) {
-                            matches = orderDate.getHours() <= parseInt(ordersDateToHour);
-                        }
-                    }
-                    if (ordersDateToMinute && matches) {
-                        const exactDateTime = (!ordersDateToYear || orderDate.getFullYear() === parseInt(ordersDateToYear)) &&
-                                              (!ordersDateToMonth || orderDate.getMonth() === (parseInt(ordersDateToMonth) - 1)) &&
-                                              (!ordersDateToDay || orderDate.getDate() === parseInt(ordersDateToDay)) &&
-                                              (!ordersDateToHour || orderDate.getHours() === parseInt(ordersDateToHour));
-                        if (exactDateTime) {
-                            matches = orderDate.getMinutes() <= parseInt(ordersDateToMinute);
-                        }
-                    }
-                }
-                
-                return matches;
-            });
-        } else if (startDate && endDate) {
-            // Filtro por fechas estándar (startDate/endDate) - solo si no hay filtros granulares
-            filteredOrders = filteredOrders.filter(order => {
-                const orderDate = parseAnyDate(order.created_at || order.date);
-                const start = parseAnyDate(startDate);
-                const end = parseAnyDate(endDate);
+                if (start && orderDate < start) return false;
                 if (end) {
                     end.setHours(23, 59, 59, 999);
+                    if (orderDate > end) return false;
                 }
-                if (!orderDate || !start || !end) return false;
-                return orderDate >= start && orderDate <= end;
+                return true;
             });
         }
         
-        // 2. Filtro de ID (independiente)
         if (ordersIdFilter.trim()) {
             filteredOrders = filteredOrders.filter(order => {
                 const orderId = Number(order.id);
                 const filterId = Number(ordersIdFilter);
-                
                 switch (ordersIdFilterOp) {
-                    case 'equals':
-                        return orderId === filterId;
-                    case 'lt':
-                        return orderId < filterId;
-                    case 'lte':
-                        return orderId <= filterId;
-                    case 'gt':
-                        return orderId > filterId;
-                    case 'gte':
-                        return orderId >= filterId;
-                    default:
-                        return orderId === filterId;
+                    case 'equals': return orderId === filterId;
+                    case 'lt': return orderId < filterId;
+                    case 'lte': return orderId <= filterId;
+                    case 'gt': return orderId > filterId;
+                    case 'gte': return orderId >= filterId;
+                    default: return orderId === filterId;
                 }
             });
         }
         
-        // 3. Filtro de cliente (independiente)
         if (ordersCustomerFilter.trim()) {
             filteredOrders = filteredOrders.filter(order => {
                 const customerName = String(order.customerName || order.customer_name || '').toLowerCase();
                 const filterValue = ordersCustomerFilter.toLowerCase();
-                
                 switch (ordersCustomerFilterOp) {
-                    case 'equals':
-                        return customerName === filterValue;
-                    case 'contains':
-                        return customerName.includes(filterValue);
-                    default:
-                        return customerName.includes(filterValue);
+                    case 'equals': return customerName === filterValue;
+                    case 'contains': return customerName.includes(filterValue);
+                    default: return customerName.includes(filterValue);
                 }
             });
         }
         
-        // Filtro por método de pago (múltiple selección)
         if (ordersPaymentMethodFilter.length > 0) {
             filteredOrders = filteredOrders.filter(order => {
                 const paymentMethod = (order.paymentMethod || order.payment_method || '').toLowerCase();
-                // Verificar si alguno de los métodos seleccionados está en el método de pago
                 return ordersPaymentMethodFilter.some(method => {
-                    const methodLower = method.toLowerCase();
-                    return paymentMethod.includes(methodLower);
+                    return paymentMethod.includes(method.toLowerCase());
                 });
             });
         }
         
-        // Filtro por estado (múltiple selección)
         if (ordersStatusFilter.length > 0) {
             filteredOrders = filteredOrders.filter(order => {
                 return ordersStatusFilter.includes(order.status);
             });
         }
         
-        // 4. Filtro por nombre de producto (independiente)
         if (ordersProductFilter.trim()) {
             filteredOrders = filteredOrders.filter(order => {
                 const itemsArray = Array.isArray(order.items) ? order.items : [];
                 const filterValue = ordersProductFilter.toLowerCase();
-                
-                // Buscar en todos los productos del pedido
                 return itemsArray.some(item => {
                     const productName = String(item.productName || item.product_name || item.product || '').toLowerCase();
                     return productName.includes(filterValue);
@@ -1431,30 +925,20 @@ export default function DataConsultation(props) {
             });
         }
         
-        // 5. Filtro por unidades/cantidad (independiente)
         if (ordersUnitsFilter.trim()) {
             const filterValue = parseFloat(ordersUnitsFilter);
             if (!isNaN(filterValue)) {
                 filteredOrders = filteredOrders.filter(order => {
                     const itemsArray = Array.isArray(order.items) ? order.items : [];
-                    
-                    // Buscar items que cumplan con el filtro de cantidad
                     return itemsArray.some(item => {
                         const quantity = parseFloat(item.quantity || 0);
-                        
                         switch (ordersUnitsFilterOp) {
-                            case 'equals':
-                                return quantity === filterValue;
-                            case 'greater':
-                                return quantity > filterValue;
-                            case 'greaterOrEqual':
-                                return quantity >= filterValue;
-                            case 'less':
-                                return quantity < filterValue;
-                            case 'lessOrEqual':
-                                return quantity <= filterValue;
-                            default:
-                                return quantity === filterValue;
+                            case 'equals': return quantity === filterValue;
+                            case 'greater': return quantity > filterValue;
+                            case 'greaterOrEqual': return quantity >= filterValue;
+                            case 'less': return quantity < filterValue;
+                            case 'lessOrEqual': return quantity <= filterValue;
+                            default: return quantity === filterValue;
                         }
                     });
                 });
@@ -1470,51 +954,32 @@ export default function DataConsultation(props) {
                 readyOrders: filteredOrders.filter(o => o.status === 'Listo').length,
                 deliveredOrders: filteredOrders.filter(o => o.status === 'Entregado').length,
                 canceledOrders: filteredOrders.filter(o => o.status === 'Cancelado').length,
-                period: (ordersDateFromYear || ordersDateToYear) 
-                    ? `Filtro personalizado por fechas` 
-                    : startDate && endDate ? `${formatDateForDisplay(startDate)} - ${formatDateForDisplay(endDate)}` : 'Todos los períodos'
+                period: startDate && endDate ? `${formatDateForDisplay(startDate)} - ${formatDateForDisplay(endDate)}` 
+                    : startDate ? `Desde ${formatDateForDisplay(startDate)}` 
+                    : endDate ? `Hasta ${formatDateForDisplay(endDate)}` : 'Todos los períodos'
             }, 
             data: filteredOrders.map(order => { 
                 let itemsArray = Array.isArray(order.items) ? order.items : [];
-                
-                // Aplicar filtros a nivel de items si están activos
                 if (ordersProductFilter.trim() || ordersUnitsFilter.trim()) {
                     itemsArray = itemsArray.filter(item => {
                         let matches = true;
-                        
-                        // Filtro de producto
                         if (ordersProductFilter.trim()) {
                             const productName = String(item.productName || item.product_name || item.product || '').toLowerCase();
-                            const filterValue = ordersProductFilter.toLowerCase();
-                            matches = matches && productName.includes(filterValue);
+                            matches = matches && productName.includes(ordersProductFilter.toLowerCase());
                         }
-                        
-                        // Filtro de unidades
                         if (ordersUnitsFilter.trim()) {
                             const filterValue = parseFloat(ordersUnitsFilter);
                             if (!isNaN(filterValue)) {
                                 const quantity = parseFloat(item.quantity || 0);
-                                
                                 switch (ordersUnitsFilterOp) {
-                                    case 'equals':
-                                        matches = matches && quantity === filterValue;
-                                        break;
-                                    case 'greater':
-                                        matches = matches && quantity > filterValue;
-                                        break;
-                                    case 'greaterOrEqual':
-                                        matches = matches && quantity >= filterValue;
-                                        break;
-                                    case 'less':
-                                        matches = matches && quantity < filterValue;
-                                        break;
-                                    case 'lessOrEqual':
-                                        matches = matches && quantity <= filterValue;
-                                        break;
+                                    case 'equals': matches = matches && quantity === filterValue; break;
+                                    case 'greater': matches = matches && quantity > filterValue; break;
+                                    case 'greaterOrEqual': matches = matches && quantity >= filterValue; break;
+                                    case 'less': matches = matches && quantity < filterValue; break;
+                                    case 'lessOrEqual': matches = matches && quantity <= filterValue; break;
                                 }
                             }
                         }
-                        
                         return matches;
                     });
                 }
@@ -1540,12 +1005,10 @@ export default function DataConsultation(props) {
     };
 
     const executeCashMovementsQuery = async () => {
-        // Verificación de fechas: solo requerida si no hay filtros específicos
-        const hasGranularFilters = cashDateFromYear || cashDateFromMonth || cashDateFromDay || cashDateFromHour || cashDateFromMinute || cashDateToYear || cashDateToMonth || cashDateToDay || cashDateToHour || cashDateToMinute;
         const hasOtherFilters = cashIdFilter.trim() || cashAmountFilter.trim() || cashDescriptionFilter.trim() || cashUserFilter.trim() || cashTypeFilter || cashPaymentMethodFilter.length > 0;
         
-        if (!hasGranularFilters && !hasOtherFilters && (!startDate || !endDate)) {
-            setMessage('Por favor, ingrese una fecha de inicio y una de fin o use filtros específicos.');
+        if (!hasOtherFilters && !startDate && !endDate) {
+            setMessage('Por favor, ingrese al menos una fecha de inicio o una fecha de fin, o use filtros específicos.');
             return;
         }
 
@@ -1555,7 +1018,6 @@ export default function DataConsultation(props) {
                 const freshMovements = await loadCashMovements();
                 movementsToProcess = freshMovements;
             } catch (e) {
-                // No se pudo recargar movimientos desde backend
                 movementsToProcess = [];
             }
         }
@@ -1571,237 +1033,84 @@ export default function DataConsultation(props) {
             return { id: m.id, date: rawDate, type, amount, description: m.description || '', user: m.user || (m.user_username || m.user_name) || 'Sistema', payment_method: m.payment_method || '', _raw: m };
         });
 
-        // Aplicar filtros independientes
         let filteredMovements = normalized;
 
-        // 1. Filtro de fechas granular (independiente)
-        if (cashDateFromYear || cashDateFromMonth || cashDateFromDay || cashDateFromHour || cashDateFromMinute || cashDateToYear || cashDateToMonth || cashDateToDay || cashDateToHour || cashDateToMinute) {
+        if (startDate || endDate) {
             filteredMovements = filteredMovements.filter(movement => {
                 const movementDate = parseAnyDate(movement.date);
+                const start = startDate ? parseAnyDate(startDate) : null;
+                const end = endDate ? parseAnyDate(endDate) : null;
                 if (!movementDate) return false;
-                
-                // Determinar si hay algún filtro "hasta" definido
-                const hasToFilters = cashDateToYear || cashDateToMonth || cashDateToDay || cashDateToHour || cashDateToMinute;
-                
-                let matches = true;
-                
-                // Filtros exactos si no hay "hasta", filtros de rango si hay "hasta"
-                if (cashDateFromYear && matches) {
-                    if (hasToFilters) {
-                        matches = movementDate.getFullYear() >= parseInt(cashDateFromYear);
-                    } else {
-                        matches = movementDate.getFullYear() === parseInt(cashDateFromYear);
-                    }
-                }
-                
-                if (cashDateFromMonth && matches) {
-                    if (hasToFilters) {
-                        if (cashDateFromYear) {
-                            const yearMatches = movementDate.getFullYear() > parseInt(cashDateFromYear);
-                            const yearExact = movementDate.getFullYear() === parseInt(cashDateFromYear);
-                            matches = yearMatches || (yearExact && movementDate.getMonth() >= (parseInt(cashDateFromMonth) - 1));
-                        } else {
-                            matches = movementDate.getMonth() >= (parseInt(cashDateFromMonth) - 1);
-                        }
-                    } else {
-                        const yearMatches = !cashDateFromYear || movementDate.getFullYear() === parseInt(cashDateFromYear);
-                        matches = yearMatches && movementDate.getMonth() === (parseInt(cashDateFromMonth) - 1);
-                    }
-                }
-                
-                if (cashDateFromDay && matches) {
-                    if (hasToFilters) {
-                        const yearMatch = !cashDateFromYear || movementDate.getFullYear() >= parseInt(cashDateFromYear);
-                        const monthMatch = !cashDateFromMonth || movementDate.getMonth() >= (parseInt(cashDateFromMonth) - 1);
-                        if (cashDateFromYear && cashDateFromMonth) {
-                            const exactYearMonth = movementDate.getFullYear() === parseInt(cashDateFromYear) && 
-                                                   movementDate.getMonth() === (parseInt(cashDateFromMonth) - 1);
-                            matches = (!exactYearMonth) || (exactYearMonth && movementDate.getDate() >= parseInt(cashDateFromDay));
-                        } else {
-                            matches = yearMatch && monthMatch && movementDate.getDate() >= parseInt(cashDateFromDay);
-                        }
-                    } else {
-                        const yearMatches = !cashDateFromYear || movementDate.getFullYear() === parseInt(cashDateFromYear);
-                        const monthMatches = !cashDateFromMonth || movementDate.getMonth() === (parseInt(cashDateFromMonth) - 1);
-                        matches = yearMatches && monthMatches && movementDate.getDate() === parseInt(cashDateFromDay);
-                    }
-                }
-                
-                if (cashDateFromHour && matches) {
-                    const yearMatches = !cashDateFromYear || movementDate.getFullYear() === parseInt(cashDateFromYear);
-                    const monthMatches = !cashDateFromMonth || movementDate.getMonth() === (parseInt(cashDateFromMonth) - 1);
-                    const dayMatches = !cashDateFromDay || movementDate.getDate() === parseInt(cashDateFromDay);
-                    
-                    if (hasToFilters) {
-                        if (yearMatches && monthMatches && dayMatches) {
-                            matches = movementDate.getHours() >= parseInt(cashDateFromHour);
-                        }
-                    } else {
-                        matches = yearMatches && monthMatches && dayMatches && movementDate.getHours() === parseInt(cashDateFromHour);
-                    }
-                }
-                
-                if (cashDateFromMinute && matches) {
-                    const yearMatches = !cashDateFromYear || movementDate.getFullYear() === parseInt(cashDateFromYear);
-                    const monthMatches = !cashDateFromMonth || movementDate.getMonth() === (parseInt(cashDateFromMonth) - 1);
-                    const dayMatches = !cashDateFromDay || movementDate.getDate() === parseInt(cashDateFromDay);
-                    const hourMatches = !cashDateFromHour || movementDate.getHours() === parseInt(cashDateFromHour);
-                    
-                    if (hasToFilters) {
-                        if (yearMatches && monthMatches && dayMatches && hourMatches) {
-                            matches = movementDate.getMinutes() >= parseInt(cashDateFromMinute);
-                        }
-                    } else {
-                        matches = yearMatches && monthMatches && dayMatches && hourMatches && movementDate.getMinutes() === parseInt(cashDateFromMinute);
-                    }
-                }
-                
-                // Filtros "hasta" (solo se aplican si hay filtros "hasta" definidos)
-                if (hasToFilters) {
-                    if (cashDateToYear && matches) {
-                        matches = movementDate.getFullYear() <= parseInt(cashDateToYear);
-                    }
-                    if (cashDateToMonth && matches) {
-                        if (cashDateToYear) {
-                            const yearMatches = movementDate.getFullYear() < parseInt(cashDateToYear);
-                            const yearExact = movementDate.getFullYear() === parseInt(cashDateToYear);
-                            matches = yearMatches || (yearExact && movementDate.getMonth() <= (parseInt(cashDateToMonth) - 1));
-                        } else {
-                            matches = movementDate.getMonth() <= (parseInt(cashDateToMonth) - 1);
-                        }
-                    }
-                    if (cashDateToDay && matches) {
-                        const exactYearMonth = (!cashDateToYear || movementDate.getFullYear() === parseInt(cashDateToYear)) && 
-                                               (!cashDateToMonth || movementDate.getMonth() === (parseInt(cashDateToMonth) - 1));
-                        if (exactYearMonth) {
-                            matches = movementDate.getDate() <= parseInt(cashDateToDay);
-                        }
-                    }
-                    if (cashDateToHour && matches) {
-                        const exactDate = (!cashDateToYear || movementDate.getFullYear() === parseInt(cashDateToYear)) &&
-                                          (!cashDateToMonth || movementDate.getMonth() === (parseInt(cashDateToMonth) - 1)) &&
-                                          (!cashDateToDay || movementDate.getDate() === parseInt(cashDateToDay));
-                        if (exactDate) {
-                            matches = movementDate.getHours() <= parseInt(cashDateToHour);
-                        }
-                    }
-                    if (cashDateToMinute && matches) {
-                        const exactDateTime = (!cashDateToYear || movementDate.getFullYear() === parseInt(cashDateToYear)) &&
-                                              (!cashDateToMonth || movementDate.getMonth() === (parseInt(cashDateToMonth) - 1)) &&
-                                              (!cashDateToDay || movementDate.getDate() === parseInt(cashDateToDay)) &&
-                                              (!cashDateToHour || movementDate.getHours() === parseInt(cashDateToHour));
-                        if (exactDateTime) {
-                            matches = movementDate.getMinutes() <= parseInt(cashDateToMinute);
-                        }
-                    }
-                }
-                
-                return matches;
-            });
-        } else if (startDate && endDate) {
-            // Filtro por fechas estándar (startDate/endDate) - solo si no hay filtros granulares
-            filteredMovements = filteredMovements.filter(movement => {
-                const movementDate = parseAnyDate(movement.date);
-                const start = parseAnyDate(startDate);
-                const end = parseAnyDate(endDate);
+                if (start && movementDate < start) return false;
                 if (end) {
                     end.setHours(23, 59, 59, 999);
+                    if (movementDate > end) return false;
                 }
-                if (!movementDate || !start || !end) return false;
-                return movementDate >= start && movementDate <= end;
+                return true;
             });
         }
         
-        // 2. Filtro de ID (independiente)
         if (cashIdFilter.trim()) {
             filteredMovements = filteredMovements.filter(movement => {
                 const movementId = Number(movement.id);
                 const filterId = Number(cashIdFilter);
-                
                 switch (cashIdFilterOp) {
-                    case 'equals':
-                        return movementId === filterId;
-                    case 'lt':
-                        return movementId < filterId;
-                    case 'lte':
-                        return movementId <= filterId;
-                    case 'gt':
-                        return movementId > filterId;
-                    case 'gte':
-                        return movementId >= filterId;
-                    default:
-                        return movementId === filterId;
+                    case 'equals': return movementId === filterId;
+                    case 'lt': return movementId < filterId;
+                    case 'lte': return movementId <= filterId;
+                    case 'gt': return movementId > filterId;
+                    case 'gte': return movementId >= filterId;
+                    default: return movementId === filterId;
                 }
             });
         }
         
-        // 3. Filtro de monto (independiente)
         if (cashAmountFilter.trim()) {
             filteredMovements = filteredMovements.filter(movement => {
                 const movementAmount = Number(movement.amount) || 0;
                 const filterAmount = Number(cashAmountFilter) || 0;
-                
                 switch (cashAmountFilterOp) {
-                    case 'equals':
-                        return movementAmount === filterAmount;
-                    case 'lt':
-                        return movementAmount < filterAmount;
-                    case 'lte':
-                        return movementAmount <= filterAmount;
-                    case 'gt':
-                        return movementAmount > filterAmount;
-                    case 'gte':
-                        return movementAmount >= filterAmount;
-                    default:
-                        return movementAmount === filterAmount;
+                    case 'equals': return movementAmount === filterAmount;
+                    case 'lt': return movementAmount < filterAmount;
+                    case 'lte': return movementAmount <= filterAmount;
+                    case 'gt': return movementAmount > filterAmount;
+                    case 'gte': return movementAmount >= filterAmount;
+                    default: return movementAmount === filterAmount;
                 }
             });
         }
         
-        // 4. Filtro de descripción (independiente)
         if (cashDescriptionFilter.trim()) {
             filteredMovements = filteredMovements.filter(movement => {
                 const description = String(movement.description || '').toLowerCase();
                 const filterValue = cashDescriptionFilter.toLowerCase();
-                
                 switch (cashDescriptionFilterOp) {
-                    case 'equals':
-                        return description === filterValue;
-                    case 'contains':
-                        return description.includes(filterValue);
-                    default:
-                        return description.includes(filterValue);
+                    case 'equals': return description === filterValue;
+                    case 'contains': return description.includes(filterValue);
+                    default: return description.includes(filterValue);
                 }
             });
         }
         
-        // 5. Filtro de usuario (independiente)
         if (cashUserFilter.trim()) {
             filteredMovements = filteredMovements.filter(movement => {
                 const user = String(movement.user || '').toLowerCase();
                 const filterValue = cashUserFilter.toLowerCase();
-                
                 switch (cashUserFilterOp) {
-                    case 'equals':
-                        return user === filterValue;
-                    case 'contains':
-                        return user.includes(filterValue);
-                    default:
-                        return user.includes(filterValue);
+                    case 'equals': return user === filterValue;
+                    case 'contains': return user.includes(filterValue);
+                    default: return user.includes(filterValue);
                 }
             });
         }
         
-        // Filtro por tipo (Entrada/Salida)
         if (cashTypeFilter) {
             filteredMovements = filteredMovements.filter(movement => movement.type === cashTypeFilter);
         }
         
-        // Filtro por método de pago (múltiple selección)
         if (cashPaymentMethodFilter.length > 0) {
             filteredMovements = filteredMovements.filter(movement => {
                 const description = (movement.description || '').toLowerCase();
-                // Verificar si alguno de los métodos seleccionados está en la descripción
                 return cashPaymentMethodFilter.some(method => {
                     const methodLower = method.toLowerCase();
                     return description.includes(methodLower) || (movement.payment_method || '').toLowerCase().includes(methodLower);
@@ -1809,21 +1118,13 @@ export default function DataConsultation(props) {
             });
         }
 
-        // Ordenar los movimientos por fecha
         filteredMovements.sort((a, b) => {
             const dateA = parseAnyDate(a.date);
             const dateB = parseAnyDate(b.date);
-            
-            if (!dateA || !dateB) {
-                // Si alguna fecha no es válida, mantener el orden original
-                return 0;
-            }
-            
+            if (!dateA || !dateB) return 0;
             if (cashSortOrder === 'desc') {
-                // Descendente: más nuevos primero (fechas más recientes primero)
                 return dateB.getTime() - dateA.getTime();
             } else {
-                // Ascendente: más antiguos primero (fechas más antiguas primero)
                 return dateA.getTime() - dateB.getTime();
             }
         });
@@ -1836,9 +1137,9 @@ export default function DataConsultation(props) {
                 totalMovements: filteredMovements.length, 
                 totalIncome: safeToFixed(totalIncome), 
                 totalExpenses: safeToFixed(totalExpenses),
-                period: (cashDateFromYear || cashDateToYear) 
-                    ? `Filtro personalizado por fechas` 
-                    : startDate && endDate ? `${formatDateForDisplay(startDate)} - ${formatDateForDisplay(endDate)}` : 'Todos los períodos'
+                period: startDate && endDate ? `${formatDateForDisplay(startDate)} - ${formatDateForDisplay(endDate)}` 
+                    : startDate ? `Desde ${formatDateForDisplay(startDate)}` 
+                    : endDate ? `Hasta ${formatDateForDisplay(endDate)}` : 'Todos los períodos'
             }, 
             data: filteredMovements.map(movement => ({ id: movement.id, date: movement.date, type: movement.type, amount: movement.amount, description: movement.description, user: movement.user, payment_method: movement.payment_method })) 
         };
@@ -1875,17 +1176,16 @@ export default function DataConsultation(props) {
             }
             if (results) {
                 setQueryResults(results);
-                try { await saveQueryToBackend(selectedQuery, startDate, endDate, results); } catch (e) { /* No se pudo guardar la consulta en backend, pero los resultados se muestran localmente */ }
+                try { await saveQueryToBackend(selectedQuery, startDate, endDate, results); } catch (e) { }
                 setQueryResults(results);
             }
         } catch (error) { setMessage('🚫 Error ejecutando la consulta: ' + (error.message || error)); }
         finally { setIsLoading(false); isRunningQueryRef.current = false; }
     };
 
-    // Función para renderizar valores de celda
     const renderCellValue = (value, key) => {
         if (value === null || value === undefined) return '';
-        if (key === 'date') { try { return formatMovementDate(value); } catch (e) { /* fallback */ } }
+        if (key === 'date') { try { return formatMovementDate(value); } catch (e) {} }
         if (Array.isArray(value)) {
             if (value.length === 0) return '';
             if (value.every(v => v === null || ['string','number','boolean'].includes(typeof v))) return value.filter(v => v !== null && v !== undefined).join(', ');
@@ -1894,13 +1194,12 @@ export default function DataConsultation(props) {
                 if (typeof item === 'string' || typeof item === 'number') return String(item);
                 const name = item.productName || item.product_name || item.product || item.name || item.productName;
                 const qty = item.quantity ?? item.cantidad ?? item.qty ?? '';
-                const unitPrice = item.unitPrice ?? item.unit_price ?? item.price ?? '';
-                const productUnit = item.unit ?? item.product_unit ?? 'u';
+                const unit = item.unitPrice ?? item.unit_price ?? item.price ?? '';
                 const total = item.total ?? item.totalAmount ?? item.total_amount ?? '';
                 const parts = [];
                 if (name) parts.push(String(name));
-                if (qty !== '') parts.push(formatDisplayQuantity(qty, productUnit, { withSuffix: true }));
-                if (unitPrice !== '') parts.push(`x ${safeToFixed(unitPrice)}`);
+                if (qty !== '') parts.push(String(qty));
+                if (unit !== '') parts.push(`x ${safeToFixed(unit)}`);
                 if (total !== '') parts.push(`= ${safeToFixed(total)}`);
                 return parts.join(' ');
             }).filter(Boolean).join('; ');
@@ -1909,12 +1208,11 @@ export default function DataConsultation(props) {
             const name = value.productName || value.product_name || value.name;
             if (name) {
                 const qty = value.quantity ?? value.cantidad ?? value.qty ?? '';
-                const unitPrice = value.unitPrice ?? value.unit_price ?? value.price ?? '';
-                const productUnit = value.unit ?? value.product_unit ?? 'u';
+                const unit = value.unitPrice ?? value.unit_price ?? value.price ?? '';
                 const total = value.total ?? value.totalAmount ?? value.total_amount ?? '';
                 const parts = [String(name)];
-                if (qty !== '') parts.push(formatDisplayQuantity(qty, productUnit, { withSuffix: true }));
-                if (unitPrice !== '') parts.push(`x ${safeToFixed(unitPrice)}`);
+                if (qty !== '') parts.push(String(qty));
+                if (unit !== '') parts.push(`x ${safeToFixed(unit)}`);
                 if (total !== '') parts.push(`= ${safeToFixed(total)}`);
                 return parts.join(' ');
             }
@@ -1923,16 +1221,13 @@ export default function DataConsultation(props) {
         return String(value);
     };
 
-    // Función para abrir el diálogo de consulta en una ventana/pestaña aparte
     const handleOpenInNewTab = () => {
         const url = `${window.location.origin}${window.location.pathname}?consultas-fullscreen=true`;
         window.open(url, '_blank', 'noopener,noreferrer');
     };
 
-    // --- RENDERIZADO ---
     return (
         <>
-            {/* === PANTALLAS >= 1857px: Solo botón para abrir diálogo === */}
             <div className="hidden wide:flex h-full flex-col items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 p-8">
                 <div className="bg-white rounded-2xl shadow-xl p-12 text-center max-w-lg border border-slate-200">
                     <div className="bg-blue-100 p-4 rounded-full w-20 h-20 mx-auto mb-6 flex items-center justify-center">
@@ -1956,10 +1251,8 @@ export default function DataConsultation(props) {
                 </div>
             </div>
 
-            {/* === PANTALLAS < 1857px: Interfaz completa responsiva === */}
             <div className="wide:hidden h-full flex flex-col bg-slate-50 overflow-hidden font-sans text-slate-800">
                 
-                {/* Header Fijo */}
                 <div className="bg-white border-b border-slate-200 px-4 sm:px-6 py-3 sm:py-4 flex justify-between items-center flex-shrink-0 z-30 shadow-sm">
                     <div className="flex items-center gap-2">
                         <div className="bg-blue-600 p-1.5 rounded text-white">
@@ -1977,20 +1270,16 @@ export default function DataConsultation(props) {
                     </button>
                 </div>
 
-                {/* Mensajes */}
                 {message && (
                     <div className={`px-4 py-2 text-xs font-bold text-center ${message.includes('🚫') ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
                         {message}
                     </div>
                 )}
 
-                {/* Área Principal */}
                 <div className="flex-1 flex flex-col overflow-hidden p-3 sm:p-4 lg:p-6 gap-3 sm:gap-4">
                     
                     {/* TARJETA DE CONTROLES */}
                     <div className="bg-white border border-slate-200 rounded-xl shadow-sm flex-shrink-0">
-                        
-                        {/* === MODIFICACIÓN: Sección de Consulta y Fechas REBATIBLE - Ahora arriba === */}
                         <div className="bg-gradient-to-r from-blue-50 to-blue-100 border-b border-blue-200 shadow-sm">
                             <button
                                 onClick={() => setShowQueryDateSection(!showQueryDateSection)}
@@ -2004,8 +1293,7 @@ export default function DataConsultation(props) {
                             </button>
 
                             {showQueryDateSection && (
-                                <div className="p-4 space-y-4">
-                                    {/* Selector de Consulta */}
+                                <div className="p-4 space-y-4 border-b border-blue-200">
                                     <div className="w-full">
                                         <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Consulta *</label>
                                         <div className="relative">
@@ -2027,63 +1315,67 @@ export default function DataConsultation(props) {
                                         </div>
                                     </div>
 
-                                    {/* === MODIFICACIÓN: Filtro de Fechas con Calendarios === */}
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                        <div>
-                                            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Fecha Inicio</label>
-                                            <div className="relative">
-                                                <Calendar size={14} className="absolute left-2 sm:left-3 top-3 text-slate-400" />
-                                                <input 
-                                                    type="date" 
-                                                    value={startDate} 
-                                                    onChange={e => setStartDate(e.target.value)} 
-                                                    className="w-full pl-7 sm:pl-8 pr-2 sm:pr-3 py-2 bg-white border border-slate-300 rounded-lg text-sm text-slate-700 outline-none focus:ring-2 focus:ring-blue-500"
-                                                />
+                                    {/* Ocultar Fechas para Stock y Proveedores */}
+                                    {selectedQuery !== 'stock' && selectedQuery !== 'proveedores' && (
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                            <div>
+                                                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Fecha Inicio</label>
+                                                <div className="relative">
+                                                    <Calendar size={14} className="absolute left-2 sm:left-3 top-3 text-slate-400" />
+                                                    <input 
+                                                        type="date" 
+                                                        value={startDate} 
+                                                        onChange={e => setStartDate(e.target.value)} 
+                                                        className="w-full pl-7 sm:pl-8 pr-2 sm:pr-3 py-2 bg-white border border-slate-300 rounded-lg text-sm text-slate-700 outline-none focus:ring-2 focus:ring-blue-500"
+                                                    />
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Fecha Fin</label>
+                                                <div className="relative">
+                                                    <Calendar size={14} className="absolute left-2 sm:left-3 top-3 text-slate-400" />
+                                                    <input 
+                                                        type="date" 
+                                                        value={endDate} 
+                                                        onChange={e => setEndDate(e.target.value)} 
+                                                        className="w-full pl-7 sm:pl-8 pr-2 sm:pr-3 py-2 bg-white border border-slate-300 rounded-lg text-sm text-slate-700 outline-none focus:ring-2 focus:ring-blue-500"
+                                                    />
+                                                </div>
                                             </div>
                                         </div>
-                                        <div>
-                                            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Fecha Fin</label>
-                                            <div className="relative">
-                                                <Calendar size={14} className="absolute left-2 sm:left-3 top-3 text-slate-400" />
-                                                <input 
-                                                    type="date" 
-                                                    value={endDate} 
-                                                    onChange={e => setEndDate(e.target.value)} 
-                                                    className="w-full pl-7 sm:pl-8 pr-2 sm:pr-3 py-2 bg-white border border-slate-300 rounded-lg text-sm text-slate-700 outline-none focus:ring-2 focus:ring-blue-500"
-                                                />
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {/* === MODIFICACIÓN: Botones de Filtros y Consultar === */}
-                                    <div className="flex gap-2 sm:gap-3 pt-2">
-                                        {selectedQuery && (
-                                            <button 
-                                                type="button" 
-                                                onClick={() => setShowAdvancedFilters(!showAdvancedFilters)} 
-                                                className="flex-1 sm:flex-none flex items-center justify-center gap-1 bg-slate-100 hover:bg-slate-200 text-slate-600 px-3 sm:px-4 py-2.5 rounded-lg text-xs font-bold transition-colors"
-                                            >
-                                                <SlidersHorizontal size={14} />
-                                                <span className="hidden xs:inline">Filtros</span>
-                                            </button>
-                                        )}
-                                        <button 
-                                            onClick={executeQuery} 
-                                            disabled={isLoading} 
-                                            className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 sm:px-6 py-2.5 rounded-lg font-bold text-sm shadow-md transition-all active:scale-95 disabled:opacity-70 min-h-[42px]"
-                                        >
-                                            {isLoading ? (
-                                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                                            ) : (
-                                                <>
-                                                    <Search size={16} />
-                                                    <span className="hidden xs:inline">Consultar</span>
-                                                </>
-                                            )}
-                                        </button>
-                                    </div>
+                                    )}
                                 </div>
                             )}
+                        </div>
+
+                        {/* Botones de Filtros y Consultar FUERA DEL REBATIBLE */}
+                        <div className="p-3 sm:p-4 bg-white flex justify-end gap-2 sm:gap-3 rounded-b-xl">
+                            {selectedQuery && (
+                                <button 
+                                    type="button" 
+                                    onClick={() => setShowAdvancedFilters(!showAdvancedFilters)} 
+                                    className="flex-1 sm:flex-none flex items-center justify-center gap-1 bg-slate-100 hover:bg-slate-200 text-slate-600 px-3 sm:px-4 py-2.5 rounded-lg text-xs font-bold transition-colors"
+                                >
+                                    <SlidersHorizontal size={14} />
+                                    <span className="hidden xs:inline">
+                                        {showAdvancedFilters ? 'Ocultar Filtros' : 'Mostrar Filtros'}
+                                    </span>
+                                </button>
+                            )}
+                            <button 
+                                onClick={executeQuery} 
+                                disabled={isLoading} 
+                                className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 sm:px-6 py-2.5 rounded-lg font-bold text-sm shadow-md transition-all active:scale-95 disabled:opacity-70 min-h-[42px]"
+                            >
+                                {isLoading ? (
+                                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                                ) : (
+                                    <>
+                                        <Search size={16} />
+                                        <span className="hidden xs:inline">Consultar</span>
+                                    </>
+                                )}
+                            </button>
                         </div>
 
                         {/* FILTROS AVANZADOS COLAPSABLES */}
@@ -2093,7 +1385,6 @@ export default function DataConsultation(props) {
                                 
                                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
                                     
-                                    {/* === FILTROS DE STOCK === */}
                                     {selectedQuery === 'stock' && (
                                         <>
                                             <div className="bg-white p-3 rounded border border-slate-200 space-y-3 shadow-sm">
@@ -2159,7 +1450,6 @@ export default function DataConsultation(props) {
                                                         <option value="Insumo">Insumo</option>
                                                     </select>
                                                 </div>
-                                                {/* === MODIFICACIÓN: Filtro de Estado collapsible === */}
                                                 <button
                                                     onClick={() => setShowStockStatusFilter(!showStockStatusFilter)}
                                                     className="w-full flex items-center justify-between bg-gradient-to-r from-slate-50 to-slate-100 p-2 rounded border border-slate-200 hover:border-slate-300 transition-colors"
@@ -2181,7 +1471,6 @@ export default function DataConsultation(props) {
                                         </>
                                     )}
 
-                                    {/* === FILTROS DE VENTAS === */}
                                     {selectedQuery === 'ventas' && (
                                         <>
                                             <div className="bg-white p-3 rounded border border-slate-200 space-y-3 shadow-sm">
@@ -2236,36 +1525,9 @@ export default function DataConsultation(props) {
                                                     </div>
                                                 </div>
                                             </div>
-
-                                            <div className="bg-blue-50/50 p-3 rounded border border-blue-100 space-y-3 shadow-sm sm:col-span-2 lg:col-span-1">
-                                                <h5 className="text-[10px] font-bold text-blue-600 uppercase flex items-center gap-1"><Calendar size={12}/> Rango Fechas Exacto</h5>
-                                                <div>
-                                                    <label className="text-[9px] text-slate-500 mb-0.5 block">Desde:</label>
-                                                    <div className="flex gap-1 flex-wrap">
-                                                        <input type="number" placeholder="YYYY" value={salesDateFromYear} onChange={e => setSalesDateFromYear(e.target.value)} className="w-[52px] sm:w-14 p-1 border rounded bg-white text-xs text-center" />
-                                                        <input type="number" placeholder="MM" value={salesDateFromMonth} onChange={e => setSalesDateFromMonth(e.target.value)} className="w-9 sm:w-10 p-1 border rounded bg-white text-xs text-center" />
-                                                        <input type="number" placeholder="DD" value={salesDateFromDay} onChange={e => setSalesDateFromDay(e.target.value)} className="w-9 sm:w-10 p-1 border rounded bg-white text-xs text-center" />
-                                                        <span className="text-slate-300 self-center text-xs">:</span>
-                                                        <input type="number" placeholder="HH" value={salesDateFromHour} onChange={e => setSalesDateFromHour(e.target.value)} className="w-9 sm:w-10 p-1 border rounded bg-white text-xs text-center" />
-                                                        <input type="number" placeholder="mm" value={salesDateFromMinute} onChange={e => setSalesDateFromMinute(e.target.value)} className="w-9 sm:w-10 p-1 border rounded bg-white text-xs text-center" />
-                                                    </div>
-                                                </div>
-                                                <div>
-                                                    <label className="text-[9px] text-slate-500 mb-0.5 block">Hasta:</label>
-                                                    <div className="flex gap-1 flex-wrap">
-                                                        <input type="number" placeholder="YYYY" value={salesDateToYear} onChange={e => setSalesDateToYear(e.target.value)} className="w-[52px] sm:w-14 p-1 border rounded bg-white text-xs text-center" />
-                                                        <input type="number" placeholder="MM" value={salesDateToMonth} onChange={e => setSalesDateToMonth(e.target.value)} className="w-9 sm:w-10 p-1 border rounded bg-white text-xs text-center" />
-                                                        <input type="number" placeholder="DD" value={salesDateToDay} onChange={e => setSalesDateToDay(e.target.value)} className="w-9 sm:w-10 p-1 border rounded bg-white text-xs text-center" />
-                                                        <span className="text-slate-300 self-center text-xs">:</span>
-                                                        <input type="number" placeholder="HH" value={salesDateToHour} onChange={e => setSalesDateToHour(e.target.value)} className="w-9 sm:w-10 p-1 border rounded bg-white text-xs text-center" />
-                                                        <input type="number" placeholder="mm" value={salesDateToMinute} onChange={e => setSalesDateToMinute(e.target.value)} className="w-9 sm:w-10 p-1 border rounded bg-white text-xs text-center" />
-                                                    </div>
-                                                </div>
-                                            </div>
                                         </>
                                     )}
 
-                                    {/* === FILTROS MOVIMIENTOS CAJA === */}
                                     {selectedQuery === 'movimientos_caja' && (
                                         <>
                                             <div className="bg-white p-3 rounded border border-slate-200 space-y-3 shadow-sm">
@@ -2336,7 +1598,6 @@ export default function DataConsultation(props) {
                                             </div>
 
                                             <div className="bg-white p-3 rounded border border-slate-200 space-y-3 shadow-sm">
-                                                {/* === MODIFICACIÓN: Filtro de Tipo y Método de Pago collapsible === */}
                                                 <button
                                                     onClick={() => setShowCashStatusFilter(!showCashStatusFilter)}
                                                     className="w-full flex items-center justify-between bg-gradient-to-r from-slate-50 to-slate-100 p-2 rounded border border-slate-200 hover:border-slate-300 transition-colors"
@@ -2368,36 +1629,9 @@ export default function DataConsultation(props) {
                                                     </div>
                                                 )}
                                             </div>
-
-                                            <div className="bg-blue-50/50 p-3 rounded border border-blue-100 space-y-3 shadow-sm sm:col-span-2 lg:col-span-1">
-                                                <h5 className="text-[10px] font-bold text-blue-600 uppercase flex items-center gap-1"><Calendar size={12}/> Fecha Exacta</h5>
-                                                <div>
-                                                    <label className="text-[9px] text-slate-500 mb-0.5 block">Desde:</label>
-                                                    <div className="flex gap-1 flex-wrap">
-                                                        <input type="number" placeholder="YYYY" value={cashDateFromYear} onChange={e => setCashDateFromYear(e.target.value)} className="w-[52px] sm:w-14 p-1 border rounded bg-white text-xs text-center" />
-                                                        <input type="number" placeholder="MM" value={cashDateFromMonth} onChange={e => setCashDateFromMonth(e.target.value)} className="w-9 sm:w-10 p-1 border rounded bg-white text-xs text-center" />
-                                                        <input type="number" placeholder="DD" value={cashDateFromDay} onChange={e => setCashDateFromDay(e.target.value)} className="w-9 sm:w-10 p-1 border rounded bg-white text-xs text-center" />
-                                                        <span className="text-slate-300 self-center text-xs">:</span>
-                                                        <input type="number" placeholder="HH" value={cashDateFromHour} onChange={e => setCashDateFromHour(e.target.value)} className="w-9 sm:w-10 p-1 border rounded bg-white text-xs text-center" />
-                                                        <input type="number" placeholder="mm" value={cashDateFromMinute} onChange={e => setCashDateFromMinute(e.target.value)} className="w-9 sm:w-10 p-1 border rounded bg-white text-xs text-center" />
-                                                    </div>
-                                                </div>
-                                                <div>
-                                                    <label className="text-[9px] text-slate-500 mb-0.5 block">Hasta:</label>
-                                                    <div className="flex gap-1 flex-wrap">
-                                                        <input type="number" placeholder="YYYY" value={cashDateToYear} onChange={e => setCashDateToYear(e.target.value)} className="w-[52px] sm:w-14 p-1 border rounded bg-white text-xs text-center" />
-                                                        <input type="number" placeholder="MM" value={cashDateToMonth} onChange={e => setCashDateToMonth(e.target.value)} className="w-9 sm:w-10 p-1 border rounded bg-white text-xs text-center" />
-                                                        <input type="number" placeholder="DD" value={cashDateToDay} onChange={e => setCashDateToDay(e.target.value)} className="w-9 sm:w-10 p-1 border rounded bg-white text-xs text-center" />
-                                                        <span className="text-slate-300 self-center text-xs">:</span>
-                                                        <input type="number" placeholder="HH" value={cashDateToHour} onChange={e => setCashDateToHour(e.target.value)} className="w-9 sm:w-10 p-1 border rounded bg-white text-xs text-center" />
-                                                        <input type="number" placeholder="mm" value={cashDateToMinute} onChange={e => setCashDateToMinute(e.target.value)} className="w-9 sm:w-10 p-1 border rounded bg-white text-xs text-center" />
-                                                    </div>
-                                                </div>
-                                            </div>
                                         </>
                                     )}
 
-                                    {/* === FILTROS PEDIDOS === */}
                                     {selectedQuery === 'pedidos' && (
                                         <>
                                             <div className="bg-white p-3 rounded border border-slate-200 space-y-3 shadow-sm">
@@ -2431,7 +1665,6 @@ export default function DataConsultation(props) {
                                             </div>
 
                                             <div className="bg-white p-3 rounded border border-slate-200 space-y-3 shadow-sm">
-                                                {/* === MODIFICACIÓN: Filtro de Estado collapsible === */}
                                                 <button
                                                     onClick={() => setShowOrdersStatusFilter(!showOrdersStatusFilter)}
                                                     className="w-full flex items-center justify-between bg-gradient-to-r from-slate-50 to-slate-100 p-2 rounded border border-slate-200 hover:border-slate-300 transition-colors"
@@ -2465,7 +1698,6 @@ export default function DataConsultation(props) {
                                             </div>
 
                                             <div className="bg-white p-3 rounded border border-slate-200 space-y-3 shadow-sm">
-                                                {/* === MODIFICACIÓN: Filtro de Método de Pago collapsible === */}
                                                 <button
                                                     onClick={() => setShowPaymentMethodFilter(!showPaymentMethodFilter)}
                                                     className="w-full flex items-center justify-between bg-gradient-to-r from-slate-50 to-slate-100 p-2 rounded border border-slate-200 hover:border-slate-300 transition-colors"
@@ -2484,36 +1716,9 @@ export default function DataConsultation(props) {
                                                     </div>
                                                 )}
                                             </div>
-
-                                            <div className="bg-blue-50/50 p-3 rounded border border-blue-100 space-y-3 shadow-sm sm:col-span-2 lg:col-span-1">
-                                                <h5 className="text-[10px] font-bold text-blue-600 uppercase flex items-center gap-1"><Calendar size={12}/> Fechas</h5>
-                                                <div>
-                                                    <label className="text-[9px] text-slate-500 mb-0.5 block">Desde:</label>
-                                                    <div className="flex gap-1 flex-wrap">
-                                                        <input type="number" placeholder="YYYY" value={ordersDateFromYear} onChange={e => setOrdersDateFromYear(e.target.value)} className="w-[52px] sm:w-14 p-1 border rounded bg-white text-xs text-center" />
-                                                        <input type="number" placeholder="MM" value={ordersDateFromMonth} onChange={e => setOrdersDateFromMonth(e.target.value)} className="w-9 sm:w-10 p-1 border rounded bg-white text-xs text-center" />
-                                                        <input type="number" placeholder="DD" value={ordersDateFromDay} onChange={e => setOrdersDateFromDay(e.target.value)} className="w-9 sm:w-10 p-1 border rounded bg-white text-xs text-center" />
-                                                        <span className="text-slate-300 self-center text-xs">:</span>
-                                                        <input type="number" placeholder="HH" value={ordersDateFromHour} onChange={e => setOrdersDateFromHour(e.target.value)} className="w-9 sm:w-10 p-1 border rounded bg-white text-xs text-center" />
-                                                        <input type="number" placeholder="mm" value={ordersDateFromMinute} onChange={e => setOrdersDateFromMinute(e.target.value)} className="w-9 sm:w-10 p-1 border rounded bg-white text-xs text-center" />
-                                                    </div>
-                                                </div>
-                                                <div>
-                                                    <label className="text-[9px] text-slate-500 mb-0.5 block">Hasta:</label>
-                                                    <div className="flex gap-1 flex-wrap">
-                                                        <input type="number" placeholder="YYYY" value={ordersDateToYear} onChange={e => setOrdersDateToYear(e.target.value)} className="w-[52px] sm:w-14 p-1 border rounded bg-white text-xs text-center" />
-                                                        <input type="number" placeholder="MM" value={ordersDateToMonth} onChange={e => setOrdersDateToMonth(e.target.value)} className="w-9 sm:w-10 p-1 border rounded bg-white text-xs text-center" />
-                                                        <input type="number" placeholder="DD" value={ordersDateToDay} onChange={e => setOrdersDateToDay(e.target.value)} className="w-9 sm:w-10 p-1 border rounded bg-white text-xs text-center" />
-                                                        <span className="text-slate-300 self-center text-xs">:</span>
-                                                        <input type="number" placeholder="HH" value={ordersDateToHour} onChange={e => setOrdersDateToHour(e.target.value)} className="w-9 sm:w-10 p-1 border rounded bg-white text-xs text-center" />
-                                                        <input type="number" placeholder="mm" value={ordersDateToMinute} onChange={e => setOrdersDateToMinute(e.target.value)} className="w-9 sm:w-10 p-1 border rounded bg-white text-xs text-center" />
-                                                    </div>
-                                                </div>
-                                            </div>
                                         </>
                                     )}
 
-                                    {/* === FILTROS COMPRAS === */}
                                     {selectedQuery === 'compras' && (
                                         <>
                                             <div className="bg-white p-3 rounded border border-slate-200 space-y-3 shadow-sm">
@@ -2590,36 +1795,9 @@ export default function DataConsultation(props) {
                                                     </div>
                                                 </div>
                                             </div>
-
-                                            <div className="bg-blue-50/50 p-3 rounded border border-blue-100 space-y-3 shadow-sm sm:col-span-2 lg:col-span-1">
-                                                <h5 className="text-[10px] font-bold text-blue-600 uppercase flex items-center gap-1"><Calendar size={12}/> Fechas</h5>
-                                                <div>
-                                                    <label className="text-[9px] text-slate-500 mb-0.5 block">Desde:</label>
-                                                    <div className="flex gap-1 flex-wrap">
-                                                        <input type="number" placeholder="YYYY" value={purchasesDateFromYear} onChange={e => setPurchasesDateFromYear(e.target.value)} className="w-[52px] sm:w-14 p-1 border rounded bg-white text-xs text-center" />
-                                                        <input type="number" placeholder="MM" value={purchasesDateFromMonth} onChange={e => setPurchasesDateFromMonth(e.target.value)} className="w-9 sm:w-10 p-1 border rounded bg-white text-xs text-center" />
-                                                        <input type="number" placeholder="DD" value={purchasesDateFromDay} onChange={e => setPurchasesDateFromDay(e.target.value)} className="w-9 sm:w-10 p-1 border rounded bg-white text-xs text-center" />
-                                                        <span className="text-slate-300 self-center text-xs">:</span>
-                                                        <input type="number" placeholder="HH" value={purchasesDateFromHour} onChange={e => setPurchasesDateFromHour(e.target.value)} className="w-9 sm:w-10 p-1 border rounded bg-white text-xs text-center" />
-                                                        <input type="number" placeholder="mm" value={purchasesDateFromMinute} onChange={e => setPurchasesDateFromMinute(e.target.value)} className="w-9 sm:w-10 p-1 border rounded bg-white text-xs text-center" />
-                                                    </div>
-                                                </div>
-                                                <div>
-                                                    <label className="text-[9px] text-slate-500 mb-0.5 block">Hasta:</label>
-                                                    <div className="flex gap-1 flex-wrap">
-                                                        <input type="number" placeholder="YYYY" value={purchasesDateToYear} onChange={e => setPurchasesDateToYear(e.target.value)} className="w-[52px] sm:w-14 p-1 border rounded bg-white text-xs text-center" />
-                                                        <input type="number" placeholder="MM" value={purchasesDateToMonth} onChange={e => setPurchasesDateToMonth(e.target.value)} className="w-9 sm:w-10 p-1 border rounded bg-white text-xs text-center" />
-                                                        <input type="number" placeholder="DD" value={purchasesDateToDay} onChange={e => setPurchasesDateToDay(e.target.value)} className="w-9 sm:w-10 p-1 border rounded bg-white text-xs text-center" />
-                                                        <span className="text-slate-300 self-center text-xs">:</span>
-                                                        <input type="number" placeholder="HH" value={purchasesDateToHour} onChange={e => setPurchasesDateToHour(e.target.value)} className="w-9 sm:w-10 p-1 border rounded bg-white text-xs text-center" />
-                                                        <input type="number" placeholder="mm" value={purchasesDateToMinute} onChange={e => setPurchasesDateToMinute(e.target.value)} className="w-9 sm:w-10 p-1 border rounded bg-white text-xs text-center" />
-                                                    </div>
-                                                </div>
-                                            </div>
                                         </>
                                     )}
 
-                                    {/* === FILTROS PROVEEDORES === */}
                                     {selectedQuery === 'proveedores' && (
                                         <>
                                             <div className="bg-white p-3 rounded border border-slate-200 space-y-3 shadow-sm">
@@ -2723,7 +1901,7 @@ export default function DataConsultation(props) {
                                             {headerTranslationMap[key] || key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}
                                         </span>
                                         <span className="text-base sm:text-xl font-bold text-slate-800">
-                                            {typeof value === 'number' ? formatNumber(value) : value}
+                                            {typeof value === 'number' ? value.toLocaleString() : value}
                                         </span>
                                     </div>
                                 );

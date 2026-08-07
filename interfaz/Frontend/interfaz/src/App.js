@@ -627,6 +627,7 @@ const App = () => {
         console.log('💰 Inicializando movimientos de caja vacíos (se cargarán desde PostgreSQL)');
         return []; // Empezar vacío - se cargarán desde PostgreSQL
     });
+    const [cashBalance, setCashBalance] = useState(null);
     
     // Proveedores
     // Proveedores - cargar solo desde backend
@@ -745,7 +746,11 @@ const App = () => {
                         })) : [],
                         totalAmount: o.total_amount || o.totalAmount || 0,
                         status: o.status || 'Pendiente',
-                        notes: o.notes || ''
+                        notes: o.notes || '',
+                        paidTotalAtChange: o.paid_total_at_change != null ? Number(o.paid_total_at_change) : null,
+                        paymentDifference: o.payment_difference != null ? Number(o.payment_difference) : null,
+                        cashReceived: o.cash_received,
+                        changeGiven: o.change_given,
                     }));
                     setOrders(backendOrders);
                 }
@@ -1321,11 +1326,25 @@ const App = () => {
         
                 setCashMovements(formattedMovements);
                 console.debug('✅ Movimientos de caja cargados:', `${formattedMovements.length} movimientos del servidor`);
+                await loadCashBalance();
             } catch (error) {
                 console.error('❌ Error cargando movimientos de caja:', error && error.message ? error.message : error);
                 setCashMovements(prevMovements => prevMovements.length > 0 ? prevMovements : []);
             }
         };
+
+    const loadCashBalance = async () => {
+        try {
+            if (!getInMemoryToken()) {
+                const restored = await ensureInMemoryToken();
+                if (!restored) return;
+            }
+            const response = await api.get('/cash-movements/balance/');
+            setCashBalance(parseFloat(response.data.balance));
+        } catch (error) {
+            console.error('❌ Error cargando saldo de caja:', error && error.message ? error.message : error);
+        }
+    };
 
     // Función para cargar ventas desde el backend
     const loadSales = async () => {
@@ -2116,6 +2135,7 @@ const App = () => {
                     <div style={{ display: activeTab === 'caja' ? 'block' : 'none' }}>
                         <Movimientos_De_Caja 
                             cashMovements={cashMovements}
+                            cashBalance={cashBalance}
                         />
                     </div>
                 </div>
@@ -2133,7 +2153,7 @@ const App = () => {
             e.preventDefault();
             const amount = parseFloat(newMovement.amount);
             // Simulación de saldo de caja.
-            const currentBalance = cashMovements.reduce((sum, m) => sum + (m.type === 'Entrada' ? m.amount : -m.amount), 0);
+            const currentBalance = cashBalance ?? cashMovements.reduce((sum, m) => sum + (m.type === 'Entrada' ? m.amount : -m.amount), 0);
 
             // Regla de negocio: Si es una salida, validar saldo.
             if (newMovement.type === 'Salida' && amount > currentBalance) {
@@ -2927,7 +2947,7 @@ const PurchaseRequests = () => {
                     /> : <div>Acceso Denegado</div>;
             case 'pedidos':
                 return userRole === 'Gerente' ? (
-                    <Pedidos orders={orders} setOrders={setOrders} products={products} />
+                    <Pedidos orders={orders} setOrders={setOrders} products={products} loadCashBalance={loadCashBalance} />
                 ) : <div>Acceso Denegado</div>;
             case 'consultas':
                 return <DataConsultation 
@@ -3230,6 +3250,8 @@ const PurchaseRequests = () => {
                 <PedDialogo
                     orders={orders}
                     setOrders={setOrders}
+                    products={products}
+                    loadCashBalance={loadCashBalance}
                     isOpen={isPedDialogoOpen}
                     onClose={handleClosePedDialogo}
                     onMinimize={handleMinimizePedDialogo}

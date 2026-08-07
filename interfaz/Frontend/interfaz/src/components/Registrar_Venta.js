@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import api from '../services/api';
-import { formatMoney } from '../utils/format';
 
 const Registrar_Venta = ({ products, loadProducts, loadCashMovements }) => {
     const [cartItems, setCartItems] = useState([]);
@@ -10,8 +9,6 @@ const Registrar_Venta = ({ products, loadProducts, loadCashMovements }) => {
         { method: 'efectivo', amount: '' }
     ]);
     const [message, setMessage] = useState('');
-    const [showMobileTicket, setShowMobileTicket] = useState(false);
-    const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1200);
     const [showFilters, setShowFilters] = useState(true);
     
     // Estados de filtros
@@ -19,12 +16,6 @@ const Registrar_Venta = ({ products, loadProducts, loadCashMovements }) => {
     const [stockValue, setStockValue] = useState('');
     const [priceComparator, setPriceComparator] = useState('');
     const [priceValue, setPriceValue] = useState('');
-
-    useEffect(() => {
-        const handleResize = () => setWindowWidth(window.innerWidth);
-        window.addEventListener('resize', handleResize);
-        return () => window.removeEventListener('resize', handleResize);
-    }, []);
 
     const compareValues = (productValue, filterValue, comparator) => {
         const pVal = parseFloat(productValue);
@@ -149,11 +140,12 @@ const Registrar_Venta = ({ products, loadProducts, loadCashMovements }) => {
         }
     };
 
+    const round2 = (value) => Math.round((Number(value) + Number.EPSILON) * 100) / 100;
     const totalPaid = paymentMethods.reduce((sum, pm) => sum + (parseFloat(pm.amount) || 0), 0);
     const cashPaid = paymentMethods.reduce((sum, pm) => pm.method === 'efectivo' ? sum + (parseFloat(pm.amount) || 0) : sum, 0);
-    const remaining = total - totalPaid;
-    const change = Math.max(0, totalPaid - total);
-    const canConfirmSale = cartItems.length > 0 && remaining <= 0.01 && (remaining >= -0.01 || cashPaid >= change - 0.01);
+    const remaining = round2(total - totalPaid);
+    const change = round2(Math.max(0, totalPaid - total));
+    const canConfirmSale = cartItems.length > 0 && remaining <= 0 && (change <= 0.01 || cashPaid >= change - 0.01);
 
     const clearCart = () => {
         setCartItems([]);
@@ -175,14 +167,23 @@ const Registrar_Venta = ({ products, loadProducts, loadCashMovements }) => {
             return;
         }
 
-        if (remaining > 0.01) {
-            setMessage(`Faltan: ${formatMoney(remaining)}. El total debe estar completo.`);
+        const roundedRemaining = round2(total - totalPaid);
+        const roundedChange = round2(Math.max(0, totalPaid - total));
+
+        if (roundedRemaining > 0.01) {
+            setMessage(`Faltan: $${roundedRemaining.toFixed(2)}. El total debe estar completo.`);
             setTimeout(() => setMessage(''), 3000);
             return;
         }
 
-        if (remaining < -0.01 && cashPaid < change - 0.01) {
-            setMessage('Para dar vuelto, el pago debe incluir efectivo suficiente.');
+        if (roundedRemaining < -0.01 && cashPaid < roundedChange - 0.01) {
+            setMessage('Para dar vuelto, el pago en efectivo debe cubrir el cambio.');
+            setTimeout(() => setMessage(''), 3000);
+            return;
+        }
+
+        if (roundedChange > 0.01 && cashPaid < roundedChange - 0.01) {
+            setMessage('Para dar vuelto, el pago en efectivo debe cubrir el cambio.');
             setTimeout(() => setMessage(''), 3000);
             return;
         }
@@ -342,7 +343,7 @@ const Registrar_Venta = ({ products, loadProducts, loadCashMovements }) => {
                             <div className="border-t-2 border-gray-300 pt-3 mb-4">
                                 <div className="flex justify-between items-center text-xl font-bold">
                                     <span>Total</span>
-                                    <span className="text-black">{formatMoney(total)}</span>
+                                    <span className="text-black">${total.toFixed(2)}</span>
                                 </div>
                             </div>
 
@@ -386,15 +387,15 @@ const Registrar_Venta = ({ products, loadProducts, loadCashMovements }) => {
                                 <div className="mt-3 text-sm space-y-1">
                                     <div className="flex justify-between text-gray-600">
                                         <span>Total a pagar:</span>
-                                        <span>{formatMoney(total)}</span>
+                                        <span>${total.toFixed(2)}</span>
                                     </div>
                                     <div className="flex justify-between text-gray-600">
                                         <span>Total ingresado:</span>
-                                        <span>{formatMoney(totalPaid)}</span>
+                                        <span>${totalPaid.toFixed(2)}</span>
                                     </div>
                                     <div className={`flex justify-between font-bold ${remaining > 0 ? 'text-red-600' : remaining < 0 ? 'text-yellow-600' : 'text-green-600'}`}>
                                         <span>{remaining > 0 ? 'Faltan:' : remaining < 0 ? 'Vuelto:' : 'Completo:'}</span>
-                                        <span>{formatMoney(Math.abs(remaining))}</span>
+                                        <span>${Math.abs(remaining).toFixed(2)}</span>
                                     </div>
                                 </div>
                             </div>
@@ -404,7 +405,7 @@ const Registrar_Venta = ({ products, loadProducts, loadCashMovements }) => {
                                 disabled={!canConfirmSale}
                                 className="w-full py-3 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-bold rounded-lg transition-colors duration-200"
                             >
-                                ✓ Confirmar Venta
+                                ✅ Confirmar Venta
                             </button>
                         </div>
                     </div>
@@ -482,142 +483,6 @@ const Registrar_Venta = ({ products, loadProducts, loadCashMovements }) => {
                         </div>
                     </div>
                 </div>
-
-                {/* Ticket móvil (Botón desplegable) */}
-                {cartItems.length > 0 && windowWidth < 800 && (
-                    <div className="fixed bottom-0 left-0 right-0 z-50">
-                        <button
-                            onClick={() => setShowMobileTicket(!showMobileTicket)}
-                            className="w-full bg-gray-800 text-white p-4 flex justify-between items-center shadow-lg"
-                        >
-                            <div className="flex items-center gap-2">
-                                <span className="bg-orange-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold">
-                                    {cartItems.length}
-                                </span>
-                                <span className="font-medium">Ver pedido</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <span className="text-xl font-bold">{formatMoney(total)}</span>
-                                <span className="text-2xl">{showMobileTicket ? '∨' : '∧'}</span>
-                            </div>
-                        </button>
-
-                        {showMobileTicket && (
-                            <div className="bg-white border-t-2 border-gray-200 max-h-[70vh] overflow-y-auto shadow-2xl">
-                                <div className="p-4">
-                                    <div className="flex items-center justify-between mb-4">
-                                        <button onClick={clearCart} className="text-red-600 hover:text-red-700 text-sm font-medium">
-                                            Limpiar
-                                        </button>
-                                    </div>
-
-                                    <div className="grid grid-cols-1 gap-3 mb-4 ticket-items-mobile">
-                                        {cartItems.map(item => (
-                                            <div key={item.product.id} className="border-b border-gray-200 pb-3">
-                                                <div className="flex justify-between items-start mb-2">
-                                                    <span className="font-medium text-gray-800 flex-1">{item.product.name}</span>
-                                                    <button onClick={() => removeFromCart(item.product.id)} className="text-red-600 hover:text-red-700 ml-2">
-                                                        ✕
-                                                    </button>
-                                                </div>
-                                                <div className="flex justify-between items-center">
-                                                    <div className="flex items-center gap-2">
-                                                        <button
-                                                            onClick={() => updateQuantity(item.product.id, Math.max(1, item.quantity - 1))}
-                                                            className="bg-gray-200 hover:bg-gray-300 text-gray-700 w-7 h-7 rounded flex items-center justify-center font-bold"
-                                                        >
-                                                            -
-                                                        </button>
-                                                        <span className="w-8 text-center font-medium">{item.quantity}</span>
-                                                        <button
-                                                            onClick={() => updateQuantity(item.product.id, item.quantity + 1)}
-                                                            className="bg-gray-200 hover:bg-gray-300 text-gray-700 w-7 h-7 rounded flex items-center justify-center font-bold"
-                                                        >
-                                                            +
-                                                        </button>
-                                                    </div>
-                                                    <span className="font-bold text-gray-800">{formatMoney(item.product.price * item.quantity)}</span>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-
-                                    {cartItems.length === 0 && (
-                                        <p className="text-center text-gray-400 py-8">Carrito vacío</p>
-                                    )}
-
-                                    <div className="border-t-2 border-gray-300 pt-3 mb-4">
-                                        <div className="flex justify-between items-center text-xl font-bold">
-                                            <span>Total</span>
-                                            <span className="text-black">{formatMoney(total)}</span>
-                                        </div>
-                                    </div>
-
-                                    <div className="mb-4">
-                                        <div className="flex justify-between items-center mb-2">
-                                            <h4 className="font-semibold text-gray-700">Desglose de Pago</h4>
-                                            <button onClick={addPaymentMethod} className="text-blue-600 hover:text-blue-700 text-sm font-medium">
-                                                + Agregar medio
-                                            </button>
-                                        </div>
-
-                                        <div className="space-y-3">
-                                            {paymentMethods.map((pm, index) => (
-                                                <div key={index} className="flex gap-2 items-center">
-                                                    <select
-                                                        value={pm.method}
-                                                        onChange={(e) => updatePaymentMethod(index, 'method', e.target.value)}
-                                                        className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-                                                    >
-                                                        <option value="efectivo">Efectivo</option>
-                                                        <option value="debito">Débito</option>
-                                                        <option value="credito">Crédito</option>
-                                                        <option value="transferencia">Transferencia</option>
-                                                    </select>
-                                                    <input
-                                                        type="number"
-                                                        value={pm.amount}
-                                                        onChange={(e) => updatePaymentMethod(index, 'amount', e.target.value)}
-                                                        placeholder="Monto"
-                                                        className="w-24 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-                                                    />
-                                                    {paymentMethods.length > 1 && (
-                                                        <button onClick={() => removePaymentMethod(index)} className="text-red-600 hover:text-red-700 p-2">
-                                                            ✕
-                                                        </button>
-                                                    )}
-                                                </div>
-                                            ))}
-                                        </div>
-
-                                        <div className="mt-3 p-3 bg-gray-50 rounded-lg space-y-1 text-sm">
-                                            <div className="flex justify-between text-gray-600">
-                                                <span>Total a pagar:</span>
-                                                <span>{formatMoney(total)}</span>
-                                            </div>
-                                            <div className="flex justify-between text-gray-600">
-                                                <span>Total ingresado:</span>
-                                                <span>{formatMoney(totalPaid)}</span>
-                                            </div>
-                                            <div className={`flex justify-between font-bold ${remaining > 0 ? 'text-red-600' : remaining < 0 ? 'text-yellow-600' : 'text-green-600'}`}>
-                                                <span>{remaining > 0 ? 'Faltan:' : remaining < 0 ? 'Vuelto:' : 'Completo:'}</span>
-                                                <span>{formatMoney(Math.abs(remaining))}</span>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <button
-                                        onClick={handleConfirmSale}
-                                        disabled={!canConfirmSale}
-                                        className="w-full py-3 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-bold rounded-lg transition-colors duration-200"
-                                    >
-                                        ✓ Confirmar Venta
-                                    </button>
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                )}
             </div>
         </div>
     );

@@ -1,7 +1,53 @@
-// PedDialogo.js
 import React, { useState, useEffect, useRef } from 'react';
-import { updateOrderStatus } from '../services/api';
-import { safeToFixed } from '../utils/format';
+import Select from 'react-select';
+import { updateOrderStatus, updateOrder } from '../services/api';
+import {
+    calculateItemsTotal,
+    PaymentDifferencePanel,
+    ConfirmDeliveryModal,
+    ExitEnCambioModal,
+} from './OrderPedidoModals';
+
+const ORDER_STATUSES = ['Pendiente', 'En Preparación', 'Listo', 'En cambio', 'Entregado', 'Cancelado'];
+
+const getStatusClasses = (status) => {
+    switch (status) {
+        case 'Pendiente': return 'bg-yellow-100 text-yellow-800';
+        case 'En Preparación': return 'bg-blue-100 text-blue-800';
+        case 'Listo': return 'bg-green-100 text-green-800';
+        case 'En cambio': return 'bg-orange-100 text-orange-800';
+        case 'Entregado': return 'bg-gray-100 text-gray-800';
+        default: return 'bg-red-100 text-red-800';
+    }
+};
+
+const normalizeOrder = (created) => ({
+    id: created.id,
+    fecha_para_la_que_se_quiere_el_pedido: created.fecha_para_la_que_se_quiere_el_pedido,
+    fecha_de_orden_del_pedido: created.fecha_de_orden_del_pedido,
+    created_at: created.fecha_de_orden_del_pedido || created.created_at,
+    date: created.fecha_de_orden_del_pedido || created.created_at,
+    customerName: created.customer_name || '',
+    paymentMethod: created.payment_method || '',
+    items: Array.isArray(created.items) ? created.items.map(it => ({
+        productName: it.product_name || '',
+        quantity: Number(it.quantity) || 0,
+        unitPrice: Number(it.unit_price) || 0,
+        total: Number(it.total) || 0,
+    })) : [],
+    totalAmount: Number(created.total_amount) || 0,
+    status: created.status || 'Pendiente',
+    notes: created.notes || '',
+    cashReceived: created.cash_received,
+    changeGiven: created.change_given,
+    paidTotalAtChange: created.paid_total_at_change != null ? Number(created.paid_total_at_change) : null,
+    paymentDifference: created.payment_difference != null ? Number(created.payment_difference) : null,
+});
+
+const safeToFixed = (value, decimals = 2) => {
+    const num = parseFloat(value);
+    return isNaN(num) ? (0).toFixed(decimals) : num.toFixed(decimals);
+};
 
 const formatMovementDate = (dateInput) => {
     if (!dateInput) return 'N/A';
@@ -19,37 +65,29 @@ const formatMovementDate = (dateInput) => {
     }
 };
 
-function PedDialogo({ orders, setOrders, isOpen, onClose, onMinimize, isMinimized, onOpenNewTab, isFullscreen = false }) {
+function PedDialogo({ orders, setOrders, products = [], loadCashBalance, isOpen, onClose, onMinimize, isMinimized, onOpenNewTab, isFullscreen = false }) {
     const [ordersIdFilter, setOrdersIdFilter] = useState('');
     const [ordersIdFilterOp, setOrdersIdFilterOp] = useState('equals');
     const [ordersCustomerFilter, setOrdersCustomerFilter] = useState('');
     const [ordersCustomerFilterOp, setOrdersCustomerFilterOp] = useState('contains');
-    const [ordersDateFromYear, setOrdersDateFromYear] = useState('');
-    const [ordersDateFromMonth, setOrdersDateFromMonth] = useState('');
-    const [ordersDateFromDay, setOrdersDateFromDay] = useState('');
-    const [ordersDateFromHour, setOrdersDateFromHour] = useState('');
-    const [ordersDateFromMinute, setOrdersDateFromMinute] = useState('');
-    const [ordersDateToYear, setOrdersDateToYear] = useState('');
-    const [ordersDateToMonth, setOrdersDateToMonth] = useState('');
-    const [ordersDateToDay, setOrdersDateToDay] = useState('');
-    const [ordersDateToHour, setOrdersDateToHour] = useState('');
-    const [ordersDateToMinute, setOrdersDateToMinute] = useState('');
+
+    // Fechas simplificadas a dos estados
+    const [dateFrom, setDateFrom] = useState('');
+    const [dateTo, setDateTo] = useState('');
+
     const [ordersPaymentMethodFilter, setOrdersPaymentMethodFilter] = useState([]);
     const [ordersStatusFilter, setOrdersStatusFilter] = useState([]);
     const [ordersProductFilter, setOrdersProductFilter] = useState('');
     const [ordersUnitsFilter, setOrdersUnitsFilter] = useState('');
     const [ordersUnitsFilterOp, setOrdersUnitsFilterOp] = useState('equals');
-    // Estado para controlar qué pedidos tienen abierto el menú de productos
-    const [openProducts, setOpenProducts] = useState({});
-    // Estado para controlar si los filtros están desplegados
-    const [showFilters, setShowFilters] = useState(false);
 
-    const toggleProducts = (orderId) => {
-        setOpenProducts(prev => ({
-            ...prev,
-            [orderId]: !prev[orderId]
-        }));
-    };
+    // Filtros rebatibles
+    const [showFilters, setShowFilters] = useState(false);
+    const [editingOrderId, setEditingOrderId] = useState(null);
+    const [editOrderForm, setEditOrderForm] = useState(null);
+    const [editMessage, setEditMessage] = useState('');
+    const [confirmDelivery, setConfirmDelivery] = useState(null);
+    const [exitEnCambio, setExitEnCambio] = useState(null);
 
     // Estados para drag & drop
     const [position, setPosition] = useState({ x: 100, y: 100 });
@@ -57,14 +95,127 @@ function PedDialogo({ orders, setOrders, isOpen, onClose, onMinimize, isMinimize
     const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
     const dialogRef = useRef(null);
 
-    const handleUpdateOrderStatus = async (orderId, newStatus) => {
+    const applyStatusUpdate = async (orderId, newStatus) => {
         try {
-            await updateOrderStatus(orderId, newStatus);
-            setOrders(prev => prev.map(order => 
-                order.id === orderId ? { ...order, status: newStatus } : order
-            ));
+            const res = await updateOrderStatus(orderId, newStatus);
+            const updated = res?.data ? normalizeOrder(res.data) : null;
+            setOrders(prev =>
+                prev.map(order => {
+                    if (order.id !== orderId) return order;
+                    return updated ? { ...order, ...updated } : { ...order, status: newStatus };
+                })
+            );
+            if (newStatus === 'Entregado' && loadCashBalance) {
+                await loadCashBalance();
+            }
         } catch (err) {
             console.error('Error actualizando estado del pedido:', err);
+        }
+    };
+
+    const handleStatusChangeRequest = (order, newStatus) => {
+        if (newStatus === order.status) return;
+
+        if (newStatus === 'Entregado') {
+            setConfirmDelivery({ orderId: order.id, newStatus });
+            return;
+        }
+
+        if (order.status === 'En cambio' && newStatus !== 'En cambio') {
+            setExitEnCambio({ order, newStatus });
+            return;
+        }
+
+        applyStatusUpdate(order.id, newStatus);
+    };
+
+    const productOptions = products
+        .filter(p => p.category === 'Producto')
+        .map(p => ({ value: p.id, label: p.name }));
+
+    const openEditOrder = (order) => {
+        const paidTotal = Number(order.paidTotalAtChange ?? order.totalAmount) || 0;
+        setEditingOrderId(order.id);
+        setEditOrderForm({
+            paidTotal,
+            items: (order.items || []).map(item => {
+                const qty = Number(item.quantity) || 0;
+                const unitPrice = Number(item.unitPrice) || 0;
+                return {
+                    productId: products.find(p => p.name === item.productName)?.id || '',
+                    productName: item.productName || '',
+                    quantity: qty || 1,
+                    unitPrice,
+                    total: qty * unitPrice,
+                };
+            }),
+            notes: order.notes || '',
+        });
+        setEditMessage('');
+    };
+
+    const closeEditOrder = () => {
+        setEditingOrderId(null);
+        setEditOrderForm(null);
+        setEditMessage('');
+    };
+
+    const calculateEditOrderTotal = () => {
+        if (!editOrderForm) return 0;
+        return calculateItemsTotal(editOrderForm.items);
+    };
+
+    const updateEditItem = (index, field, value) => {
+        setEditOrderForm(prev => {
+            const updatedItems = [...prev.items];
+            const currentItem = { ...updatedItems[index] };
+            if (field === 'product') {
+                currentItem.productId = value ? value.value : '';
+                currentItem.productName = value ? value.label : '';
+                const productData = products.find(p => p.id === currentItem.productId);
+                if (productData) currentItem.unitPrice = Number(productData.price) || 0;
+            } else {
+                currentItem[field] = value;
+            }
+            const quantity = Number(currentItem.quantity) || 0;
+            const unitPrice = Number(currentItem.unitPrice) || 0;
+            currentItem.total = quantity * unitPrice;
+            updatedItems[index] = currentItem;
+            return { ...prev, items: updatedItems };
+        });
+    };
+
+    const handleSaveEditOrder = async (e) => {
+        e.preventDefault();
+        const validItems = editOrderForm.items.filter(item =>
+            item.productName.trim() && Number(item.quantity) > 0 && Number(item.unitPrice) > 0
+        );
+        if (validItems.length === 0) {
+            setEditMessage('Debe tener al menos un producto válido.');
+            return;
+        }
+        try {
+            const res = await updateOrder(editingOrderId, {
+                items: validItems.map(i => {
+                    const qty = Number(i.quantity);
+                    const unitPrice = Number(i.unitPrice);
+                    return {
+                        product_name: i.productName,
+                        quantity: qty,
+                        unit_price: unitPrice,
+                        total: qty * unitPrice,
+                    };
+                }),
+                notes: editOrderForm.notes,
+            });
+            const updated = normalizeOrder(res.data);
+            setOrders(prev => prev.map(order =>
+                order.id === editingOrderId ? { ...order, ...updated } : order
+            ));
+            closeEditOrder();
+        } catch (err) {
+            console.error('Error actualizando pedido:', err);
+            setEditMessage('Error al actualizar el pedido.');
         }
     };
 
@@ -84,8 +235,8 @@ function PedDialogo({ orders, setOrders, isOpen, onClose, onMinimize, isMinimize
             const minY = 0;
             const dialogWidth = dialogRef.current?.offsetWidth || 400;
             const dialogHeight = dialogRef.current?.offsetHeight || 200;
-            const maxX = window.innerWidth - 200; // igual que caja
-            const maxY = window.innerHeight - 50; // igual que caja
+            const maxX = window.innerWidth - 200;
+            const maxY = window.innerHeight - 50;
             let newX = Math.max(minX, Math.min(maxX, e.clientX - dragOffset.x));
             let newY = Math.max(minY, Math.min(maxY, e.clientY - dragOffset.y));
             setPosition({ x: newX, y: newY });
@@ -109,8 +260,27 @@ function PedDialogo({ orders, setOrders, isOpen, onClose, onMinimize, isMinimize
 
     if (!isOpen) return null;
 
+    const toDateOnlyString = (value) => {
+        if (!value) return '';
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) return '';
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    };
+
+    const getQuantityInputProps = (unit = 'u') => {
+        const normalized = String(unit || '').trim().toLowerCase();
+        const integerUnits = ['u', 'unidad', 'unidades', 'un', 'unit', 'units'];
+        return integerUnits.includes(normalized)
+            ? { min: '1', step: '1' }
+            : { min: '0.01', step: '0.01' };
+    };
+
+    const quantityInputProps = getQuantityInputProps('u');
+
     const filteredOrders = orders.filter(order => {
-        // Filtro por ID
         if (ordersIdFilter) {
             const orderId = Number(order.id);
             const filterValue = Number(ordersIdFilter);
@@ -120,82 +290,59 @@ function PedDialogo({ orders, setOrders, isOpen, onClose, onMinimize, isMinimize
             if (ordersIdFilterOp === 'gt' && orderId <= filterValue) return false;
             if (ordersIdFilterOp === 'gte' && orderId < filterValue) return false;
         }
-        
-        // Filtro por cliente
+
         if (ordersCustomerFilter) {
-            const customerName = (order.customerName || '').toLowerCase();
+            const customerName = String(order.customerName || '').toLowerCase();
             const filterLower = ordersCustomerFilter.toLowerCase();
             if (ordersCustomerFilterOp === 'contains' && !customerName.includes(filterLower)) return false;
             if (ordersCustomerFilterOp === 'equals' && customerName !== filterLower) return false;
         }
-        
-        // Filtro por fecha granular
-        if (ordersDateFromYear || ordersDateFromMonth || ordersDateFromDay || ordersDateFromHour || ordersDateFromMinute ||
-            ordersDateToYear || ordersDateToMonth || ordersDateToDay || ordersDateToHour || ordersDateToMinute) {
-            const orderDate = new Date(order.fecha_de_orden_del_pedido);
-            
-            if (ordersDateFromYear || ordersDateFromMonth || ordersDateFromDay || ordersDateFromHour || ordersDateFromMinute) {
-                const fromYear = ordersDateFromYear ? parseInt(ordersDateFromYear) : null;
-                const fromMonth = ordersDateFromMonth ? parseInt(ordersDateFromMonth) : null;
-                const fromDay = ordersDateFromDay ? parseInt(ordersDateFromDay) : null;
-                const fromHour = ordersDateFromHour ? parseInt(ordersDateFromHour) : null;
-                const fromMinute = ordersDateFromMinute ? parseInt(ordersDateFromMinute) : null;
-                
-                if (fromYear !== null && orderDate.getFullYear() < fromYear) return false;
-                if (fromMonth !== null && orderDate.getMonth() + 1 < fromMonth) return false;
-                if (fromDay !== null && orderDate.getDate() < fromDay) return false;
-                if (fromHour !== null && orderDate.getHours() < fromHour) return false;
-                if (fromMinute !== null && orderDate.getMinutes() < fromMinute) return false;
-            }
-            
-            if (ordersDateToYear || ordersDateToMonth || ordersDateToDay || ordersDateToHour || ordersDateToMinute) {
-                const toYear = ordersDateToYear ? parseInt(ordersDateToYear) : null;
-                const toMonth = ordersDateToMonth ? parseInt(ordersDateToMonth) : null;
-                const toDay = ordersDateToDay ? parseInt(ordersDateToDay) : null;
-                const toHour = ordersDateToHour ? parseInt(ordersDateToHour) : null;
-                const toMinute = ordersDateToMinute ? parseInt(ordersDateToMinute) : null;
-                
-                if (toYear !== null && orderDate.getFullYear() > toYear) return false;
-                if (toMonth !== null && orderDate.getMonth() + 1 > toMonth) return false;
-                if (toDay !== null && orderDate.getDate() > toDay) return false;
-                if (toHour !== null && orderDate.getHours() > toHour) return false;
-                if (toMinute !== null && orderDate.getMinutes() > toMinute) return false;
-            }
+
+        if (dateFrom || dateTo) {
+            const rawDate = order.fecha_de_orden_del_pedido || order.created_at || order.date;
+            if (!rawDate) return false;
+
+            const orderDateStr = toDateOnlyString(rawDate);
+            if (!orderDateStr) return false;
+
+            if (dateFrom && orderDateStr < dateFrom) return false;
+            if (dateTo && orderDateStr > dateTo) return false;
         }
-        
-        // Filtro por método de pago
+
         if (ordersPaymentMethodFilter.length > 0) {
-            if (!ordersPaymentMethodFilter.includes(order.paymentMethod)) return false;
+            const paymentMethod = String(order.paymentMethod || '').toLowerCase();
+            if (!ordersPaymentMethodFilter.includes(paymentMethod)) return false;
         }
-        
-        // Filtro por estado
+
         if (ordersStatusFilter.length > 0) {
             if (!ordersStatusFilter.includes(order.status)) return false;
         }
-        
-        // Filtro por producto
+
         if (ordersProductFilter) {
-            const hasProduct = order.items.some(item => 
-                (item.productName || '').toLowerCase().includes(ordersProductFilter.toLowerCase())
-            );
+            const hasProduct = Array.isArray(order.items)
+                ? order.items.some(item =>
+                    String(item.productName || '').toLowerCase().includes(ordersProductFilter.toLowerCase())
+                )
+                : false;
             if (!hasProduct) return false;
         }
-        
-        // Filtro por unidades
+
         if (ordersUnitsFilter) {
             const filterValue = Number(ordersUnitsFilter);
-            const hasMatchingQuantity = order.items.some(item => {
-                const quantity = Number(item.quantity) || 0;
-                if (ordersUnitsFilterOp === 'equals' && quantity === filterValue) return true;
-                if (ordersUnitsFilterOp === 'greater' && quantity > filterValue) return true;
-                if (ordersUnitsFilterOp === 'greaterOrEqual' && quantity >= filterValue) return true;
-                if (ordersUnitsFilterOp === 'less' && quantity < filterValue) return true;
-                if (ordersUnitsFilterOp === 'lessOrEqual' && quantity <= filterValue) return true;
-                return false;
-            });
+            const hasMatchingQuantity = Array.isArray(order.items)
+                ? order.items.some(item => {
+                    const quantity = Number(item.quantity) || 0;
+                    if (ordersUnitsFilterOp === 'equals' && quantity === filterValue) return true;
+                    if (ordersUnitsFilterOp === 'greater' && quantity > filterValue) return true;
+                    if (ordersUnitsFilterOp === 'greaterOrEqual' && quantity >= filterValue) return true;
+                    if (ordersUnitsFilterOp === 'less' && quantity < filterValue) return true;
+                    if (ordersUnitsFilterOp === 'lessOrEqual' && quantity <= filterValue) return true;
+                    return false;
+                })
+                : false;
             if (!hasMatchingQuantity) return false;
         }
-        
+
         return true;
     });
 
@@ -203,8 +350,8 @@ function PedDialogo({ orders, setOrders, isOpen, onClose, onMinimize, isMinimize
         <div
             ref={dialogRef}
             className={`fixed bg-white flex flex-col ${
-                isFullscreen 
-                    ? 'inset-0 rounded-none' 
+                isFullscreen
+                    ? 'inset-0 rounded-none'
                     : `rounded-lg shadow-2xl border-2 border-gray-300 ${isMinimized ? 'h-auto' : 'min-h-[600px]'}`
             }`}
             style={{
@@ -219,15 +366,13 @@ function PedDialogo({ orders, setOrders, isOpen, onClose, onMinimize, isMinimize
                 overflow: isMinimized ? 'hidden' : 'auto'
             }}
         >
-            {/* Header */}
-            <div 
+            <div
                 className={`dialog-header bg-gradient-to-r from-blue-600 to-blue-700 text-white px-4 ${isMinimized ? 'py-2 min-h-[56px]' : 'py-3'} ${isFullscreen ? '' : 'rounded-t-lg cursor-move'} flex items-center justify-between`}
                 onMouseDown={isFullscreen ? undefined : handleMouseDown}
-                style={isMinimized ? {overflow: 'hidden'} : {}}
+                style={isMinimized ? { overflow: 'hidden' } : {}}
             >
                 <h3 className="text-lg font-bold flex items-center gap-2 whitespace-nowrap overflow-hidden text-ellipsis w-full">
                     <span>Historial de Pedidos</span>
-                    {/* No mostrar el contador de pedidos cuando está minimizado */}
                     {!isMinimized && <span className="text-sm font-normal">({filteredOrders.length} pedidos)</span>}
                 </h3>
                 <div className="flex items-center gap-2 flex-shrink-0">
@@ -257,38 +402,23 @@ function PedDialogo({ orders, setOrders, isOpen, onClose, onMinimize, isMinimize
                             </svg>
                         </button>
                     )}
-                    {isFullscreen && (
-                        <button
-                            onClick={onClose}
-                            className="hover:bg-red-600 p-1.5 rounded transition-colors"
-                            title="Cerrar"
-                        >
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                            </svg>
-                        </button>
-                    )}
-                    {!isFullscreen && (
-                        <button
-                            onClick={onClose}
-                            className="hover:bg-red-600 p-1.5 rounded transition-colors"
-                            title="Cerrar"
-                        >
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                            </svg>
-                        </button>
-                    )}
+                    <button
+                        onClick={onClose}
+                        className="hover:bg-red-600 p-1.5 rounded transition-colors"
+                        title="Cerrar"
+                    >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
                 </div>
             </div>
 
-            {/* Contenido */}
             {!isMinimized && (
                 <div className="flex-1 overflow-auto p-6 bg-gray-50">
-                    {/* Filtros */}
                     <div className="bg-white rounded-lg shadow-md mb-6 border border-gray-200">
                         <button
-                            onClick={() => setShowFilters(!showFilters)}
+                            onClick={() => setShowFilters(prev => !prev)}
                             className="w-full px-6 py-4 text-left flex justify-between items-center hover:bg-gray-50 transition-colors"
                         >
                             <h4 className="text-lg font-bold text-gray-800">🔍 Filtros de Búsqueda</h4>
@@ -296,231 +426,90 @@ function PedDialogo({ orders, setOrders, isOpen, onClose, onMinimize, isMinimize
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                             </svg>
                         </button>
-                        
+
                         {showFilters && (
-                        <div className="p-6 border-t border-gray-200">
-                        
-                        {/* Filtro ID */}
-                        <div className="mb-4 flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-3" style={{ flexShrink: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                            <label className="font-medium text-gray-700 sm:min-w-[80px]">ID:</label>
-                            <select 
-                                value={ordersIdFilterOp} 
-                                onChange={e => setOrdersIdFilterOp(e.target.value)}
-                                className="w-full sm:w-auto px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                            >
-                                <option value="equals">Es igual</option>
-                                <option value="lt">&lt;</option>
-                                <option value="lte">&le;</option>
-                                <option value="gt">&gt;</option>
-                                <option value="gte">&ge;</option>
-                            </select>
-                            <input 
-                                type="number" 
-                                value={ordersIdFilter} 
-                                onChange={e => setOrdersIdFilter(e.target.value)} 
-                                placeholder="ID del pedido..." 
-                                className="w-full sm:flex-1 px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                style={{ whiteSpace: 'nowrap', flexShrink: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}
-                            />
-                        </div>
+                            <div className="p-6 border-t border-gray-200">
+                                <div className="mb-4 flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-3">
+                                    <label className="font-medium text-gray-700 sm:min-w-[80px]">ID:</label>
+                                    <select
+                                        value={ordersIdFilterOp}
+                                        onChange={e => setOrdersIdFilterOp(e.target.value)}
+                                        className="w-full sm:w-auto px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                    >
+                                        <option value="equals">Es igual</option>
+                                        <option value="lt">&lt;</option>
+                                        <option value="lte">&le;</option>
+                                        <option value="gt">&gt;</option>
+                                        <option value="gte">&ge;</option>
+                                    </select>
+                                    <input
+                                        type="number"
+                                        value={ordersIdFilter}
+                                        onChange={e => setOrdersIdFilter(e.target.value)}
+                                        placeholder="ID del pedido..."
+                                        className="w-full sm:flex-1 px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                    />
+                                </div>
 
-                        {/* Filtro Cliente */}
-                        <div className="mb-4 flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-3" style={{ flexShrink: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                            <label className="font-medium text-gray-700 sm:min-w-[80px]">Cliente:</label>
-                            <select 
-                                value={ordersCustomerFilterOp} 
-                                onChange={e => setOrdersCustomerFilterOp(e.target.value)}
-                                className="w-full sm:w-auto px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                            >
-                                <option value="contains">Contiene</option>
-                                <option value="equals">Es igual</option>
-                            </select>
-                            <input 
-                                type="text" 
-                                value={ordersCustomerFilter} 
-                                onChange={e => setOrdersCustomerFilter(e.target.value)} 
-                                placeholder="Nombre del cliente..." 
-                                className="w-full sm:flex-1 px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                style={{ whiteSpace: 'nowrap', flexShrink: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}
-                            />
-                        </div>
+                                <div className="mb-4 flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-3">
+                                    <label className="font-medium text-gray-700 sm:min-w-[80px]">Cliente:</label>
+                                    <select
+                                        value={ordersCustomerFilterOp}
+                                        onChange={e => setOrdersCustomerFilterOp(e.target.value)}
+                                        className="w-full sm:w-auto px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                    >
+                                        <option value="contains">Contiene</option>
+                                        <option value="equals">Es igual</option>
+                                    </select>
+                                    <input
+                                        type="text"
+                                        value={ordersCustomerFilter}
+                                        onChange={e => setOrdersCustomerFilter(e.target.value)}
+                                        placeholder="Nombre del cliente..."
+                                        className="w-full sm:flex-1 px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                    />
+                                </div>
 
-                        {/* Filtro Fecha Granular */}
-                        <div className="mb-4">
-                            <label className="font-medium text-gray-700 block mb-2">Fecha (granular):</label>
-                            <p className="text-sm text-gray-600 italic mb-3">
-                                💡 <strong>Filtro inteligente:</strong> Si completas solo "Desde", filtra exactamente ese período. Si completas "Hasta", filtra como rango.
-                            </p>
-                            
-                            {isFullscreen ? (
-                                <div className="mb-3 flex gap-4">
-                                    <div className="flex-1 bg-gray-50 p-4 rounded-md">
-                                        <h5 className="font-semibold text-gray-700 mb-2">Desde (opcional):</h5>
-                                        <div className="flex flex-wrap gap-3">
-                                            <div className="flex items-center gap-2">
-                                                <label className="text-sm font-medium text-gray-600">Año:</label>
-                                                <input type="number" placeholder="2024" min="2020" max="2030" 
-                                                       value={ordersDateFromYear} onChange={e => setOrdersDateFromYear(e.target.value)} 
-                                                       className="w-24 px-2 py-1 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500" />
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                <label className="text-sm font-medium text-gray-600">Mes:</label>
-                                                <input type="number" placeholder="1-12" min="1" max="12" 
-                                                       value={ordersDateFromMonth} onChange={e => setOrdersDateFromMonth(e.target.value)} 
-                                                       className="w-16 px-2 py-1 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500" />
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                <label className="text-sm font-medium text-gray-600">Día:</label>
-                                                <input type="number" placeholder="1-31" min="1" max="31" 
-                                                       value={ordersDateFromDay} onChange={e => setOrdersDateFromDay(e.target.value)} 
-                                                       className="w-16 px-2 py-1 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500" />
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                <label className="text-sm font-medium text-gray-600">Hora:</label>
-                                                <input type="number" placeholder="0-23" min="0" max="23" 
-                                                       value={ordersDateFromHour} onChange={e => setOrdersDateFromHour(e.target.value)} 
-                                                       className="w-16 px-2 py-1 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500" />
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                <label className="text-sm font-medium text-gray-600">Min:</label>
-                                                <input type="number" placeholder="0-59" min="0" max="59" 
-                                                       value={ordersDateFromMinute} onChange={e => setOrdersDateFromMinute(e.target.value)} 
-                                                       className="w-16 px-2 py-1 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500" />
-                                            </div>
+                                <div className="mb-4">
+                                    <label className="font-medium text-gray-700 block mb-2">Filtrar por Fechas:</label>
+                                    <div className={`flex gap-4 ${isFullscreen ? 'flex-row' : 'flex-col sm:flex-row'}`}>
+                                        <div className="flex-1 bg-gray-50 p-4 rounded-md border border-gray-200">
+                                            <label className="text-sm font-semibold text-gray-700 mb-2 block uppercase tracking-wide">Desde:</label>
+                                            <input
+                                                type="date"
+                                                value={dateFrom}
+                                                onChange={e => setDateFrom(e.target.value)}
+                                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                                            />
                                         </div>
-                                    </div>
 
-                                    <div className="flex-1 bg-gray-50 p-4 rounded-md">
-                                        <h5 className="font-semibold text-gray-700 mb-2">Hasta (opcional):</h5>
-                                        <div className="flex flex-wrap gap-3">
-                                            <div className="flex items-center gap-2">
-                                                <label className="text-sm font-medium text-gray-600">Año:</label>
-                                                <input type="number" placeholder="2024" min="2020" max="2030" 
-                                                       value={ordersDateToYear} onChange={e => setOrdersDateToYear(e.target.value)} 
-                                                       className="w-24 px-2 py-1 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500" />
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                <label className="text-sm font-medium text-gray-600">Mes:</label>
-                                                <input type="number" placeholder="1-12" min="1" max="12" 
-                                                       value={ordersDateToMonth} onChange={e => setOrdersDateToMonth(e.target.value)} 
-                                                       className="w-16 px-2 py-1 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500" />
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                <label className="text-sm font-medium text-gray-600">Día:</label>
-                                                <input type="number" placeholder="1-31" min="1" max="31" 
-                                                       value={ordersDateToDay} onChange={e => setOrdersDateToDay(e.target.value)} 
-                                                       className="w-16 px-2 py-1 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500" />
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                <label className="text-sm font-medium text-gray-600">Hora:</label>
-                                                <input type="number" placeholder="0-23" min="0" max="23" 
-                                                       value={ordersDateToHour} onChange={e => setOrdersDateToHour(e.target.value)} 
-                                                       className="w-16 px-2 py-1 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500" />
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                <label className="text-sm font-medium text-gray-600">Min:</label>
-                                                <input type="number" placeholder="0-59" min="0" max="59" 
-                                                       value={ordersDateToMinute} onChange={e => setOrdersDateToMinute(e.target.value)} 
-                                                       className="w-16 px-2 py-1 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500" />
-                                            </div>
+                                        <div className="flex-1 bg-gray-50 p-4 rounded-md border border-gray-200">
+                                            <label className="text-sm font-semibold text-gray-700 mb-2 block uppercase tracking-wide">Hasta:</label>
+                                            <input
+                                                type="date"
+                                                value={dateTo}
+                                                onChange={e => setDateTo(e.target.value)}
+                                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                                            />
                                         </div>
                                     </div>
                                 </div>
-                            ) : (
-                                <>
-                                    <div className="bg-gray-50 p-4 rounded-md mb-3">
-                                        <h5 className="font-semibold text-gray-700 mb-2">Desde (opcional):</h5>
-                                        <div className="flex flex-wrap gap-3">
-                                            <div className="flex items-center gap-2">
-                                                <label className="text-sm font-medium text-gray-600">Año:</label>
-                                                <input type="number" placeholder="2024" min="2020" max="2030" 
-                                                       value={ordersDateFromYear} onChange={e => setOrdersDateFromYear(e.target.value)} 
-                                                       className="w-24 px-2 py-1 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500" />
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                <label className="text-sm font-medium text-gray-600">Mes:</label>
-                                                <input type="number" placeholder="1-12" min="1" max="12" 
-                                                       value={ordersDateFromMonth} onChange={e => setOrdersDateFromMonth(e.target.value)} 
-                                                       className="w-16 px-2 py-1 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500" />
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                <label className="text-sm font-medium text-gray-600">Día:</label>
-                                                <input type="number" placeholder="1-31" min="1" max="31" 
-                                                       value={ordersDateFromDay} onChange={e => setOrdersDateFromDay(e.target.value)} 
-                                                       className="w-16 px-2 py-1 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500" />
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                <label className="text-sm font-medium text-gray-600">Hora:</label>
-                                                <input type="number" placeholder="0-23" min="0" max="23" 
-                                                       value={ordersDateFromHour} onChange={e => setOrdersDateFromHour(e.target.value)} 
-                                                       className="w-16 px-2 py-1 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500" />
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                <label className="text-sm font-medium text-gray-600">Min:</label>
-                                                <input type="number" placeholder="0-59" min="0" max="59" 
-                                                       value={ordersDateFromMinute} onChange={e => setOrdersDateFromMinute(e.target.value)} 
-                                                       className="w-16 px-2 py-1 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500" />
-                                            </div>
-                                        </div>
-                                    </div>
-                                    
-                                    <div className="bg-gray-50 p-4 rounded-md">
-                                        <h5 className="font-semibold text-gray-700 mb-2">Hasta (opcional):</h5>
-                                        <div className="flex flex-wrap gap-3">
-                                            <div className="flex items-center gap-2">
-                                                <label className="text-sm font-medium text-gray-600">Año:</label>
-                                                <input type="number" placeholder="2024" min="2020" max="2030" 
-                                                       value={ordersDateToYear} onChange={e => setOrdersDateToYear(e.target.value)} 
-                                                       className="w-24 px-2 py-1 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500" />
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                <label className="text-sm font-medium text-gray-600">Mes:</label>
-                                                <input type="number" placeholder="1-12" min="1" max="12" 
-                                                       value={ordersDateToMonth} onChange={e => setOrdersDateToMonth(e.target.value)} 
-                                                       className="w-16 px-2 py-1 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500" />
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                <label className="text-sm font-medium text-gray-600">Día:</label>
-                                                <input type="number" placeholder="1-31" min="1" max="31" 
-                                                       value={ordersDateToDay} onChange={e => setOrdersDateToDay(e.target.value)} 
-                                                       className="w-16 px-2 py-1 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500" />
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                <label className="text-sm font-medium text-gray-600">Hora:</label>
-                                                <input type="number" placeholder="0-23" min="0" max="23" 
-                                                       value={ordersDateToHour} onChange={e => setOrdersDateToHour(e.target.value)} 
-                                                       className="w-16 px-2 py-1 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500" />
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                <label className="text-sm font-medium text-gray-600">Min:</label>
-                                                <input type="number" placeholder="0-59" min="0" max="59" 
-                                                       value={ordersDateToMinute} onChange={e => setOrdersDateToMinute(e.target.value)} 
-                                                       className="w-16 px-2 py-1 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500" />
-                                            </div>
-                                        </div>
-                                    </div>
-                                </>
-                            )}
-                        </div>
-                        
-                        {/* Filtro Métodos de Pago + Estados (en pantalla completa lado a lado) */}
-                        {isFullscreen ? (
-                            <div className="mb-4 flex flex-wrap gap-6">
-                                <div className="flex-1 min-w-[220px]">
+
+                                <div className="mb-4">
                                     <label className="font-medium text-gray-700 block mb-2">Métodos de Pago:</label>
                                     <div className="flex flex-wrap gap-4">
                                         {['debito', 'credito', 'transferencia', 'efectivo'].map(method => (
                                             <label key={method} className="flex items-center gap-2 cursor-pointer">
-                                                <input 
-                                                    type="checkbox" 
-                                                    checked={ordersPaymentMethodFilter.includes(method)} 
+                                                <input
+                                                    type="checkbox"
+                                                    checked={ordersPaymentMethodFilter.includes(method)}
                                                     onChange={e => {
                                                         if (e.target.checked) {
-                                                            setOrdersPaymentMethodFilter([...ordersPaymentMethodFilter, method]);
+                                                            setOrdersPaymentMethodFilter(prev => [...prev, method]);
                                                         } else {
-                                                            setOrdersPaymentMethodFilter(ordersPaymentMethodFilter.filter(m => m !== method));
+                                                            setOrdersPaymentMethodFilter(prev => prev.filter(m => m !== method));
                                                         }
-                                                    }} 
+                                                    }}
                                                     className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
                                                 />
                                                 <span className="text-gray-700 capitalize">{method}</span>
@@ -529,221 +518,235 @@ function PedDialogo({ orders, setOrders, isOpen, onClose, onMinimize, isMinimize
                                     </div>
                                 </div>
 
-                                <div className="flex-1 min-w-[220px]" style={{ marginLeft: '-25px' }}>
+                                <div className="mb-4">
                                     <label className="font-medium text-gray-700 block mb-2">Estados:</label>
                                     <div className="flex flex-wrap gap-4">
-                                        {['Pendiente', 'En Preparación', 'Listo', 'Entregado', 'Cancelado'].map(status => (
+                                        {ORDER_STATUSES.map(status => (
                                             <label key={status} className="flex items-center gap-2 cursor-pointer">
-                                                <input 
-                                                    type="checkbox" 
-                                                    checked={ordersStatusFilter.includes(status)} 
+                                                <input
+                                                    type="checkbox"
+                                                    checked={ordersStatusFilter.includes(status)}
                                                     onChange={e => {
                                                         if (e.target.checked) {
-                                                            setOrdersStatusFilter([...ordersStatusFilter, status]);
+                                                            setOrdersStatusFilter(prev => [...prev, status]);
                                                         } else {
-                                                            setOrdersStatusFilter(ordersStatusFilter.filter(s => s !== status));
+                                                            setOrdersStatusFilter(prev => prev.filter(s => s !== status));
                                                         }
-                                                    }} 
+                                                    }}
                                                     className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
                                                 />
                                                 <span className="text-gray-700">{status}</span>
                                             </label>
                                         ))}
                                     </div>
+                                </div>
+
+                                <div className="mb-4 flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-3">
+                                    <label className="font-medium text-gray-700 sm:min-w-[120px]">Buscar Producto:</label>
+                                    <input
+                                        type="text"
+                                        value={ordersProductFilter}
+                                        onChange={e => setOrdersProductFilter(e.target.value)}
+                                        placeholder="Nombre del producto..."
+                                        className="w-full sm:flex-1 px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                    />
+                                </div>
+
+                                <div className="mb-0 flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-3">
+                                    <label className="font-medium text-gray-700 sm:min-w-[80px]">Unidades:</label>
+                                    <select
+                                        value={ordersUnitsFilterOp}
+                                        onChange={e => setOrdersUnitsFilterOp(e.target.value)}
+                                        className="w-full sm:w-auto px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                    >
+                                        <option value="equals">=</option>
+                                        <option value="greater">&gt;</option>
+                                        <option value="greaterOrEqual">&gt;=</option>
+                                        <option value="less">&lt;</option>
+                                        <option value="lessOrEqual">&lt;=</option>
+                                    </select>
+                                    <input
+                                        type="number"
+                                        {...quantityInputProps}
+                                        value={ordersUnitsFilter}
+                                        onChange={e => setOrdersUnitsFilter(e.target.value)}
+                                        placeholder="Cantidad..."
+                                        className="w-full sm:flex-1 px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                    />
                                 </div>
                             </div>
-                        ) : (
-                            <>
-                                {/* Filtro Métodos de Pago */}
-                                <div className="mb-4">
-                                    <label className="font-medium text-gray-700 block mb-2">Métodos de Pago:</label>
-                                    <div className="flex flex-wrap gap-4">
-                                        {['debito', 'credito', 'transferencia', 'efectivo'].map(method => (
-                                            <label key={method} className="flex items-center gap-2 cursor-pointer">
-                                                <input 
-                                                    type="checkbox" 
-                                                    checked={ordersPaymentMethodFilter.includes(method)} 
-                                                    onChange={e => {
-                                                        if (e.target.checked) {
-                                                            setOrdersPaymentMethodFilter([...ordersPaymentMethodFilter, method]);
-                                                        } else {
-                                                            setOrdersPaymentMethodFilter(ordersPaymentMethodFilter.filter(m => m !== method));
-                                                        }
-                                                    }} 
-                                                    className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                                                />
-                                                <span className="text-gray-700 capitalize">{method}</span>
-                                            </label>
-                                        ))}
-                                    </div>
-                                </div>
-
-                                {/* Filtro Estados */}
-                                <div className="mb-4">
-                                    <label className="font-medium text-gray-700 block mb-2">Estados:</label>
-                                    <div className="flex flex-wrap gap-4">
-                                        {['Pendiente', 'En Preparación', 'Listo', 'Entregado', 'Cancelado'].map(status => (
-                                            <label key={status} className="flex items-center gap-2 cursor-pointer">
-                                                <input 
-                                                    type="checkbox" 
-                                                    checked={ordersStatusFilter.includes(status)} 
-                                                    onChange={e => {
-                                                        if (e.target.checked) {
-                                                            setOrdersStatusFilter([...ordersStatusFilter, status]);
-                                                        } else {
-                                                            setOrdersStatusFilter(ordersStatusFilter.filter(s => s !== status));
-                                                        }
-                                                    }} 
-                                                    className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                                                />
-                                                <span className="text-gray-700">{status}</span>
-                                            </label>
-                                        ))}
-                                    </div>
-                                </div>
-                            </>
-                        )}
-                        
-                        {/* Filtro Producto */}
-                        <div className="mb-4 flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-3" style={{ flexShrink: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                            <label className="font-medium text-gray-700 sm:min-w-[120px]">Buscar Producto:</label>
-                            <input 
-                                type="text" 
-                                value={ordersProductFilter} 
-                                onChange={e => setOrdersProductFilter(e.target.value)} 
-                                placeholder="Nombre del producto..." 
-                                className="w-full sm:flex-1 px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                style={{ whiteSpace: 'nowrap', flexShrink: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}
-                            />
-                        </div>
-                        
-                        {/* Filtro Unidades */}
-                        <div className="mb-0 flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-3" style={{ flexShrink: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                            <label className="font-medium text-gray-700 sm:min-w-[80px]">Unidades:</label>
-                            <select 
-                                value={ordersUnitsFilterOp} 
-                                onChange={e => setOrdersUnitsFilterOp(e.target.value)}
-                                className="w-full sm:w-auto px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                            >
-                                <option value="equals">=</option>
-                                <option value="greater">&gt;</option>
-                                <option value="greaterOrEqual">&gt;=</option>
-                                <option value="less">&lt;</option>
-                                <option value="lessOrEqual">&lt;=</option>
-                            </select>
-                            <input 
-                                type="number" 
-                                value={ordersUnitsFilter} 
-                                onChange={e => setOrdersUnitsFilter(e.target.value)} 
-                                placeholder="Cantidad..." 
-                                className="w-full sm:flex-1 px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                style={{ whiteSpace: 'nowrap', flexShrink: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}
-                            />
-                        </div>
-                        </div>
                         )}
                     </div>
 
-                    {/* Lista de Pedidos */}
-                    <div className={`grid gap-4 ${
-                        isFullscreen
-                            ? 'grid-cols-1 min-[1200px]:grid-cols-2 min-[1600px]:grid-cols-3 min-[2000px]:grid-cols-4'
-                            : 'grid-cols-1 min-[1400px]:grid-cols-2 min-[1800px]:grid-cols-3'
-                    }`}>
+                    <div className="overflow-x-auto bg-white rounded-lg shadow-md border border-gray-200">
                         {filteredOrders.length === 0 ? (
-                            <div className="bg-white rounded-lg shadow-md p-8 text-center border border-gray-200">
-                                <p className="text-gray-500 text-lg">No hay pedidos que mostrar</p>
+                            <div className="p-8 text-center text-gray-500">
+                                No hay pedidos que mostrar
                             </div>
                         ) : (
-                            filteredOrders.map(order => (
-                                <div key={order.id} className="bg-white rounded-lg shadow-md border border-gray-200 overflow-hidden hover:shadow-lg transition-shadow">
-                                    {/* Header del pedido */}
-                                    <div className="bg-gradient-to-r from-blue-50 to-blue-100 px-6 py-4 border-b border-blue-200 flex items-center justify-between">
-                                        <div>
-                                            <h3 className="text-xl font-bold text-gray-800">
-                                                Pedido #{order.id} - <span className="text-gray-600 text-base">Registrado: {formatMovementDate(order.fecha_de_orden_del_pedido)}</span>
-                                            </h3>
-                                        </div>
-                                        <div className="flex items-center gap-3">
-                                            <span className={`px-4 py-2 rounded-full text-sm font-semibold ${
-                                                order.status === 'Pendiente' ? 'bg-yellow-100 text-yellow-800' :
-                                                order.status === 'En Preparación' ? 'bg-blue-100 text-blue-800' :
-                                                order.status === 'Listo' ? 'bg-green-100 text-green-800' :
-                                                order.status === 'Entregado' ? 'bg-gray-100 text-gray-800' :
-                                                'bg-red-100 text-red-800'
-                                            }`}>
-                                                {order.status}
-                                            </span>
-                                            <select 
-                                                value={order.status} 
-                                                onChange={e => handleUpdateOrderStatus(order.id, e.target.value)}
-                                                className="px-3 py-2 border-2 border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white font-medium"
-                                            >
-                                                <option value="Pendiente">Pendiente</option>
-                                                <option value="En Preparación">En Preparación</option>
-                                                <option value="Listo">Listo</option>
-                                                <option value="Entregado">Entregado</option>
-                                                <option value="Cancelado">Cancelado</option>
-                                            </select>
-                                        </div>
-                                    </div>
-                                    {/* Contenido del pedido */}
-                                    <div className="p-6 space-y-3">
-                                        <div className="flex items-center gap-2">
-                                            <span className="font-bold text-gray-700">Cliente:</span>
-                                            <span className="text-gray-900">{order.customerName}</span>
-                                            <span className="text-gray-400">|</span>
-                                            <span className="font-bold text-gray-700">Entrega:</span>
-                                            <span className="text-gray-900">
-                                                {order.fecha_para_la_que_se_quiere_el_pedido ? 
-                                                    new Date(order.fecha_para_la_que_se_quiere_el_pedido).toISOString().split('T')[0].replace(/-/g, '/') 
-                                                    : 'N/A'}
-                                            </span>
-                                        </div>
-                                        <div className="flex items-center gap-2">
-                                            <span className="font-bold text-gray-700">Método de Pago:</span>
-                                            <span className="font-medium">{order.paymentMethod}</span>
-                                        </div>
-                                        <div>
-                                            <button
-                                                className="flex items-center gap-2 font-bold text-gray-700 mb-2 focus:outline-none focus:ring-2 focus:ring-blue-400"
-                                                onClick={() => toggleProducts(order.id)}
-                                                aria-expanded={!!openProducts[order.id]}
-                                                aria-controls={`productos-${order.id}`}
-                                            >
-                                                <span>Productos solicitados</span>
-                                                <svg className={`w-5 h-5 transform transition-transform ${openProducts[order.id] ? 'rotate-90' : 'rotate-0'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                                                </svg>
-                                            </button>
-                                            {openProducts[order.id] && (
-                                                <ul id={`productos-${order.id}`} className="bg-gray-50 rounded-md p-4 space-y-1 border border-gray-200">
-                                                    {order.items.map((item, index) => (
-                                                        <li key={index} className="text-gray-800">
-                                                            <span className="font-medium">{item.productName}</span> - {item.quantity || 0} unidades 
-                                                            × ${safeToFixed(item.unitPrice)} = <span className="font-semibold">${safeToFixed(item.total)}</span>
-                                                        </li>
-                                                    ))}
-                                                </ul>
-                                            )}
-                                        </div>
-                                        <div className="pt-3 border-t border-gray-200 flex justify-between items-center">
-                                            <span className="text-2xl font-bold text-gray-800">
-                                                Total: <span className="text-black">${safeToFixed(order.totalAmount)}</span>
-                                            </span>
-                                        </div>
-                                        {order.notes && (
-                                            <div className="bg-yellow-50 border-l-4 border-yellow-400 p-3 rounded">
-                                                <span className="font-bold text-gray-700">Notas:</span>
-                                                <p className="text-gray-800 mt-1">{order.notes}</p>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                            ))
+                            <table className="min-w-full divide-y divide-gray-200">
+                                <thead className="bg-slate-800 text-white">
+                                    <tr>
+                                        <th className="px-3 py-3 text-left text-sm font-semibold">ID</th>
+                                        <th className="px-3 py-3 text-left text-sm font-semibold">Cliente</th>
+                                        <th className="px-3 py-3 text-left text-sm font-semibold">Fecha</th>
+                                        <th className="px-3 py-3 text-left text-sm font-semibold">Método</th>
+                                        <th className="px-3 py-3 text-left text-sm font-semibold">Estado</th>
+                                        <th className="px-3 py-3 text-right text-sm font-semibold">Total</th>
+                                        <th className="px-3 py-3 text-left text-sm font-semibold">Productos</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-200 bg-white">
+                                    {filteredOrders.map(order => (
+                                        <tr key={order.id} className="align-top hover:bg-gray-50">
+                                            <td className="px-3 py-3 text-sm text-gray-700 whitespace-nowrap">
+                                                <div className="font-semibold">#{order.id}</div>
+                                            </td>
+                                            <td className="px-3 py-3 text-sm text-gray-700">
+                                                <div className="font-medium">{order.customerName || 'N/A'}</div>
+                                                <div className="text-xs text-gray-500">
+                                                    Entrega: {order.fecha_para_la_que_se_quiere_el_pedido
+                                                        ? new Date(order.fecha_para_la_que_se_quiere_el_pedido).toISOString().split('T')[0].replace(/-/g, '/')
+                                                        : 'N/A'}
+                                                </div>
+                                            </td>
+                                            <td className="px-3 py-3 text-sm text-gray-700 whitespace-nowrap">
+                                                {formatMovementDate(order.fecha_de_orden_del_pedido)}
+                                            </td>
+                                            <td className="px-3 py-3 text-sm text-gray-700 whitespace-nowrap">
+                                                {order.paymentMethod || 'N/A'}
+                                            </td>
+                                            <td className="px-3 py-3 text-sm">
+                                                <div className="flex flex-col gap-2">
+                                                    <span className={`inline-flex w-fit px-3 py-1 rounded-full text-xs font-semibold ${getStatusClasses(order.status)}`}>
+                                                        {order.status}
+                                                    </span>
+                                                    <select
+                                                        value={order.status}
+                                                        onChange={e => handleStatusChangeRequest(order, e.target.value)}
+                                                        className="px-2 py-1 border border-gray-300 rounded-md text-sm bg-white"
+                                                    >
+                                                        {ORDER_STATUSES.map(status => (
+                                                            <option key={status} value={status}>{status}</option>
+                                                        ))}
+                                                    </select>
+                                                    {order.status === 'En cambio' && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => openEditOrder(order)}
+                                                            className="px-2 py-1 bg-orange-500 hover:bg-orange-600 text-white rounded-md text-xs font-semibold"
+                                                        >
+                                                            Editar
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </td>
+                                            <td className="px-3 py-3 text-sm text-gray-700 text-right whitespace-nowrap font-semibold">
+                                                ${safeToFixed(order.totalAmount)}
+                                            </td>
+                                            <td className="px-3 py-3 text-sm text-gray-700 min-w-[280px]">
+                                                <table className="w-full text-sm border border-gray-200 rounded-md overflow-hidden">
+                                                    <thead className="bg-gray-100 text-gray-700">
+                                                        <tr>
+                                                            <th className="px-2 py-2 text-left font-semibold">Producto</th>
+                                                            <th className="px-2 py-2 text-right font-semibold">Cant.</th>
+                                                            <th className="px-2 py-2 text-right font-semibold">P. unit.</th>
+                                                            <th className="px-2 py-2 text-right font-semibold">Total</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        {(order.items || []).map((item, index) => (
+                                                            <tr key={`${order.id}-${index}`} className="border-t border-gray-200">
+                                                                <td className="px-2 py-2 text-left">{item.productName || 'N/A'}</td>
+                                                                <td className="px-2 py-2 text-right">{item.quantity || 0}</td>
+                                                                <td className="px-2 py-2 text-right">${safeToFixed(item.unitPrice)}</td>
+                                                                <td className="px-2 py-2 text-right">${safeToFixed(item.total)}</td>
+                                                            </tr>
+                                                        ))}
+                                                    </tbody>
+                                                </table>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
                         )}
                     </div>
                 </div>
+            )}
+
+            {editingOrderId && editOrderForm && (
+                <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-[60]">
+                    <div className="relative top-20 mx-auto p-5 border w-full max-w-4xl shadow-lg rounded-md bg-white">
+                        <form onSubmit={handleSaveEditOrder}>
+                            <h3 className="text-lg font-bold mb-2">Editar Pedido #{editingOrderId}</h3>
+                            {editMessage && <p className="text-red-600 text-sm mb-3">{editMessage}</p>}
+                            {editOrderForm.items.map((item, index) => (
+                                <div key={index} className="grid grid-cols-12 gap-3 items-center mb-2">
+                                    <div className="col-span-6">
+                                        <Select
+                                            options={productOptions}
+                                            value={productOptions.find(opt => opt.value === item.productId)}
+                                            onChange={selectedOption => updateEditItem(index, 'product', selectedOption)}
+                                            placeholder="Producto..."
+                                            isClearable
+                                        />
+                                    </div>
+                                    <div className="col-span-2">
+                                        <input
+                                            type="number"
+                                            value={item.quantity}
+                                            onChange={e => updateEditItem(index, 'quantity', e.target.value)}
+                                            className="w-full px-2 py-1 border border-gray-300 rounded-md text-sm"
+                                            min="1"
+                                            required
+                                        />
+                                    </div>
+                                    <div className="col-span-2">
+                                        <input type="number" value={item.unitPrice} readOnly className="w-full px-2 py-1 bg-gray-100 border border-gray-300 rounded-md text-sm" />
+                                    </div>
+                                    <div className="col-span-2 text-right text-sm font-semibold">
+                                        ${safeToFixed((Number(item.quantity) || 0) * (Number(item.unitPrice) || 0))}
+                                    </div>
+                                </div>
+                            ))}
+                            <PaymentDifferencePanel
+                                paidTotal={editOrderForm.paidTotal}
+                                newTotal={calculateEditOrderTotal()}
+                            />
+                            <div className="mt-4 text-right font-bold">
+                                Nuevo total del pedido: ${safeToFixed(calculateEditOrderTotal())}
+                            </div>
+                            <div className="mt-4 flex justify-end gap-3">
+                                <button type="button" onClick={closeEditOrder} className="px-4 py-2 bg-gray-300 rounded-md">Cancelar</button>
+                                <button type="submit" className="px-4 py-2 bg-orange-500 text-white rounded-md">Guardar</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {confirmDelivery && (
+                <ConfirmDeliveryModal
+                    orderId={confirmDelivery.orderId}
+                    onConfirm={() => {
+                        applyStatusUpdate(confirmDelivery.orderId, confirmDelivery.newStatus);
+                        setConfirmDelivery(null);
+                    }}
+                    onCancel={() => setConfirmDelivery(null)}
+                />
+            )}
+
+            {exitEnCambio && (
+                <ExitEnCambioModal
+                    order={exitEnCambio.order}
+                    newStatus={exitEnCambio.newStatus}
+                    onConfirm={() => {
+                        applyStatusUpdate(exitEnCambio.order.id, exitEnCambio.newStatus);
+                        setExitEnCambio(null);
+                    }}
+                    onCancel={() => setExitEnCambio(null)}
+                />
             )}
         </div>
     );

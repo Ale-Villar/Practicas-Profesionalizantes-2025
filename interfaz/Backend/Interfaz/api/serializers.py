@@ -417,27 +417,99 @@ class OrderItemSerializer(serializers.ModelSerializer):
 
 
 class OrderSerializer(serializers.ModelSerializer):
-    items = OrderItemSerializer(many=True)
+    items = OrderItemSerializer(many=True, required=False)
     user = serializers.ReadOnlyField(source='user.username')
 
     class Meta:
         model = Order
-        fields = ('id', 'customer_name', 'fecha_para_la_que_se_quiere_el_pedido', 'payment_method', 'items', 'total_amount', 'notes', 'status', 'fecha_de_orden_del_pedido', 'user')
-        read_only_fields = ('id', 'fecha_de_orden_del_pedido', 'user')
+        fields = (
+            'id', 'customer_name', 'fecha_para_la_que_se_quiere_el_pedido', 'payment_method',
+            'items', 'total_amount', 'notes', 'status', 'fecha_de_orden_del_pedido', 'user',
+            'cash_received', 'change_given', 'cash_impacted',
+            'paid_total_at_change', 'payment_difference',
+        )
+        read_only_fields = (
+            'id', 'fecha_de_orden_del_pedido', 'user', 'cash_impacted',
+            'paid_total_at_change', 'payment_difference',
+        )
+
+    def _create_order_items(self, order, items_data):
+        from decimal import Decimal
+        total = Decimal('0')
+        for item in items_data:
+            qty = Decimal(str(item.get('quantity', 1)))
+            unit = Decimal(str(item.get('unit_price', 0)))
+            line_total = qty * unit
+            OrderItem.objects.create(
+                order=order,
+                product_name=item.get('product_name', ''),
+                quantity=qty,
+                unit_price=unit,
+                total=line_total,
+            )
+            total += line_total
+        return total
+
+    def _impact_cash_on_delivery(self, order):
+        from .models import CashMovement
+        if order.status == 'Entregado' and not order.cash_impacted:
+            request = self.context.get('request')
+            user = request.user if request and request.user.is_authenticated else None
+            CashMovement.objects.create(
+                type='Entrada',
+                amount=order.total_amount,
+                description=f'Pedido #{order.id} entregado',
+                user=user,
+                payment_method=order.payment_method,
+                hidden_from_history=True,
+            )
+            order.cash_impacted = True
+            order.save(update_fields=['cash_impacted'])
 
     def create(self, validated_data):
         items_data = validated_data.pop('items', [])
         order = Order.objects.create(**validated_data)
-        total = 0
-        for item in items_data:
-            qty = item.get('quantity', 1)
-            unit = item.get('unit_price', 0)
-            line_total = qty * unit
-            OrderItem.objects.create(order=order, product_name=item.get('product_name', ''), quantity=qty, unit_price=unit, total=line_total)
-            total += line_total
+        total = self._create_order_items(order, items_data)
         order.total_amount = total
         order.save()
         return order
+
+    def _sync_payment_difference(self, order):
+        from decimal import Decimal
+        if order.paid_total_at_change is not None:
+            order.payment_difference = Decimal(str(order.paid_total_at_change)) - Decimal(str(order.total_amount))
+
+    def update(self, instance, validated_data):
+        from decimal import Decimal
+        items_data = validated_data.pop('items', None)
+        new_status = validated_data.get('status', instance.status)
+        old_status = instance.status
+
+        validated_data.pop('paid_total_at_change', None)
+        validated_data.pop('payment_difference', None)
+
+        if new_status == 'En cambio' and old_status != 'En cambio':
+            instance.paid_total_at_change = instance.total_amount
+            instance.payment_difference = Decimal('0')
+
+        if items_data is not None:
+            editable_status = instance.status == 'En cambio' or new_status == 'En cambio'
+            if not editable_status:
+                raise serializers.ValidationError({
+                    'items': 'Solo se pueden editar productos cuando el pedido está en "En cambio".'
+                })
+            instance.items.all().delete()
+            total = self._create_order_items(instance, items_data)
+            instance.total_amount = total
+            validated_data.pop('total_amount', None)
+            self._sync_payment_difference(instance)
+
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+
+        instance.save()
+        self._impact_cash_on_delivery(instance)
+        return instance
 
 
 # Serializer para auditoría de cambios de inventario (restaurado)
