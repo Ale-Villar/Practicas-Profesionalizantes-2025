@@ -1,25 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Search, Filter, ChevronRight, ArrowLeft, Calendar, User, FileWarning, Sliders, X, RotateCcw } from 'lucide-react';
 import { getLossRecords } from '../services/api';
+import { formatMoney, formatLossQuantity } from '../utils/format';
 
-// --- UTILIDADES ---
-const formatCurrency = (amount) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(parseFloat(amount) || 0);
-
-// Función para formatear la unidad de cantidad
-const formatQuantityWithUnit = (quantity, unit) => {
-    const qty = parseFloat(quantity) || 0;
-    switch (unit) {
-        case 'g':
-            return `${(qty / 1000).toFixed(3)} Kg`;
-        case 'ml':
-            return `${(qty / 1000).toFixed(3)} L`;
-        case 'unidades':
-        default:
-            return `${qty} un.`;
-    }
-};
-
-// Mapeo de categorías a texto legible
 const categoryLabels = {
     'empaque_danado': 'Empaque dañado',
     'rotura_insumo': 'Rotura del insumo',
@@ -325,7 +308,7 @@ export default function HistorialPerdidasMovil() {
                                     <span className="font-bold text-slate-800 text-base ml-2">{item.product_name}</span>
                                 </div>
                                 <span className="font-mono font-bold text-slate-600 bg-slate-100 px-2 py-1 rounded text-xs">
-                                    {formatQuantityWithUnit(item.quantity, item.product_unit)}
+                                    {formatLossQuantity(item.quantity, item.product_unit)}
                                 </span>
                             </div>
                             <div className="flex justify-between items-end">
@@ -366,11 +349,11 @@ export default function HistorialPerdidasMovil() {
                             <div className="grid grid-cols-2 gap-3">
                                 <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
                                     <span className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Costo</span>
-                                    <span className="text-lg font-bold text-slate-800">{formatCurrency(selectedLoss.cost_estimate || 0)}</span>
+                                    <span className="text-lg font-bold text-slate-800">{formatMoney(selectedLoss.cost_estimate || 0)}</span>
                                 </div>
                                 <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
                                     <span className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Cantidad</span>
-                                    <span className="text-lg font-bold text-slate-800">{formatQuantityWithUnit(selectedLoss.quantity, selectedLoss.product_unit)}</span>
+                                    <span className="text-lg font-bold text-slate-800">{formatLossQuantity(selectedLoss.quantity, selectedLoss.product_unit)}</span>
                                 </div>
                             </div>
 

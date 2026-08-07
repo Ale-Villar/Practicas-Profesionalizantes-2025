@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import Select from 'react-select';
+import { formatQuantityWithConversion, formatDisplayQuantity } from '../utils/format';
 
 const CrearNuevoProducto = ({ products, inventory, loadProducts, getInMemoryToken, api }) => {
     const [screenWidth, setScreenWidth] = useState(window.innerWidth);
@@ -10,24 +11,9 @@ const CrearNuevoProducto = ({ products, inventory, loadProducts, getInMemoryToke
         return () => window.removeEventListener('resize', handleResize);
     }, []);
 
-    // Función para convertir y formatear unidades
-    const formatQuantityWithConversion = (quantity, unit) => {
-        const num = parseFloat(quantity);
-        if (unit === 'g') {
-            if (num >= 1000) {
-                const kg = (num / 1000).toFixed(2);
-                return `${num.toFixed(1)} g (${kg} kg)`;
-            }
-            return `${num.toFixed(1)} g`;
-        } else if (unit === 'ml') {
-            if (num >= 1000) {
-                const liters = (num / 1000).toFixed(2);
-                return `${num.toFixed(1)} ml (${liters} L)`;
-            }
-            return `${num.toFixed(1)} ml`;
-        }
-        return `${num.toFixed(1)} ${unit}`;
-    };
+    // Función para formatear la cantidad mostrada
+    const getDisplayQuantity = (quantity, unit) =>
+        formatDisplayQuantity(quantity, unit, { withSuffix: false });
 
     const [newProduct, setNewProduct] = useState({
         name: '', 
@@ -105,12 +91,6 @@ const CrearNuevoProducto = ({ products, inventory, loadProducts, getInMemoryToke
             case 'unidades': return 'U';
             default: return unit?.toUpperCase() || '';
         }
-    };
-
-    // Función para formatear la cantidad mostrada
-    const getDisplayQuantity = (quantity, unit) => {
-        const num = parseFloat(quantity);
-        return num;
     };
 
     const handleCreateProduct = async (e) => {

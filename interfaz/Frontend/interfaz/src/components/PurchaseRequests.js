@@ -1,5 +1,6 @@
 
 import React from 'react';
+import { formatMoney } from '../utils/format';
 
 const PurchaseRequests = ({ purchases, onApprove, onReject, userRole }) => {
     
@@ -97,7 +98,7 @@ const PurchaseRequests = ({ purchases, onApprove, onReject, userRole }) => {
                                     </svg>
                                     <span className="text-[10px] sm:text-xs text-slate-500 uppercase tracking-wide flex-shrink-0">Total:</span>
                                     <span className="text-base sm:text-lg font-bold text-green-600">
-                                        ${(purchase.total || purchase.total_amount || 0).toFixed(2)}
+                                        {formatMoney(purchase.total || purchase.total_amount || 0)}
                                     </span>
                                 </div>
 
