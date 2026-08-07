@@ -49,10 +49,6 @@ class User(AbstractUser):
     )
     # Quitar default='Cajero' para que sea obligatorio
     role = models.ForeignKey(Role, on_delete=models.SET_NULL, null=True, blank=True, db_column='role')
-    
-    # 👇 ESTA ES LA LÍNEA AGREGADA PARA SOLUCIONAR EL ERROR 👇
-    REQUIRED_FIELDS = ['email', 'role']
-    
     # Añadimos la columna `is_active` por defecto
     is_active = models.BooleanField(default=True)
     # Campos para tracking de intentos de login
@@ -116,6 +112,7 @@ class CashMovement(models.Model):
     timestamp = models.DateTimeField(auto_now_add=True)
     user = models.ForeignKey('User', on_delete=models.SET_NULL, null=True, blank=True)
     payment_method = models.CharField(max_length=50, blank=True, null=True)
+    hidden_from_history = models.BooleanField(default=False)
 
 # Modelo para cambios de inventario (no por ventas)
 class InventoryChange(models.Model):
@@ -209,6 +206,11 @@ class Order(models.Model):
     notes = models.TextField(blank=True, null=True)
     status = models.CharField(max_length=50, default='Pendiente')
     fecha_de_orden_del_pedido = models.DateTimeField(auto_now_add=True)
+    cash_impacted = models.BooleanField(default=False)
+    cash_received = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    change_given = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    paid_total_at_change = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    payment_difference = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
     user = models.ForeignKey('User', on_delete=models.SET_NULL, null=True, blank=True)
 
     class Meta:

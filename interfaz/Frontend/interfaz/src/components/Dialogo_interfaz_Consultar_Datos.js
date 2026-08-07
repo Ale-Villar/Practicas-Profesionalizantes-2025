@@ -1,5 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { formatMovementDate } from '../utils/date';
+import {
+    safeToFixed as defaultSafeToFixed,
+    formatStockWithUnit,
+    formatCompraItemLine,
+    formatMoney,
+    formatNumber,
+} from '../utils/format';
 
 /**
  * Dialogo_interfaz_Consultar_Datos
@@ -20,7 +27,7 @@ export default function Dialogo_interfaz_Consultar_Datos(props) {
         cashMovements = [],
         sales = [],
         headerTranslationMap = {},
-        safeToFixed = (v) => (Number(v)||0).toFixed(2),
+        safeToFixed = defaultSafeToFixed,
         isFullscreen = false,
         onClose = () => {}
     } = props;
@@ -55,17 +62,6 @@ export default function Dialogo_interfaz_Consultar_Datos(props) {
     const [salesTotalOp, setSalesTotalOp] = useState('equals');
     const [salesQuantityFilter, setSalesQuantityFilter] = useState('');
     const [salesQuantityOp, setSalesQuantityOp] = useState('equals');
-    const [salesDateFromYear, setSalesDateFromYear] = useState('');
-    const [salesDateFromMonth, setSalesDateFromMonth] = useState('');
-    const [salesDateFromDay, setSalesDateFromDay] = useState('');
-    const [salesDateFromHour, setSalesDateFromHour] = useState('');
-    const [salesDateFromMinute, setSalesDateFromMinute] = useState('');
-    const [salesDateToYear, setSalesDateToYear] = useState('');
-    const [salesDateToMonth, setSalesDateToMonth] = useState('');
-    const [salesDateToDay, setSalesDateToDay] = useState('');
-    const [salesDateToHour, setSalesDateToHour] = useState('');
-    const [salesDateToMinute, setSalesDateToMinute] = useState('');
-
     // Filtros de Movimientos de Caja
     const [cashIdFilter, setCashIdFilter] = useState('');
     const [cashIdFilterOp, setCashIdFilterOp] = useState('equals');
@@ -75,16 +71,6 @@ export default function Dialogo_interfaz_Consultar_Datos(props) {
     const [cashDescriptionFilterOp, setCashDescriptionFilterOp] = useState('contains');
     const [cashUserFilter, setCashUserFilter] = useState('');
     const [cashUserFilterOp, setCashUserFilterOp] = useState('contains');
-    const [cashDateFromYear, setCashDateFromYear] = useState('');
-    const [cashDateFromMonth, setCashDateFromMonth] = useState('');
-    const [cashDateFromDay, setCashDateFromDay] = useState('');
-    const [cashDateFromHour, setCashDateFromHour] = useState('');
-    const [cashDateFromMinute, setCashDateFromMinute] = useState('');
-    const [cashDateToYear, setCashDateToYear] = useState('');
-    const [cashDateToMonth, setCashDateToMonth] = useState('');
-    const [cashDateToDay, setCashDateToDay] = useState('');
-    const [cashDateToHour, setCashDateToHour] = useState('');
-    const [cashDateToMinute, setCashDateToMinute] = useState('');
     const [cashTypeFilter, setCashTypeFilter] = useState('');
     const [cashPaymentMethodFilter, setCashPaymentMethodFilter] = useState([]);
     const [cashSortOrder, setCashSortOrder] = useState('desc');
@@ -94,16 +80,6 @@ export default function Dialogo_interfaz_Consultar_Datos(props) {
     const [ordersIdFilterOp, setOrdersIdFilterOp] = useState('equals');
     const [ordersCustomerFilter, setOrdersCustomerFilter] = useState('');
     const [ordersCustomerFilterOp, setOrdersCustomerFilterOp] = useState('contains');
-    const [ordersDateFromYear, setOrdersDateFromYear] = useState('');
-    const [ordersDateFromMonth, setOrdersDateFromMonth] = useState('');
-    const [ordersDateFromDay, setOrdersDateFromDay] = useState('');
-    const [ordersDateFromHour, setOrdersDateFromHour] = useState('');
-    const [ordersDateFromMinute, setOrdersDateFromMinute] = useState('');
-    const [ordersDateToYear, setOrdersDateToYear] = useState('');
-    const [ordersDateToMonth, setOrdersDateToMonth] = useState('');
-    const [ordersDateToDay, setOrdersDateToDay] = useState('');
-    const [ordersDateToHour, setOrdersDateToHour] = useState('');
-    const [ordersDateToMinute, setOrdersDateToMinute] = useState('');
     const [ordersPaymentMethodFilter, setOrdersPaymentMethodFilter] = useState([]);
     const [ordersStatusFilter, setOrdersStatusFilter] = useState([]);
     const [ordersProductFilter, setOrdersProductFilter] = useState('');
@@ -117,16 +93,6 @@ export default function Dialogo_interfaz_Consultar_Datos(props) {
     const [purchasesSupplierFilterOp, setPurchasesSupplierFilterOp] = useState('contains');
     const [purchasesTotalFilter, setPurchasesTotalFilter] = useState('');
     const [purchasesTotalFilterOp, setPurchasesTotalFilterOp] = useState('equals');
-    const [purchasesDateFromYear, setPurchasesDateFromYear] = useState('');
-    const [purchasesDateFromMonth, setPurchasesDateFromMonth] = useState('');
-    const [purchasesDateFromDay, setPurchasesDateFromDay] = useState('');
-    const [purchasesDateFromHour, setPurchasesDateFromHour] = useState('');
-    const [purchasesDateFromMinute, setPurchasesDateFromMinute] = useState('');
-    const [purchasesDateToYear, setPurchasesDateToYear] = useState('');
-    const [purchasesDateToMonth, setPurchasesDateToMonth] = useState('');
-    const [purchasesDateToDay, setPurchasesDateToDay] = useState('');
-    const [purchasesDateToHour, setPurchasesDateToHour] = useState('');
-    const [purchasesDateToMinute, setPurchasesDateToMinute] = useState('');
     const [purchasesTypeFilter, setPurchasesTypeFilter] = useState([]);
     const [purchasesProductFilter, setPurchasesProductFilter] = useState('');
     const [purchasesQuantityFilter, setPurchasesQuantityFilter] = useState('');
@@ -202,22 +168,6 @@ export default function Dialogo_interfaz_Consultar_Datos(props) {
     };
 
     // Formatear stock con unidades correctamente (igual que DataConsultation.js)
-    const formatStockWithUnit = (stock, unit) => {
-        const stockNum = parseFloat(stock) || 0;
-        
-        if (!unit || unit === 'u' || unit === 'unidades' || unit === 'Unidades') {
-            return `${stockNum}U`;
-        } else if (unit === 'g' || unit === 'gramos') {
-            // Convertir gramos a kilogramos
-            const kg = (stockNum / 1000).toFixed(3);
-            return `${parseFloat(kg)}Kg`;
-        } else if (unit === 'ml' || unit === 'mililitros') {
-            // Convertir mililitros a litros
-            const liters = (stockNum / 1000).toFixed(3);
-            return `${parseFloat(liters)}L`;
-        }
-        return `${stockNum}${unit}`;
-    };
 
     // Calcular el estado del stock
     const getStockStatus = (item) => {
@@ -440,10 +390,9 @@ export default function Dialogo_interfaz_Consultar_Datos(props) {
     };
 
     const executeSalesQuery = async () => {
-        const hasGranularFilters = salesDateFromYear || salesDateFromMonth || salesDateFromDay || salesDateFromHour || salesDateFromMinute || salesDateToYear || salesDateToMonth || salesDateToDay || salesDateToHour || salesDateToMinute;
         const hasOtherFilters = salesIdFilter.trim() || salesProductFilter.trim() || salesUserFilter.trim() || salesTotalFilter.trim() || salesQuantityFilter.trim();
 
-        if (!hasGranularFilters && !hasOtherFilters && (!startDate || !endDate)) {
+        if (!hasOtherFilters && (!startDate || !endDate)) {
             setMessage('Por favor, ingrese filtros de fecha o use filtros específicos.');
             return;
         }
@@ -496,33 +445,13 @@ export default function Dialogo_interfaz_Consultar_Datos(props) {
         let filtered = [...rows];
 
         // Filtro de fechas estándar
-        if (startDate && endDate && !hasGranularFilters) {
+        if (startDate && endDate) {
             filtered = filtered.filter(s => {
                 const saleDate = parseAnyDate(s.date);
                 const start = parseAnyDate(startDate);
                 const end = parseAnyDate(endDate);
                 if (end) end.setHours(23, 59, 59, 999);
                 return saleDate && start && end && saleDate >= start && saleDate <= end;
-            });
-        }
-
-        // Filtro de fechas granular
-        if (hasGranularFilters) {
-            filtered = filtered.filter(s => {
-                const saleDate = parseAnyDate(s.date);
-                if (!saleDate) return false;
-                let matches = true;
-                if (salesDateFromYear) matches = matches && saleDate.getFullYear() >= parseInt(salesDateFromYear);
-                if (salesDateFromMonth) matches = matches && saleDate.getMonth() >= (parseInt(salesDateFromMonth) - 1);
-                if (salesDateFromDay) matches = matches && saleDate.getDate() >= parseInt(salesDateFromDay);
-                if (salesDateFromHour) matches = matches && saleDate.getHours() >= parseInt(salesDateFromHour);
-                if (salesDateFromMinute) matches = matches && saleDate.getMinutes() >= parseInt(salesDateFromMinute);
-                if (salesDateToYear) matches = matches && saleDate.getFullYear() <= parseInt(salesDateToYear);
-                if (salesDateToMonth) matches = matches && saleDate.getMonth() <= (parseInt(salesDateToMonth) - 1);
-                if (salesDateToDay) matches = matches && saleDate.getDate() <= parseInt(salesDateToDay);
-                if (salesDateToHour) matches = matches && saleDate.getHours() <= parseInt(salesDateToHour);
-                if (salesDateToMinute) matches = matches && saleDate.getMinutes() <= parseInt(salesDateToMinute);
-                return matches;
             });
         }
 
@@ -598,10 +527,8 @@ export default function Dialogo_interfaz_Consultar_Datos(props) {
             title: 'Reporte de Ventas',
             summary: {
                 totalSales: filtered.length,
-                totalRevenue: `$${totalRevenue.toFixed(2)}`,
-                period: hasGranularFilters 
-                    ? 'Filtro personalizado por fechas' 
-                    : startDate && endDate ? `${formatDateForDisplay(startDate)} - ${formatDateForDisplay(endDate)}` : 'Todos los períodos'
+                totalRevenue: formatMoney(totalRevenue),
+                period: startDate && endDate ? `${formatDateForDisplay(startDate)} - ${formatDateForDisplay(endDate)}` : 'Todos los períodos'
             },
             data: filtered.map(s => ({
                 id: s.id,
@@ -618,10 +545,9 @@ export default function Dialogo_interfaz_Consultar_Datos(props) {
     };
 
     const executeOrdersQuery = async () => {
-        const hasGranularFilters = ordersDateFromYear || ordersDateFromMonth || ordersDateFromDay || ordersDateFromHour || ordersDateFromMinute || ordersDateToYear || ordersDateToMonth || ordersDateToDay || ordersDateToHour || ordersDateToMinute;
         const hasOtherFilters = ordersIdFilter.trim() || ordersCustomerFilter.trim() || ordersPaymentMethodFilter.length > 0 || ordersStatusFilter.length > 0 || ordersProductFilter.trim() || ordersUnitsFilter.trim();
 
-        if (!hasGranularFilters && !hasOtherFilters && (!startDate || !endDate)) {
+        if (!hasOtherFilters && (!startDate || !endDate)) {
             setMessage('Por favor, ingrese filtros de fecha o use filtros específicos.');
             return;
         }
@@ -649,33 +575,13 @@ export default function Dialogo_interfaz_Consultar_Datos(props) {
         let filteredOrders = normalizedOrders;
 
         // Filtro de fechas estándar
-        if (startDate && endDate && !hasGranularFilters) {
+        if (startDate && endDate) {
             filteredOrders = filteredOrders.filter(order => {
                 const orderDate = parseAnyDate(order.created_at || order.date);
                 const start = parseAnyDate(startDate);
                 const end = parseAnyDate(endDate);
                 if (end) end.setHours(23, 59, 59, 999);
                 return orderDate && start && end && orderDate >= start && orderDate <= end;
-            });
-        }
-
-        // Filtro de fechas granular
-        if (hasGranularFilters) {
-            filteredOrders = filteredOrders.filter(order => {
-                const orderDate = parseAnyDate(order.created_at || order.date);
-                if (!orderDate) return false;
-                let matches = true;
-                if (ordersDateFromYear) matches = matches && orderDate.getFullYear() >= parseInt(ordersDateFromYear);
-                if (ordersDateFromMonth) matches = matches && orderDate.getMonth() >= (parseInt(ordersDateFromMonth) - 1);
-                if (ordersDateFromDay) matches = matches && orderDate.getDate() >= parseInt(ordersDateFromDay);
-                if (ordersDateFromHour) matches = matches && orderDate.getHours() >= parseInt(ordersDateFromHour);
-                if (ordersDateFromMinute) matches = matches && orderDate.getMinutes() >= parseInt(ordersDateFromMinute);
-                if (ordersDateToYear) matches = matches && orderDate.getFullYear() <= parseInt(ordersDateToYear);
-                if (ordersDateToMonth) matches = matches && orderDate.getMonth() <= (parseInt(ordersDateToMonth) - 1);
-                if (ordersDateToDay) matches = matches && orderDate.getDate() <= parseInt(ordersDateToDay);
-                if (ordersDateToHour) matches = matches && orderDate.getHours() <= parseInt(ordersDateToHour);
-                if (ordersDateToMinute) matches = matches && orderDate.getMinutes() <= parseInt(ordersDateToMinute);
-                return matches;
             });
         }
 
@@ -780,10 +686,9 @@ export default function Dialogo_interfaz_Consultar_Datos(props) {
     };
 
     const executePurchasesQuery = async () => {
-        const hasGranularFilters = purchasesDateFromYear || purchasesDateFromMonth || purchasesDateFromDay || purchasesDateFromHour || purchasesDateFromMinute || purchasesDateToYear || purchasesDateToMonth || purchasesDateToDay || purchasesDateToHour || purchasesDateToMinute;
         const hasOtherFilters = purchasesIdFilter.trim() || purchasesSupplierFilter.trim() || purchasesTotalFilter.trim() || purchasesTypeFilter.length > 0 || purchasesProductFilter.trim();
 
-        if (!hasGranularFilters && !hasOtherFilters && (!startDate || !endDate)) {
+        if (!hasOtherFilters && (!startDate || !endDate)) {
             setMessage('Por favor, ingrese filtros de fecha o use filtros específicos.');
             return;
         }
@@ -833,29 +738,8 @@ export default function Dialogo_interfaz_Consultar_Datos(props) {
         // Aplicar filtros independientes
         let filtered = normalizedPurchases;
 
-        // Filtro de fechas granular
-        if (hasGranularFilters) {
-            filtered = filtered.filter(purchase => {
-                const purchaseDate = parseAnyDate(purchase.date);
-                if (!purchaseDate) return false;
-                
-                let matches = true;
-                
-                if (purchasesDateFromYear) matches = matches && purchaseDate.getFullYear() >= parseInt(purchasesDateFromYear);
-                if (purchasesDateFromMonth) matches = matches && purchaseDate.getMonth() >= (parseInt(purchasesDateFromMonth) - 1);
-                if (purchasesDateFromDay) matches = matches && purchaseDate.getDate() >= parseInt(purchasesDateFromDay);
-                if (purchasesDateFromHour) matches = matches && purchaseDate.getHours() >= parseInt(purchasesDateFromHour);
-                if (purchasesDateFromMinute) matches = matches && purchaseDate.getMinutes() >= parseInt(purchasesDateFromMinute);
-                if (purchasesDateToYear) matches = matches && purchaseDate.getFullYear() <= parseInt(purchasesDateToYear);
-                if (purchasesDateToMonth) matches = matches && purchaseDate.getMonth() <= (parseInt(purchasesDateToMonth) - 1);
-                if (purchasesDateToDay) matches = matches && purchaseDate.getDate() <= parseInt(purchasesDateToDay);
-                if (purchasesDateToHour) matches = matches && purchaseDate.getHours() <= parseInt(purchasesDateToHour);
-                if (purchasesDateToMinute) matches = matches && purchaseDate.getMinutes() <= parseInt(purchasesDateToMinute);
-                
-                return matches;
-            });
-        } else if (startDate && endDate) {
-            // Filtro de fechas estándar
+        // Filtro de fechas estándar
+        if (startDate && endDate) {
             filtered = filtered.filter(p => {
                 const purchaseDate = parseAnyDate(p.date);
                 const start = parseAnyDate(startDate);
@@ -944,15 +828,13 @@ export default function Dialogo_interfaz_Consultar_Datos(props) {
             title: 'Reporte de Compras',
             summary: {
                 totalPurchases: filtered.length,
-                totalAmount: `$${totalAmount.toFixed(2)}`,
+                totalAmount: formatMoney(totalAmount),
                 byType: {
                     Producto: filtered.filter(p => p.type === 'Producto').length,
                     Insumo: filtered.filter(p => p.type === 'Insumo').length,
                     Mixto: filtered.filter(p => p.type === 'Mixto').length
                 },
-                period: hasGranularFilters 
-                    ? 'Filtro personalizado por fechas' 
-                    : startDate && endDate ? `${formatDateForDisplay(startDate)} - ${formatDateForDisplay(endDate)}` : 'Todos los períodos'
+                period: startDate && endDate ? `${formatDateForDisplay(startDate)} - ${formatDateForDisplay(endDate)}` : 'Todos los períodos'
             },
             data: filtered.map(p => ({
                 id: p.id,
@@ -969,10 +851,9 @@ export default function Dialogo_interfaz_Consultar_Datos(props) {
     };
 
     const executeCashMovementsQuery = async () => {
-        const hasGranularFilters = cashDateFromYear || cashDateFromMonth || cashDateFromDay || cashDateFromHour || cashDateFromMinute || cashDateToYear || cashDateToMonth || cashDateToDay || cashDateToHour || cashDateToMinute;
         const hasOtherFilters = cashIdFilter.trim() || cashAmountFilter.trim() || cashDescriptionFilter.trim() || cashUserFilter.trim() || cashTypeFilter || cashPaymentMethodFilter.length > 0;
 
-        if (!hasGranularFilters && !hasOtherFilters && (!startDate || !endDate)) {
+        if (!hasOtherFilters && (!startDate || !endDate)) {
             setMessage('Por favor, ingrese filtros de fecha o use filtros específicos.');
             return;
         }
@@ -1000,33 +881,13 @@ export default function Dialogo_interfaz_Consultar_Datos(props) {
         let filtered = normalized;
 
         // Filtro de fechas estándar
-        if (startDate && endDate && !hasGranularFilters) {
+        if (startDate && endDate) {
             filtered = filtered.filter(m => {
                 const movementDate = parseAnyDate(m.date);
                 const start = parseAnyDate(startDate);
                 const end = parseAnyDate(endDate);
                 if (end) end.setHours(23, 59, 59, 999);
                 return movementDate && start && end && movementDate >= start && movementDate <= end;
-            });
-        }
-
-        // Filtro de fechas granular
-        if (hasGranularFilters) {
-            filtered = filtered.filter(m => {
-                const movementDate = parseAnyDate(m.date);
-                if (!movementDate) return false;
-                let matches = true;
-                if (cashDateFromYear) matches = matches && movementDate.getFullYear() >= parseInt(cashDateFromYear);
-                if (cashDateFromMonth) matches = matches && movementDate.getMonth() >= (parseInt(cashDateFromMonth) - 1);
-                if (cashDateFromDay) matches = matches && movementDate.getDate() >= parseInt(cashDateFromDay);
-                if (cashDateFromHour) matches = matches && movementDate.getHours() >= parseInt(cashDateFromHour);
-                if (cashDateFromMinute) matches = matches && movementDate.getMinutes() >= parseInt(cashDateFromMinute);
-                if (cashDateToYear) matches = matches && movementDate.getFullYear() <= parseInt(cashDateToYear);
-                if (cashDateToMonth) matches = matches && movementDate.getMonth() <= (parseInt(cashDateToMonth) - 1);
-                if (cashDateToDay) matches = matches && movementDate.getDate() <= parseInt(cashDateToDay);
-                if (cashDateToHour) matches = matches && movementDate.getHours() <= parseInt(cashDateToHour);
-                if (cashDateToMinute) matches = matches && movementDate.getMinutes() <= parseInt(cashDateToMinute);
-                return matches;
             });
         }
 
@@ -1074,8 +935,8 @@ export default function Dialogo_interfaz_Consultar_Datos(props) {
             title: 'Movimientos de Caja',
             summary: {
                 totalMovements: filtered.length,
-                totalIncome: `$${totalIncome.toFixed(2)}`,
-                totalExpenses: `$${totalExpenses.toFixed(2)}`,
+                totalIncome: formatMoney(totalIncome),
+                totalExpenses: formatMoney(totalExpenses),
                 period: startDate && endDate ? `${formatDateForDisplay(startDate)} - ${formatDateForDisplay(endDate)}` : 'Todos los períodos'
             },
             data: filtered.map(m => ({
@@ -1176,16 +1037,9 @@ export default function Dialogo_interfaz_Consultar_Datos(props) {
                 );
                 
                 if (foundProduct && quantity > 0) {
-                    const unit = foundProduct.unit;
-                    if (unit === 'g') {
-                        return `${productName} ${quantity}Kg`;
-                    } else if (unit === 'ml') {
-                        return `${productName} ${quantity}L`;
-                    } else {
-                        return `${productName} ${quantity}U`;
-                    }
+                    return formatCompraItemLine(productName, quantity, foundProduct.unit);
                 } else if (quantity > 0) {
-                    return `${productName} ${quantity}U`;
+                    return formatCompraItemLine(productName, quantity, 'u');
                 } else {
                     return productName;
                 }
@@ -1486,59 +1340,7 @@ export default function Dialogo_interfaz_Consultar_Datos(props) {
                         <div className="space-y-3 border-t pt-4">
                             <h4 className="font-semibold text-gray-700 text-sm">Filtros de Ventas</h4>
                             
-                            {/* Filtros de Fecha Granulares - Desde */}
-                            <div className="border p-3 rounded-md bg-gray-50">
-                                <label className="block text-sm font-medium text-gray-700 mb-2">Desde:</label>
-                                <div className="grid grid-cols-5 gap-2 text-xs">
-                                    <div>
-                                        <label className="block text-gray-500 mb-1">Año</label>
-                                        <input type="number" value={salesDateFromYear} onChange={e => setSalesDateFromYear(e.target.value)} placeholder="AAAA" className="w-full px-2 py-1 border border-gray-300 rounded text-sm" min="2000" max="2099" />
-                                    </div>
-                                    <div>
-                                        <label className="block text-gray-500 mb-1">Mes</label>
-                                        <input type="number" value={salesDateFromMonth} onChange={e => setSalesDateFromMonth(e.target.value)} placeholder="MM" className="w-full px-2 py-1 border border-gray-300 rounded text-sm" min="1" max="12" />
-                                    </div>
-                                    <div>
-                                        <label className="block text-gray-500 mb-1">Día</label>
-                                        <input type="number" value={salesDateFromDay} onChange={e => setSalesDateFromDay(e.target.value)} placeholder="DD" className="w-full px-2 py-1 border border-gray-300 rounded text-sm" min="1" max="31" />
-                                    </div>
-                                    <div>
-                                        <label className="block text-gray-500 mb-1">Hora</label>
-                                        <input type="number" value={salesDateFromHour} onChange={e => setSalesDateFromHour(e.target.value)} placeholder="HH" className="w-full px-2 py-1 border border-gray-300 rounded text-sm" min="0" max="23" />
-                                    </div>
-                                    <div>
-                                        <label className="block text-gray-500 mb-1">Min</label>
-                                        <input type="number" value={salesDateFromMinute} onChange={e => setSalesDateFromMinute(e.target.value)} placeholder="mm" className="w-full px-2 py-1 border border-gray-300 rounded text-sm" min="0" max="59" />
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Filtros de Fecha Granulares - Hasta */}
-                            <div className="border p-3 rounded-md bg-gray-50">
-                                <label className="block text-sm font-medium text-gray-700 mb-2">Hasta:</label>
-                                <div className="grid grid-cols-5 gap-2 text-xs">
-                                    <div>
-                                        <label className="block text-gray-500 mb-1">Año</label>
-                                        <input type="number" value={salesDateToYear} onChange={e => setSalesDateToYear(e.target.value)} placeholder="AAAA" className="w-full px-2 py-1 border border-gray-300 rounded text-sm" min="2000" max="2099" />
-                                    </div>
-                                    <div>
-                                        <label className="block text-gray-500 mb-1">Mes</label>
-                                        <input type="number" value={salesDateToMonth} onChange={e => setSalesDateToMonth(e.target.value)} placeholder="MM" className="w-full px-2 py-1 border border-gray-300 rounded text-sm" min="1" max="12" />
-                                    </div>
-                                    <div>
-                                        <label className="block text-gray-500 mb-1">Día</label>
-                                        <input type="number" value={salesDateToDay} onChange={e => setSalesDateToDay(e.target.value)} placeholder="DD" className="w-full px-2 py-1 border border-gray-300 rounded text-sm" min="1" max="31" />
-                                    </div>
-                                    <div>
-                                        <label className="block text-gray-500 mb-1">Hora</label>
-                                        <input type="number" value={salesDateToHour} onChange={e => setSalesDateToHour(e.target.value)} placeholder="HH" className="w-full px-2 py-1 border border-gray-300 rounded text-sm" min="0" max="23" />
-                                    </div>
-                                    <div>
-                                        <label className="block text-gray-500 mb-1">Min</label>
-                                        <input type="number" value={salesDateToMinute} onChange={e => setSalesDateToMinute(e.target.value)} placeholder="mm" className="w-full px-2 py-1 border border-gray-300 rounded text-sm" min="0" max="59" />
-                                    </div>
-                                </div>
-                            </div>
+                            
                             
                             <div className={filterRowClass}>
                                 <label className={labelClass}>ID de Venta</label>
@@ -1599,59 +1401,7 @@ export default function Dialogo_interfaz_Consultar_Datos(props) {
                         <div className="space-y-3 border-t pt-4">
                             <h4 className="font-semibold text-gray-700 text-sm">Filtros de Pedidos</h4>
                             
-                            {/* Filtros de Fecha Granulares - Desde */}
-                            <div className="border p-3 rounded-md bg-gray-50">
-                                <label className="block text-sm font-medium text-gray-700 mb-2">Desde:</label>
-                                <div className="grid grid-cols-5 gap-2 text-xs">
-                                    <div>
-                                        <label className="block text-gray-500 mb-1">Año</label>
-                                        <input type="number" value={ordersDateFromYear} onChange={e => setOrdersDateFromYear(e.target.value)} placeholder="AAAA" className="w-full px-2 py-1 border border-gray-300 rounded text-sm" min="2000" max="2099" />
-                                    </div>
-                                    <div>
-                                        <label className="block text-gray-500 mb-1">Mes</label>
-                                        <input type="number" value={ordersDateFromMonth} onChange={e => setOrdersDateFromMonth(e.target.value)} placeholder="MM" className="w-full px-2 py-1 border border-gray-300 rounded text-sm" min="1" max="12" />
-                                    </div>
-                                    <div>
-                                        <label className="block text-gray-500 mb-1">Día</label>
-                                        <input type="number" value={ordersDateFromDay} onChange={e => setOrdersDateFromDay(e.target.value)} placeholder="DD" className="w-full px-2 py-1 border border-gray-300 rounded text-sm" min="1" max="31" />
-                                    </div>
-                                    <div>
-                                        <label className="block text-gray-500 mb-1">Hora</label>
-                                        <input type="number" value={ordersDateFromHour} onChange={e => setOrdersDateFromHour(e.target.value)} placeholder="HH" className="w-full px-2 py-1 border border-gray-300 rounded text-sm" min="0" max="23" />
-                                    </div>
-                                    <div>
-                                        <label className="block text-gray-500 mb-1">Min</label>
-                                        <input type="number" value={ordersDateFromMinute} onChange={e => setOrdersDateFromMinute(e.target.value)} placeholder="mm" className="w-full px-2 py-1 border border-gray-300 rounded text-sm" min="0" max="59" />
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Filtros de Fecha Granulares - Hasta */}
-                            <div className="border p-3 rounded-md bg-gray-50">
-                                <label className="block text-sm font-medium text-gray-700 mb-2">Hasta:</label>
-                                <div className="grid grid-cols-5 gap-2 text-xs">
-                                    <div>
-                                        <label className="block text-gray-500 mb-1">Año</label>
-                                        <input type="number" value={ordersDateToYear} onChange={e => setOrdersDateToYear(e.target.value)} placeholder="AAAA" className="w-full px-2 py-1 border border-gray-300 rounded text-sm" min="2000" max="2099" />
-                                    </div>
-                                    <div>
-                                        <label className="block text-gray-500 mb-1">Mes</label>
-                                        <input type="number" value={ordersDateToMonth} onChange={e => setOrdersDateToMonth(e.target.value)} placeholder="MM" className="w-full px-2 py-1 border border-gray-300 rounded text-sm" min="1" max="12" />
-                                    </div>
-                                    <div>
-                                        <label className="block text-gray-500 mb-1">Día</label>
-                                        <input type="number" value={ordersDateToDay} onChange={e => setOrdersDateToDay(e.target.value)} placeholder="DD" className="w-full px-2 py-1 border border-gray-300 rounded text-sm" min="1" max="31" />
-                                    </div>
-                                    <div>
-                                        <label className="block text-gray-500 mb-1">Hora</label>
-                                        <input type="number" value={ordersDateToHour} onChange={e => setOrdersDateToHour(e.target.value)} placeholder="HH" className="w-full px-2 py-1 border border-gray-300 rounded text-sm" min="0" max="23" />
-                                    </div>
-                                    <div>
-                                        <label className="block text-gray-500 mb-1">Min</label>
-                                        <input type="number" value={ordersDateToMinute} onChange={e => setOrdersDateToMinute(e.target.value)} placeholder="mm" className="w-full px-2 py-1 border border-gray-300 rounded text-sm" min="0" max="59" />
-                                    </div>
-                                </div>
-                            </div>
+                            
                             
                             <div className={filterRowClass}>
                                 <label className={labelClass}>ID de Pedido</label>
@@ -1748,59 +1498,7 @@ export default function Dialogo_interfaz_Consultar_Datos(props) {
                         <div className="space-y-3 border-t pt-4">
                             <h4 className="font-semibold text-gray-700 text-sm">Filtros de Compras</h4>
                             
-                            {/* Filtros de Fecha Granulares - Desde */}
-                            <div className="border p-3 rounded-md bg-gray-50">
-                                <label className="block text-sm font-medium text-gray-700 mb-2">Desde:</label>
-                                <div className="grid grid-cols-5 gap-2 text-xs">
-                                    <div>
-                                        <label className="block text-gray-500 mb-1">Año</label>
-                                        <input type="number" value={purchasesDateFromYear} onChange={e => setPurchasesDateFromYear(e.target.value)} placeholder="AAAA" className="w-full px-2 py-1 border border-gray-300 rounded text-sm" min="2000" max="2099" />
-                                    </div>
-                                    <div>
-                                        <label className="block text-gray-500 mb-1">Mes</label>
-                                        <input type="number" value={purchasesDateFromMonth} onChange={e => setPurchasesDateFromMonth(e.target.value)} placeholder="MM" className="w-full px-2 py-1 border border-gray-300 rounded text-sm" min="1" max="12" />
-                                    </div>
-                                    <div>
-                                        <label className="block text-gray-500 mb-1">Día</label>
-                                        <input type="number" value={purchasesDateFromDay} onChange={e => setPurchasesDateFromDay(e.target.value)} placeholder="DD" className="w-full px-2 py-1 border border-gray-300 rounded text-sm" min="1" max="31" />
-                                    </div>
-                                    <div>
-                                        <label className="block text-gray-500 mb-1">Hora</label>
-                                        <input type="number" value={purchasesDateFromHour} onChange={e => setPurchasesDateFromHour(e.target.value)} placeholder="HH" className="w-full px-2 py-1 border border-gray-300 rounded text-sm" min="0" max="23" />
-                                    </div>
-                                    <div>
-                                        <label className="block text-gray-500 mb-1">Min</label>
-                                        <input type="number" value={purchasesDateFromMinute} onChange={e => setPurchasesDateFromMinute(e.target.value)} placeholder="mm" className="w-full px-2 py-1 border border-gray-300 rounded text-sm" min="0" max="59" />
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Filtros de Fecha Granulares - Hasta */}
-                            <div className="border p-3 rounded-md bg-gray-50">
-                                <label className="block text-sm font-medium text-gray-700 mb-2">Hasta:</label>
-                                <div className="grid grid-cols-5 gap-2 text-xs">
-                                    <div>
-                                        <label className="block text-gray-500 mb-1">Año</label>
-                                        <input type="number" value={purchasesDateToYear} onChange={e => setPurchasesDateToYear(e.target.value)} placeholder="AAAA" className="w-full px-2 py-1 border border-gray-300 rounded text-sm" min="2000" max="2099" />
-                                    </div>
-                                    <div>
-                                        <label className="block text-gray-500 mb-1">Mes</label>
-                                        <input type="number" value={purchasesDateToMonth} onChange={e => setPurchasesDateToMonth(e.target.value)} placeholder="MM" className="w-full px-2 py-1 border border-gray-300 rounded text-sm" min="1" max="12" />
-                                    </div>
-                                    <div>
-                                        <label className="block text-gray-500 mb-1">Día</label>
-                                        <input type="number" value={purchasesDateToDay} onChange={e => setPurchasesDateToDay(e.target.value)} placeholder="DD" className="w-full px-2 py-1 border border-gray-300 rounded text-sm" min="1" max="31" />
-                                    </div>
-                                    <div>
-                                        <label className="block text-gray-500 mb-1">Hora</label>
-                                        <input type="number" value={purchasesDateToHour} onChange={e => setPurchasesDateToHour(e.target.value)} placeholder="HH" className="w-full px-2 py-1 border border-gray-300 rounded text-sm" min="0" max="23" />
-                                    </div>
-                                    <div>
-                                        <label className="block text-gray-500 mb-1">Min</label>
-                                        <input type="number" value={purchasesDateToMinute} onChange={e => setPurchasesDateToMinute(e.target.value)} placeholder="mm" className="w-full px-2 py-1 border border-gray-300 rounded text-sm" min="0" max="59" />
-                                    </div>
-                                </div>
-                            </div>
+                            
                             
                             <div className={filterRowClass}>
                                 <label className={labelClass}>ID de Compra</label>
@@ -1875,59 +1573,7 @@ export default function Dialogo_interfaz_Consultar_Datos(props) {
                         <div className="space-y-3 border-t pt-4">
                             <h4 className="font-semibold text-gray-700 text-sm">Filtros de Movimientos de Caja</h4>
                             
-                            {/* Filtros de Fecha Granulares - Desde */}
-                            <div className="border p-3 rounded-md bg-gray-50">
-                                <label className="block text-sm font-medium text-gray-700 mb-2">Desde:</label>
-                                <div className="grid grid-cols-5 gap-2 text-xs">
-                                    <div>
-                                        <label className="block text-gray-500 mb-1">Año</label>
-                                        <input type="number" value={cashDateFromYear} onChange={e => setCashDateFromYear(e.target.value)} placeholder="AAAA" className="w-full px-2 py-1 border border-gray-300 rounded text-sm" min="2000" max="2099" />
-                                    </div>
-                                    <div>
-                                        <label className="block text-gray-500 mb-1">Mes</label>
-                                        <input type="number" value={cashDateFromMonth} onChange={e => setCashDateFromMonth(e.target.value)} placeholder="MM" className="w-full px-2 py-1 border border-gray-300 rounded text-sm" min="1" max="12" />
-                                    </div>
-                                    <div>
-                                        <label className="block text-gray-500 mb-1">Día</label>
-                                        <input type="number" value={cashDateFromDay} onChange={e => setCashDateFromDay(e.target.value)} placeholder="DD" className="w-full px-2 py-1 border border-gray-300 rounded text-sm" min="1" max="31" />
-                                    </div>
-                                    <div>
-                                        <label className="block text-gray-500 mb-1">Hora</label>
-                                        <input type="number" value={cashDateFromHour} onChange={e => setCashDateFromHour(e.target.value)} placeholder="HH" className="w-full px-2 py-1 border border-gray-300 rounded text-sm" min="0" max="23" />
-                                    </div>
-                                    <div>
-                                        <label className="block text-gray-500 mb-1">Min</label>
-                                        <input type="number" value={cashDateFromMinute} onChange={e => setCashDateFromMinute(e.target.value)} placeholder="mm" className="w-full px-2 py-1 border border-gray-300 rounded text-sm" min="0" max="59" />
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Filtros de Fecha Granulares - Hasta */}
-                            <div className="border p-3 rounded-md bg-gray-50">
-                                <label className="block text-sm font-medium text-gray-700 mb-2">Hasta:</label>
-                                <div className="grid grid-cols-5 gap-2 text-xs">
-                                    <div>
-                                        <label className="block text-gray-500 mb-1">Año</label>
-                                        <input type="number" value={cashDateToYear} onChange={e => setCashDateToYear(e.target.value)} placeholder="AAAA" className="w-full px-2 py-1 border border-gray-300 rounded text-sm" min="2000" max="2099" />
-                                    </div>
-                                    <div>
-                                        <label className="block text-gray-500 mb-1">Mes</label>
-                                        <input type="number" value={cashDateToMonth} onChange={e => setCashDateToMonth(e.target.value)} placeholder="MM" className="w-full px-2 py-1 border border-gray-300 rounded text-sm" min="1" max="12" />
-                                    </div>
-                                    <div>
-                                        <label className="block text-gray-500 mb-1">Día</label>
-                                        <input type="number" value={cashDateToDay} onChange={e => setCashDateToDay(e.target.value)} placeholder="DD" className="w-full px-2 py-1 border border-gray-300 rounded text-sm" min="1" max="31" />
-                                    </div>
-                                    <div>
-                                        <label className="block text-gray-500 mb-1">Hora</label>
-                                        <input type="number" value={cashDateToHour} onChange={e => setCashDateToHour(e.target.value)} placeholder="HH" className="w-full px-2 py-1 border border-gray-300 rounded text-sm" min="0" max="23" />
-                                    </div>
-                                    <div>
-                                        <label className="block text-gray-500 mb-1">Min</label>
-                                        <input type="number" value={cashDateToMinute} onChange={e => setCashDateToMinute(e.target.value)} placeholder="mm" className="w-full px-2 py-1 border border-gray-300 rounded text-sm" min="0" max="59" />
-                                    </div>
-                                </div>
-                            </div>
+                            
                             
                             <div className={filterRowClass}>
                                 <label className={labelClass}>ID de Movimiento</label>
@@ -2055,7 +1701,7 @@ export default function Dialogo_interfaz_Consultar_Datos(props) {
                                     return (
                                         <div key={key} className="text-sm">
                                             <span className="text-gray-500">{headerTranslationMap[key] || key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}:</span>
-                                            <span className="font-semibold ml-1">{typeof value === 'number' ? value.toLocaleString() : value}</span>
+                                            <span className="font-semibold ml-1">{typeof value === 'number' ? formatNumber(value) : value}</span>
                                         </div>
                                     );
                                 })}

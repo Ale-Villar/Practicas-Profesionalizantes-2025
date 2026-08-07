@@ -7,7 +7,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ("api", "0038_remove_order_date"),
+        ("api", "0039_remove_order_date"),
     ]
 
     operations = [

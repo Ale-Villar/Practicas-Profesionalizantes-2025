@@ -113,4 +113,18 @@ Contraseña:Icop2025
     -contraseña: DulceDeLeche10!
 
 Para ir a la zona de Pruebas:
-git checkout pruebas-experimentales
+1-git checkout pruebas-experimentales
+
+Para Fusionar la rama de pruebas con la rama principal:
+1-git add .
+2-git commit -m "Últimos ajustes al menú desplegable"
+3-git push origin pruebas-experimentales
+
+Cambiarte a la rama principal
+4-git checkout main
+
+Fusionar (Merge) la rama de pruebas en main
+5-git merge pruebas-experimentales
+
+Subir los cambios definitivos a GitHub
+6-git push origin main

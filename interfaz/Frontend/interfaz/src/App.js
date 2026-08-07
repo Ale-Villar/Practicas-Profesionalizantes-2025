@@ -2,6 +2,14 @@ import React, { useState, useEffect } from 'react';
 import Select from 'react-select';
 import './App.css';
 import { formatMovementDate } from './utils/date';
+import {
+    safeToFixed,
+    formatStockDisplay,
+    formatThresholdDisplay,
+    formatDisplayQuantity,
+    formatCompraItemLine,
+    formatMoney,
+} from './utils/format';
 import api, { backendLogin, backendLogout, setInMemoryToken, clearInMemoryToken, getInMemoryToken, getPendingPurchases, approvePurchase, rejectPurchase, getPurchaseHistory, getRecipe, addRecipeIngredient, updateRecipeIngredient, deleteRecipeIngredient, getIngredients, getIngredientsWithSuggestedUnit, updateOrderStatus } from './services/api';
 import userStorage from './services/userStorage';
 import DataConsultation from './DataConsultation';
@@ -130,12 +138,6 @@ const removeAccessToken = async () => {
         if (console.debug) console.debug('Error eliminando token:', error && error.message);
         return true; // Devolver true para no bloquear el logout
     }
-};
-
-// Función helper para convertir valores a números de forma segura antes de usar toFixed
-const safeToFixed = (value, decimals = 2) => {
-  const num = parseFloat(value);
-  return isNaN(num) ? (0).toFixed(decimals) : num.toFixed(decimals);
 };
 
 // Use shared formatMovementDate from ./utils/date
@@ -625,6 +627,7 @@ const App = () => {
         console.log('💰 Inicializando movimientos de caja vacíos (se cargarán desde PostgreSQL)');
         return []; // Empezar vacío - se cargarán desde PostgreSQL
     });
+    const [cashBalance, setCashBalance] = useState(null);
     
     // Proveedores
     // Proveedores - cargar solo desde backend
@@ -743,7 +746,11 @@ const App = () => {
                         })) : [],
                         totalAmount: o.total_amount || o.totalAmount || 0,
                         status: o.status || 'Pendiente',
-                        notes: o.notes || ''
+                        notes: o.notes || '',
+                        paidTotalAtChange: o.paid_total_at_change != null ? Number(o.paid_total_at_change) : null,
+                        paymentDifference: o.payment_difference != null ? Number(o.payment_difference) : null,
+                        cashReceived: o.cash_received,
+                        changeGiven: o.change_given,
                     }));
                     setOrders(backendOrders);
                 }
@@ -1319,11 +1326,25 @@ const App = () => {
         
                 setCashMovements(formattedMovements);
                 console.debug('✅ Movimientos de caja cargados:', `${formattedMovements.length} movimientos del servidor`);
+                await loadCashBalance();
             } catch (error) {
                 console.error('❌ Error cargando movimientos de caja:', error && error.message ? error.message : error);
                 setCashMovements(prevMovements => prevMovements.length > 0 ? prevMovements : []);
             }
         };
+
+    const loadCashBalance = async () => {
+        try {
+            if (!getInMemoryToken()) {
+                const restored = await ensureInMemoryToken();
+                if (!restored) return;
+            }
+            const response = await api.get('/cash-movements/balance/');
+            setCashBalance(parseFloat(response.data.balance));
+        } catch (error) {
+            console.error('❌ Error cargando saldo de caja:', error && error.message ? error.message : error);
+        }
+    };
 
     // Función para cargar ventas desde el backend
     const loadSales = async () => {
@@ -1372,15 +1393,6 @@ const App = () => {
         console.log('❌ Error cargando cambios de inventario:', error.message);
       }
     };
-    //función para calcular saldo de caja a partir de los movimientos de caja.
-    const calculateCashBalance = () => {
-    return cashMovements.reduce((balance, movement) => {
-        return movement.type === 'Entrada' 
-            ? balance + parseFloat(movement.amount) 
-            : balance - parseFloat(movement.amount);
-            }, 0);
-        };
-
 
     // Componente de la interfaz de inicio de sesión.
     const Login = () => {
@@ -1562,57 +1574,6 @@ const App = () => {
 
         // Calcular total de alertas
         const totalAlerts = lowStockProducts.length + lowStockSupplies.length;
-
-        const formatStockDisplay = (stock, unit) => {
-            const stockNum = parseFloat(stock);
-            if (isNaN(stockNum)) {
-                return `0 unid`;
-            }
-
-            let displayValue;
-            let displayUnit;
-
-            if (unit === 'g') {
-                displayValue = stockNum / 1000;
-                displayUnit = 'kilos';
-            } else if (unit === 'ml') {
-                displayValue = stockNum / 1000;
-                displayUnit = 'litros';
-            } else if (unit === 'kg') {
-                displayValue = stockNum;
-                displayUnit = 'kilos';
-            } else if (unit === 'l') {
-                displayValue = stockNum;
-                displayUnit = 'litros';
-            } else {
-                displayValue = stockNum;
-                displayUnit = 'unid';
-            }
-
-            // Format number to remove trailing zeros from decimals, up to 3 decimal places
-            const formattedValue = Number(displayValue.toFixed(3));
-
-            return `${formattedValue} ${displayUnit}`;
-        };
-
-        const formatThresholdDisplay = (threshold, unit) => {
-            const thresholdNum = parseFloat(threshold) || 10;
-            if (isNaN(thresholdNum)) {
-                return `10`;
-            }
-
-            let displayValue;
-
-            if (unit === 'g') {
-                displayValue = thresholdNum / 1000;
-            } else if (unit === 'ml') {
-                displayValue = thresholdNum / 1000;
-            } else {
-                displayValue = thresholdNum;
-            }
-
-            return Number(displayValue.toFixed(3));
-        };
 
         return (
             <div className="dashboard-container">
@@ -1910,16 +1871,7 @@ const App = () => {
                                     return true;
                                 })
                                 .map(item => {
-                                    let stockDisplay;
-                                    const stockNum = parseFloat(item.stock);
-                                    if (item.unit === 'g') {
-                                        stockDisplay = `${parseFloat((stockNum / 1000).toFixed(3))} kilos`;
-                                    } else if (item.unit === 'ml') {
-                                        stockDisplay = `${parseFloat((stockNum / 1000).toFixed(3))} litros`;
-                                    } else {
-                                        stockDisplay = `${stockNum} unidades`;
-                                    }
-                                    
+                                    const stockDisplay = formatStockDisplay(item.stock, item.unit);
                                     const isLowStock = item.stock < (item.lowStockThreshold || item.low_stock_threshold || 0);
                                     
                                     return (
@@ -2058,16 +2010,7 @@ const App = () => {
                                     return true;
                                 })
                                 .map(item => {
-                                    let stockDisplay;
-                                    const stockNum = parseFloat(item.stock);
-                                    if (item.unit === 'g') {
-                                        stockDisplay = `${parseFloat((stockNum / 1000).toFixed(3))} kilos`;
-                                    } else if (item.unit === 'ml') {
-                                        stockDisplay = `${parseFloat((stockNum / 1000).toFixed(3))} litros`;
-                                    } else {
-                                        stockDisplay = `${stockNum} unidades`;
-                                    }
-                                    
+                                    const stockDisplay = formatStockDisplay(item.stock, item.unit);
                                     const isLowStock = item.stock < (item.lowStockThreshold || item.low_stock_threshold || 0);
                                     
                                     return (
@@ -2145,22 +2088,7 @@ const App = () => {
     };
 
     const SalesView = () => {
-        const [activeTab, setActiveTab] = useState('ventas'); // 'ventas', 'historial' o 'caja'
-        const [selectedDateFilter, setSelectedDateFilter] = useState(new Date().toISOString().split('T')[0]);
-
-        // Filtrar ventas por fecha
-        const filteredSales = sales.filter(sale => {
-            if (!sale.created_at) return false;
-            const saleDate = sale.created_at.split('T')[0];
-            return saleDate === selectedDateFilter;
-        });
-
-        // Filtrar movimientos de caja por fecha
-        const filteredCashMovements = cashMovements.filter(movement => {
-            if (!movement.date) return false;
-            const movementDate = movement.date.split('T')[0];
-            return movementDate === selectedDateFilter;
-        });
+        const [activeTab, setActiveTab] = useState('ventas'); // 'ventas' o 'caja'
 
         return (
             <div className="min-h-screen bg-gray-50">
@@ -2178,17 +2106,6 @@ const App = () => {
                                 style={activeTab === 'ventas' ? { backgroundColor: 'rgb(82, 150, 214)' } : {}}
                             >
                                 Registrar Venta
-                            </button>
-                            <button
-                                onClick={() => setActiveTab('historial')}
-                                className={`py-4 px-6 font-medium text-lg transition-all rounded-t-lg ${
-                                    activeTab === 'historial'
-                                        ? 'text-white'
-                                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                                }`}
-                                style={activeTab === 'historial' ? { backgroundColor: 'rgb(82, 150, 214)' } : {}}
-                            >
-                                Historial de Ventas
                             </button>
                             <button
                                 onClick={() => setActiveTab('caja')}
@@ -2212,136 +2129,14 @@ const App = () => {
                             products={products}
                             loadProducts={loadProducts}
                             loadCashMovements={loadCashMovements}
-                            cashMovements={cashMovements}
-                            sales={sales}
-                            calculateCashBalance={calculateCashBalance}
                         />
-                    </div>
-
-                    <div style={{ display: activeTab === 'historial' ? 'block' : 'none' }}>
-                        <div className="bg-white rounded-lg shadow-md p-6">
-                            <h2 className="text-2xl font-bold mb-4">Historial de Ventas</h2>
-                            
-                            {/* Filtro de fecha */}
-                            <div className="mb-6 flex gap-4 items-center">
-                                <label className="font-semibold text-gray-700">Filtrar por fecha:</label>
-                                <input
-                                    type="date"
-                                    value={selectedDateFilter}
-                                    onChange={(e) => setSelectedDateFilter(e.target.value)}
-                                    className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                />
-                                <span className="text-gray-600 font-semibold">
-                                    {filteredSales.length} venta{filteredSales.length !== 1 ? 's' : ''} encontrada{filteredSales.length !== 1 ? 's' : ''}
-                                </span>
-                            </div>
-
-                            {/* Tabla de ventas */}
-                            {filteredSales.length > 0 ? (
-                                <div className="overflow-x-auto">
-                                    <table className="w-full border-collapse border border-gray-300">
-                                        <thead className="bg-gray-200">
-                                            <tr>
-                                                <th className="border border-gray-300 px-4 py-2 text-left">ID</th>
-                                                <th className="border border-gray-300 px-4 py-2 text-left">Fecha</th>
-                                                <th className="border border-gray-300 px-4 py-2 text-left">Productos</th>
-                                                <th className="border border-gray-300 px-4 py-2 text-right">Monto Total</th>
-                                                <th className="border border-gray-300 px-4 py-2 text-left">Método de Pago</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {filteredSales.map((sale) => (
-                                                <tr key={sale.id} className="hover:bg-gray-50">
-                                                    <td className="border border-gray-300 px-4 py-2">#{sale.id}</td>
-                                                    <td className="border border-gray-300 px-4 py-2">
-                                                        {sale.created_at ? new Date(sale.created_at).toLocaleString('es-AR') : 'N/A'}
-                                                    </td>
-                                                    <td className="border border-gray-300 px-4 py-2">
-                                                        {sale.items && Array.isArray(sale.items) 
-                                                            ? sale.items.map(item => `${item.product_name} x${item.quantity}`).join(', ')
-                                                            : 'N/A'}
-                                                    </td>
-                                                    <td className="border border-gray-300 px-4 py-2 text-right font-bold">
-                                                        ${parseFloat(sale.total_amount || 0).toFixed(2)}
-                                                    </td>
-                                                    <td className="border border-gray-300 px-4 py-2">
-                                                        {sale.payment_method || 'N/A'}
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            ) : (
-                                <div className="text-center py-8 text-gray-500">
-                                    <p className="text-lg">No hay ventas registradas para esta fecha</p>
-                                </div>
-                            )}
-                        </div>
                     </div>
                     
                     <div style={{ display: activeTab === 'caja' ? 'block' : 'none' }}>
-                        <div className="bg-white rounded-lg shadow-md p-6">
-                            <h2 className="text-2xl font-bold mb-4">Movimientos de Caja</h2>
-                            
-                            {/* Filtro de fecha */}
-                            <div className="mb-6 flex gap-4 items-center">
-                                <label className="font-semibold text-gray-700">Filtrar por fecha:</label>
-                                <input
-                                    type="date"
-                                    value={selectedDateFilter}
-                                    onChange={(e) => setSelectedDateFilter(e.target.value)}
-                                    className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                />
-                                <span className="text-gray-600 font-semibold">
-                                    {filteredCashMovements.length} movimiento{filteredCashMovements.length !== 1 ? 's' : ''}
-                                </span>
-                            </div>
-
-                            {/* Tabla de movimientos */}
-                            {filteredCashMovements.length > 0 ? (
-                                <div className="overflow-x-auto">
-                                    <table className="w-full border-collapse border border-gray-300">
-                                        <thead className="bg-gray-200">
-                                            <tr>
-                                                <th className="border border-gray-300 px-4 py-2 text-left">Fecha</th>
-                                                <th className="border border-gray-300 px-4 py-2 text-left">Tipo</th>
-                                                <th className="border border-gray-300 px-4 py-2 text-right">Monto</th>
-                                                <th className="border border-gray-300 px-4 py-2 text-left">Descripción</th>
-                                                <th className="border border-gray-300 px-4 py-2 text-left">Método de Pago</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {filteredCashMovements.map((movement) => (
-                                                <tr key={movement.id} className="hover:bg-gray-50">
-                                                    <td className="border border-gray-300 px-4 py-2">
-                                                        {movement.date ? new Date(movement.date).toLocaleString('es-AR') : 'N/A'}
-                                                    </td>
-                                                    <td className={`border border-gray-300 px-4 py-2 font-semibold ${
-                                                        movement.type === 'Entrada' ? 'text-green-600' : 'text-red-600'
-                                                    }`}>
-                                                        {movement.type}
-                                                    </td>
-                                                    <td className="border border-gray-300 px-4 py-2 text-right font-bold">
-                                                        ${parseFloat(movement.amount || 0).toFixed(2)}
-                                                    </td>
-                                                    <td className="border border-gray-300 px-4 py-2">
-                                                        {movement.description || 'N/A'}
-                                                    </td>
-                                                    <td className="border border-gray-300 px-4 py-2">
-                                                        {movement.payment_method || 'N/A'}
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            ) : (
-                                <div className="text-center py-8 text-gray-500">
-                                    <p className="text-lg">No hay movimientos para esta fecha</p>
-                                </div>
-                            )}
-                        </div>
+                        <Movimientos_De_Caja 
+                            cashMovements={cashMovements}
+                            cashBalance={cashBalance}
+                        />
                     </div>
                 </div>
             </div>
@@ -2358,7 +2153,7 @@ const App = () => {
             e.preventDefault();
             const amount = parseFloat(newMovement.amount);
             // Simulación de saldo de caja.
-            const currentBalance = cashMovements.reduce((sum, m) => sum + (m.type === 'Entrada' ? m.amount : -m.amount), 0);
+            const currentBalance = cashBalance ?? cashMovements.reduce((sum, m) => sum + (m.type === 'Entrada' ? m.amount : -m.amount), 0);
 
             // Regla de negocio: Si es una salida, validar saldo.
             if (newMovement.type === 'Salida' && amount > currentBalance) {
@@ -2412,7 +2207,7 @@ const App = () => {
                         <li key={movement.id} className="list-item">
                             <span>{formatMovementDate(movement.date)} - {movement.description}</span>
                             <span className={movement.type === 'Entrada' ? 'positive' : 'negative'}>
-                                {movement.type === 'Entrada' ? '+' : '-'} ${movement.amount}
+                                {movement.type === 'Entrada' ? '+' : '-'} {formatMoney(movement.amount)}
                             </span>
                         </li>
                     ))}
@@ -2797,11 +2592,15 @@ const App = () => {
                                 <div className="purchase-items">
                                     <strong>Productos:</strong>
                                     <ul>
-                                        {purchase.items.map((item, index) => (
+                                        {purchase.items.map((item, index) => {
+                                            const foundProduct = inventory.find(p => p.name?.toLowerCase() === item.productName?.toLowerCase());
+                                            const unit = foundProduct?.unit || item.unit || 'u';
+                                            return (
                                             <li key={index}>
-                                                {item.productName} - {item.quantity} x ${item.unitPrice} = ${safeToFixed(item.total)}
+                                                {formatCompraItemLine(item.productName, item.quantity, unit)} x ${safeToFixed(item.unitPrice)} = ${safeToFixed(item.total)}
                                             </li>
-                                        ))}
+                                            );
+                                        })}
                                     </ul>
                                 </div>
                                 <div className="purchase-total-display">
@@ -2880,7 +2679,7 @@ const PurchaseRequests = () => {
                             <ul>
                                 {request.items.map((item, index) => (
                                     <li key={index}>
-                                        {item.productName} - {item.quantity} x ${item.unitPrice} = ${safeToFixed(item.total)}
+                                        {formatCompraItemLine(item.productName, item.quantity, item.unit || 'u')} x ${safeToFixed(item.unitPrice)} = ${safeToFixed(item.total)}
                                     </li>
                                 ))}
                             </ul>
@@ -2962,22 +2761,6 @@ const PurchaseRequests = () => {
             const [selectedProducts, setSelectedProducts] = useState([{ id: '', product: null }]);
             const [message, setMessage] = useState('');
             const [notification, setNotification] = useState('');
-        
-            // Función para formatear el stock con la unidad apropiada
-            const formatStock = (stock, unit) => {
-                if (!unit) return stock;
-                
-                switch(unit.toLowerCase()) {
-                    case 'g':
-                        return `${(stock / 1000).toFixed(2)} Kg`;
-                    case 'ml':
-                        return `${(stock / 1000).toFixed(2)} L`;
-                    case 'u':
-                        return `${Math.round(stock)} U`;
-                    default:
-                        return `${stock} ${unit}`;
-                }
-            };
         
             const handleAddProduct = () => {
                 setSelectedProducts([...selectedProducts, { id: Date.now(), product: null }]);
@@ -3164,7 +2947,7 @@ const PurchaseRequests = () => {
                     /> : <div>Acceso Denegado</div>;
             case 'pedidos':
                 return userRole === 'Gerente' ? (
-                    <Pedidos orders={orders} setOrders={setOrders} products={products} />
+                    <Pedidos orders={orders} setOrders={setOrders} products={products} loadCashBalance={loadCashBalance} />
                 ) : <div>Acceso Denegado</div>;
             case 'consultas':
                 return <DataConsultation 
@@ -3467,6 +3250,8 @@ const PurchaseRequests = () => {
                 <PedDialogo
                     orders={orders}
                     setOrders={setOrders}
+                    products={products}
+                    loadCashBalance={loadCashBalance}
                     isOpen={isPedDialogoOpen}
                     onClose={handleClosePedDialogo}
                     onMinimize={handleMinimizePedDialogo}

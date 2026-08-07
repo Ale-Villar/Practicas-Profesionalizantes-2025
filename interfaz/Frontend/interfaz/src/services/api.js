@@ -170,6 +170,14 @@ const updateOrderStatus = (orderId, status) => {
   return api.patch(`/orders/${orderId}/`, { status });
 };
 
+const updateOrder = (orderId, data) => {
+  return api.patch(`/orders/${orderId}/`, data);
+};
+
+const getCashBalance = () => {
+  return api.get('/cash-movements/balance/');
+};
+
 // Funciones para Gestión de Pérdidas
 const getLossRecords = () => {
   return api.get('/loss-records/');
@@ -201,5 +209,7 @@ export {
   produceProduct,
   resetWithToken,
   updateOrderStatus,
+  updateOrder,
+  getCashBalance,
   getLossRecords // Nueva exportación
 };

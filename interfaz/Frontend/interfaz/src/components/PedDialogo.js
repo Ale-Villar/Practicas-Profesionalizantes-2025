@@ -1,5 +1,48 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { updateOrderStatus } from '../services/api';
+import Select from 'react-select';
+import { updateOrderStatus, updateOrder } from '../services/api';
+import {
+    calculateItemsTotal,
+    PaymentDifferencePanel,
+    ConfirmDeliveryModal,
+    ExitEnCambioModal,
+} from './OrderPedidoModals';
+
+const ORDER_STATUSES = ['Pendiente', 'En Preparación', 'Listo', 'En cambio', 'Entregado', 'Cancelado'];
+
+const getStatusClasses = (status) => {
+    switch (status) {
+        case 'Pendiente': return 'bg-yellow-100 text-yellow-800';
+        case 'En Preparación': return 'bg-blue-100 text-blue-800';
+        case 'Listo': return 'bg-green-100 text-green-800';
+        case 'En cambio': return 'bg-orange-100 text-orange-800';
+        case 'Entregado': return 'bg-gray-100 text-gray-800';
+        default: return 'bg-red-100 text-red-800';
+    }
+};
+
+const normalizeOrder = (created) => ({
+    id: created.id,
+    fecha_para_la_que_se_quiere_el_pedido: created.fecha_para_la_que_se_quiere_el_pedido,
+    fecha_de_orden_del_pedido: created.fecha_de_orden_del_pedido,
+    created_at: created.fecha_de_orden_del_pedido || created.created_at,
+    date: created.fecha_de_orden_del_pedido || created.created_at,
+    customerName: created.customer_name || '',
+    paymentMethod: created.payment_method || '',
+    items: Array.isArray(created.items) ? created.items.map(it => ({
+        productName: it.product_name || '',
+        quantity: Number(it.quantity) || 0,
+        unitPrice: Number(it.unit_price) || 0,
+        total: Number(it.total) || 0,
+    })) : [],
+    totalAmount: Number(created.total_amount) || 0,
+    status: created.status || 'Pendiente',
+    notes: created.notes || '',
+    cashReceived: created.cash_received,
+    changeGiven: created.change_given,
+    paidTotalAtChange: created.paid_total_at_change != null ? Number(created.paid_total_at_change) : null,
+    paymentDifference: created.payment_difference != null ? Number(created.payment_difference) : null,
+});
 
 const safeToFixed = (value, decimals = 2) => {
     const num = parseFloat(value);
@@ -22,7 +65,7 @@ const formatMovementDate = (dateInput) => {
     }
 };
 
-function PedDialogo({ orders, setOrders, isOpen, onClose, onMinimize, isMinimized, onOpenNewTab, isFullscreen = false }) {
+function PedDialogo({ orders, setOrders, products = [], loadCashBalance, isOpen, onClose, onMinimize, isMinimized, onOpenNewTab, isFullscreen = false }) {
     const [ordersIdFilter, setOrdersIdFilter] = useState('');
     const [ordersIdFilterOp, setOrdersIdFilterOp] = useState('equals');
     const [ordersCustomerFilter, setOrdersCustomerFilter] = useState('');
@@ -40,6 +83,11 @@ function PedDialogo({ orders, setOrders, isOpen, onClose, onMinimize, isMinimize
 
     // Filtros rebatibles
     const [showFilters, setShowFilters] = useState(false);
+    const [editingOrderId, setEditingOrderId] = useState(null);
+    const [editOrderForm, setEditOrderForm] = useState(null);
+    const [editMessage, setEditMessage] = useState('');
+    const [confirmDelivery, setConfirmDelivery] = useState(null);
+    const [exitEnCambio, setExitEnCambio] = useState(null);
 
     // Estados para drag & drop
     const [position, setPosition] = useState({ x: 100, y: 100 });
@@ -47,16 +95,127 @@ function PedDialogo({ orders, setOrders, isOpen, onClose, onMinimize, isMinimize
     const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
     const dialogRef = useRef(null);
 
-    const handleUpdateOrderStatus = async (orderId, newStatus) => {
+    const applyStatusUpdate = async (orderId, newStatus) => {
         try {
-            await updateOrderStatus(orderId, newStatus);
+            const res = await updateOrderStatus(orderId, newStatus);
+            const updated = res?.data ? normalizeOrder(res.data) : null;
             setOrders(prev =>
-                prev.map(order =>
-                    order.id === orderId ? { ...order, status: newStatus } : order
-                )
+                prev.map(order => {
+                    if (order.id !== orderId) return order;
+                    return updated ? { ...order, ...updated } : { ...order, status: newStatus };
+                })
             );
+            if (newStatus === 'Entregado' && loadCashBalance) {
+                await loadCashBalance();
+            }
         } catch (err) {
             console.error('Error actualizando estado del pedido:', err);
+        }
+    };
+
+    const handleStatusChangeRequest = (order, newStatus) => {
+        if (newStatus === order.status) return;
+
+        if (newStatus === 'Entregado') {
+            setConfirmDelivery({ orderId: order.id, newStatus });
+            return;
+        }
+
+        if (order.status === 'En cambio' && newStatus !== 'En cambio') {
+            setExitEnCambio({ order, newStatus });
+            return;
+        }
+
+        applyStatusUpdate(order.id, newStatus);
+    };
+
+    const productOptions = products
+        .filter(p => p.category === 'Producto')
+        .map(p => ({ value: p.id, label: p.name }));
+
+    const openEditOrder = (order) => {
+        const paidTotal = Number(order.paidTotalAtChange ?? order.totalAmount) || 0;
+        setEditingOrderId(order.id);
+        setEditOrderForm({
+            paidTotal,
+            items: (order.items || []).map(item => {
+                const qty = Number(item.quantity) || 0;
+                const unitPrice = Number(item.unitPrice) || 0;
+                return {
+                    productId: products.find(p => p.name === item.productName)?.id || '',
+                    productName: item.productName || '',
+                    quantity: qty || 1,
+                    unitPrice,
+                    total: qty * unitPrice,
+                };
+            }),
+            notes: order.notes || '',
+        });
+        setEditMessage('');
+    };
+
+    const closeEditOrder = () => {
+        setEditingOrderId(null);
+        setEditOrderForm(null);
+        setEditMessage('');
+    };
+
+    const calculateEditOrderTotal = () => {
+        if (!editOrderForm) return 0;
+        return calculateItemsTotal(editOrderForm.items);
+    };
+
+    const updateEditItem = (index, field, value) => {
+        setEditOrderForm(prev => {
+            const updatedItems = [...prev.items];
+            const currentItem = { ...updatedItems[index] };
+            if (field === 'product') {
+                currentItem.productId = value ? value.value : '';
+                currentItem.productName = value ? value.label : '';
+                const productData = products.find(p => p.id === currentItem.productId);
+                if (productData) currentItem.unitPrice = Number(productData.price) || 0;
+            } else {
+                currentItem[field] = value;
+            }
+            const quantity = Number(currentItem.quantity) || 0;
+            const unitPrice = Number(currentItem.unitPrice) || 0;
+            currentItem.total = quantity * unitPrice;
+            updatedItems[index] = currentItem;
+            return { ...prev, items: updatedItems };
+        });
+    };
+
+    const handleSaveEditOrder = async (e) => {
+        e.preventDefault();
+        const validItems = editOrderForm.items.filter(item =>
+            item.productName.trim() && Number(item.quantity) > 0 && Number(item.unitPrice) > 0
+        );
+        if (validItems.length === 0) {
+            setEditMessage('Debe tener al menos un producto válido.');
+            return;
+        }
+        try {
+            const res = await updateOrder(editingOrderId, {
+                items: validItems.map(i => {
+                    const qty = Number(i.quantity);
+                    const unitPrice = Number(i.unitPrice);
+                    return {
+                        product_name: i.productName,
+                        quantity: qty,
+                        unit_price: unitPrice,
+                        total: qty * unitPrice,
+                    };
+                }),
+                notes: editOrderForm.notes,
+            });
+            const updated = normalizeOrder(res.data);
+            setOrders(prev => prev.map(order =>
+                order.id === editingOrderId ? { ...order, ...updated } : order
+            ));
+            closeEditOrder();
+        } catch (err) {
+            console.error('Error actualizando pedido:', err);
+            setEditMessage('Error al actualizar el pedido.');
         }
     };
 
@@ -362,7 +521,7 @@ function PedDialogo({ orders, setOrders, isOpen, onClose, onMinimize, isMinimize
                                 <div className="mb-4">
                                     <label className="font-medium text-gray-700 block mb-2">Estados:</label>
                                     <div className="flex flex-wrap gap-4">
-                                        {['Pendiente', 'En Preparación', 'Listo', 'Entregado', 'Cancelado'].map(status => (
+                                        {ORDER_STATUSES.map(status => (
                                             <label key={status} className="flex items-center gap-2 cursor-pointer">
                                                 <input
                                                     type="checkbox"
@@ -459,26 +618,27 @@ function PedDialogo({ orders, setOrders, isOpen, onClose, onMinimize, isMinimize
                                             </td>
                                             <td className="px-3 py-3 text-sm">
                                                 <div className="flex flex-col gap-2">
-                                                    <span className={`inline-flex w-fit px-3 py-1 rounded-full text-xs font-semibold ${
-                                                        order.status === 'Pendiente' ? 'bg-yellow-100 text-yellow-800' :
-                                                        order.status === 'En Preparación' ? 'bg-blue-100 text-blue-800' :
-                                                        order.status === 'Listo' ? 'bg-green-100 text-green-800' :
-                                                        order.status === 'Entregado' ? 'bg-gray-100 text-gray-800' :
-                                                        'bg-red-100 text-red-800'
-                                                    }`}>
+                                                    <span className={`inline-flex w-fit px-3 py-1 rounded-full text-xs font-semibold ${getStatusClasses(order.status)}`}>
                                                         {order.status}
                                                     </span>
                                                     <select
                                                         value={order.status}
-                                                        onChange={e => handleUpdateOrderStatus(order.id, e.target.value)}
+                                                        onChange={e => handleStatusChangeRequest(order, e.target.value)}
                                                         className="px-2 py-1 border border-gray-300 rounded-md text-sm bg-white"
                                                     >
-                                                        <option value="Pendiente">Pendiente</option>
-                                                        <option value="En Preparación">En Preparación</option>
-                                                        <option value="Listo">Listo</option>
-                                                        <option value="Entregado">Entregado</option>
-                                                        <option value="Cancelado">Cancelado</option>
+                                                        {ORDER_STATUSES.map(status => (
+                                                            <option key={status} value={status}>{status}</option>
+                                                        ))}
                                                     </select>
+                                                    {order.status === 'En cambio' && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => openEditOrder(order)}
+                                                            className="px-2 py-1 bg-orange-500 hover:bg-orange-600 text-white rounded-md text-xs font-semibold"
+                                                        >
+                                                            Editar
+                                                        </button>
+                                                    )}
                                                 </div>
                                             </td>
                                             <td className="px-3 py-3 text-sm text-gray-700 text-right whitespace-nowrap font-semibold">
@@ -513,6 +673,80 @@ function PedDialogo({ orders, setOrders, isOpen, onClose, onMinimize, isMinimize
                         )}
                     </div>
                 </div>
+            )}
+
+            {editingOrderId && editOrderForm && (
+                <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-[60]">
+                    <div className="relative top-20 mx-auto p-5 border w-full max-w-4xl shadow-lg rounded-md bg-white">
+                        <form onSubmit={handleSaveEditOrder}>
+                            <h3 className="text-lg font-bold mb-2">Editar Pedido #{editingOrderId}</h3>
+                            {editMessage && <p className="text-red-600 text-sm mb-3">{editMessage}</p>}
+                            {editOrderForm.items.map((item, index) => (
+                                <div key={index} className="grid grid-cols-12 gap-3 items-center mb-2">
+                                    <div className="col-span-6">
+                                        <Select
+                                            options={productOptions}
+                                            value={productOptions.find(opt => opt.value === item.productId)}
+                                            onChange={selectedOption => updateEditItem(index, 'product', selectedOption)}
+                                            placeholder="Producto..."
+                                            isClearable
+                                        />
+                                    </div>
+                                    <div className="col-span-2">
+                                        <input
+                                            type="number"
+                                            value={item.quantity}
+                                            onChange={e => updateEditItem(index, 'quantity', e.target.value)}
+                                            className="w-full px-2 py-1 border border-gray-300 rounded-md text-sm"
+                                            min="1"
+                                            required
+                                        />
+                                    </div>
+                                    <div className="col-span-2">
+                                        <input type="number" value={item.unitPrice} readOnly className="w-full px-2 py-1 bg-gray-100 border border-gray-300 rounded-md text-sm" />
+                                    </div>
+                                    <div className="col-span-2 text-right text-sm font-semibold">
+                                        ${safeToFixed((Number(item.quantity) || 0) * (Number(item.unitPrice) || 0))}
+                                    </div>
+                                </div>
+                            ))}
+                            <PaymentDifferencePanel
+                                paidTotal={editOrderForm.paidTotal}
+                                newTotal={calculateEditOrderTotal()}
+                            />
+                            <div className="mt-4 text-right font-bold">
+                                Nuevo total del pedido: ${safeToFixed(calculateEditOrderTotal())}
+                            </div>
+                            <div className="mt-4 flex justify-end gap-3">
+                                <button type="button" onClick={closeEditOrder} className="px-4 py-2 bg-gray-300 rounded-md">Cancelar</button>
+                                <button type="submit" className="px-4 py-2 bg-orange-500 text-white rounded-md">Guardar</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {confirmDelivery && (
+                <ConfirmDeliveryModal
+                    orderId={confirmDelivery.orderId}
+                    onConfirm={() => {
+                        applyStatusUpdate(confirmDelivery.orderId, confirmDelivery.newStatus);
+                        setConfirmDelivery(null);
+                    }}
+                    onCancel={() => setConfirmDelivery(null)}
+                />
+            )}
+
+            {exitEnCambio && (
+                <ExitEnCambioModal
+                    order={exitEnCambio.order}
+                    newStatus={exitEnCambio.newStatus}
+                    onConfirm={() => {
+                        applyStatusUpdate(exitEnCambio.order.id, exitEnCambio.newStatus);
+                        setExitEnCambio(null);
+                    }}
+                    onCancel={() => setExitEnCambio(null)}
+                />
             )}
         </div>
     );
