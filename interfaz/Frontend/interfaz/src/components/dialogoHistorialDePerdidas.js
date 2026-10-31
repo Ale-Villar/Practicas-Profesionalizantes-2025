@@ -263,6 +263,24 @@ export default function DialogoHistorialDePerdidas({ onClose, isWindowMode = fal
     const isDragging = useRef(false);
     const offset = useRef({ x: 0, y: 0 });
 
+    // El diálogo no puede pasar por encima del menú ni salirse por los costados o por abajo.
+    const navBottom = () => {
+        const nav = document.querySelector('nav.navbar');
+        return nav ? Math.max(0, nav.getBoundingClientRect().bottom) : 0;
+    };
+
+    const clampDialog = (x, y, width, height) => {
+        const topLimit = navBottom();
+        const w = Math.min(Math.max(320, width), window.innerWidth);
+        const h = Math.min(Math.max(48, height), Math.max(48, window.innerHeight - topLimit));
+        return {
+            x: Math.min(Math.max(0, x), Math.max(0, window.innerWidth - w)),
+            y: Math.min(Math.max(topLimit, y), Math.max(topLimit, window.innerHeight - h)),
+            width: w,
+            height: h,
+        };
+    };
+
     const handleMouseDown = (e) => {
         if (windowState.isMaximized || isWindowMode) return;
         if (e.target.closest('.no-drag')) return;
@@ -277,11 +295,16 @@ export default function DialogoHistorialDePerdidas({ onClose, isWindowMode = fal
 
     const handleMouseMove = (e) => {
         if (!isDragging.current) return;
-        setWindowState(prev => ({
-            ...prev,
-            x: e.clientX - offset.current.x,
-            y: e.clientY - offset.current.y
-        }));
+        setWindowState(prev => {
+            const width = prev.isMinimized ? 350 : prev.width;
+            const height = prev.isMinimized ? 48 : prev.height;
+            const next = clampDialog(e.clientX - offset.current.x, e.clientY - offset.current.y, width, height);
+            return {
+                ...prev,
+                x: next.x,
+                y: next.y,
+            };
+        });
     };
 
     const handleMouseUp = () => {
@@ -289,6 +312,24 @@ export default function DialogoHistorialDePerdidas({ onClose, isWindowMode = fal
         document.removeEventListener('mousemove', handleMouseMove);
         document.removeEventListener('mouseup', handleMouseUp);
     };
+
+    useEffect(() => {
+        if (isEmbedded || isWindowMode || windowState.isMaximized) return;
+        setWindowState(prev => {
+            const next = clampDialog(
+                prev.x,
+                prev.y,
+                prev.isMinimized ? 350 : prev.width,
+                prev.isMinimized ? 48 : prev.height
+            );
+            if (prev.isMinimized) {
+                if (next.x === prev.x && next.y === prev.y) return prev;
+                return { ...prev, x: next.x, y: next.y };
+            }
+            if (next.x === prev.x && next.y === prev.y && next.width === prev.width && next.height === prev.height) return prev;
+            return { ...prev, ...next };
+        });
+    }, [screenWidth, isEmbedded, isWindowMode, windowState.isMaximized, windowState.isMinimized]);
 
     // Lógica de resize del panel izquierdo
     const handlePanelResizeStart = (e) => {
@@ -395,14 +436,12 @@ export default function DialogoHistorialDePerdidas({ onClose, isWindowMode = fal
         flexDirection: 'column',
         boxShadow: '0 8px 24px -4px rgba(0, 0, 0, 0.2)',
     } : windowState.isMaximized ? {
-        // Cuando está maximizado: pantalla completa
+        // Ocupa toda la pantalla que queda debajo del menú
         position: 'fixed',
-        top: 0,
+        top: navBottom(),
         left: 0,
-        right: 0,
-        bottom: 0,
         width: '100%',
-        height: '100%',
+        height: `calc(100vh - ${navBottom()}px)`,
         zIndex: 1000,
         display: 'flex',
         flexDirection: 'column',
@@ -462,7 +501,11 @@ export default function DialogoHistorialDePerdidas({ onClose, isWindowMode = fal
                         <button onClick={() => setWindowState(p => ({...p, isMinimized: !p.isMinimized}))} className="p-1 hover:bg-slate-700 rounded text-slate-300 hover:text-white">
                             <Minimize2 size={14} />
                         </button>
-                        <button onClick={() => setWindowState(p => ({...p, isMaximized: !p.isMaximized}))} className="p-1 hover:bg-slate-700 rounded text-slate-300 hover:text-white">
+                        <button
+                            onClick={() => setWindowState(p => ({ ...p, isMaximized: !p.isMaximized, isMinimized: false }))}
+                            className="p-1 hover:bg-slate-700 rounded text-slate-300 hover:text-white"
+                            title={windowState.isMaximized ? 'Restaurar' : 'Maximizar'}
+                        >
                             <Maximize2 size={14} />
                         </button>
                         <button onClick={onClose} className="p-1 hover:bg-red-600 rounded text-slate-300 hover:text-white">
@@ -853,11 +896,26 @@ export default function DialogoHistorialDePerdidas({ onClose, isWindowMode = fal
                         const startH = windowState.height;
                         
                         const onResize = (moveEvent) => {
-                            setWindowState(prev => ({
-                                ...prev,
-                                width: Math.max(600, startW + (moveEvent.clientX - startX)),
-                                height: Math.max(400, startH + (moveEvent.clientY - startY))
-                            }));
+                            setWindowState(prev => {
+                                const topLimit = navBottom();
+                                const y = Math.max(topLimit, prev.y);
+                                const x = Math.max(0, prev.x);
+                                const width = Math.min(
+                                    Math.max(600, window.innerWidth - x),
+                                    Math.max(600, startW + (moveEvent.clientX - startX))
+                                );
+                                const height = Math.min(
+                                    Math.max(400, window.innerHeight - y),
+                                    Math.max(400, startH + (moveEvent.clientY - startY))
+                                );
+                                return {
+                                    ...prev,
+                                    x: Math.min(x, Math.max(0, window.innerWidth - width)),
+                                    y: Math.min(y, Math.max(topLimit, window.innerHeight - height)),
+                                    width,
+                                    height,
+                                };
+                            });
                         };
                         
                         const stopResize = () => {

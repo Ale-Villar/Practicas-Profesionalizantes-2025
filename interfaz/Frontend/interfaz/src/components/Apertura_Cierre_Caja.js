@@ -1,10 +1,12 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { formatMovementDate } from '../utils/date';
 import { formatMoney } from '../utils/format';
-import api, { getCashRegisterSessions, getCashRegisterStatus, openCashRegister, closeCashRegister, getApiErrorMessage } from '../services/api';
+import api, { getCashRegisterSessions, getCashRegisterStatus, openCashRegister, closeCashRegister, resolveCashRegister, getApiErrorMessage } from '../services/api';
 
 // Roles que pueden abrir y cerrar la caja (todos menos Panadero)
 export const ROLES_APERTURA_CAJA = ['Gerente', 'Encargado', 'Cajero'];
+// Cierran contando el efectivo a ciegas: el backend no les manda el efectivo que calcula el sistema
+const ROLES_QUE_DECLARAN_EFECTIVO = ['Encargado', 'Cajero'];
 
 const EstadoBadge = ({ isOpen }) => (
     <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${isOpen ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
@@ -20,18 +22,58 @@ const FilaMonto = ({ label, value, className = 'text-gray-800', destacado = fals
     </div>
 );
 
-const TurnoCard = ({ turno, numero }) => (
+const DiferenciaEfectivo = ({ value }) => {
+    const diferencia = Number(value) || 0;
+    if (diferencia === 0) {
+        return <p className="mt-1 font-semibold text-green-700">Coincide con el efectivo calculado</p>;
+    }
+    return (
+        <p className={`mt-1 font-semibold ${diferencia > 0 ? 'text-amber-700' : 'text-red-600'}`}>
+            {diferencia > 0 ? `Sobran ${formatMoney(diferencia)}` : `Faltan ${formatMoney(-diferencia)}`}
+        </p>
+    );
+};
+
+const TurnoCard = ({ turno, numero, seesCash, onResolve, cashIsWhole = false }) => {
+    const [editingAmount, setEditingAmount] = useState(false);
+    const [amount, setAmount] = useState('');
+    const [busy, setBusy] = useState(false);
+    const [error, setError] = useState('');
+    const [confirmConvalidate, setConfirmConvalidate] = useState(false);
+    const [confirmEdit, setConfirmEdit] = useState(null);
+    const difference = turno.cash_difference == null ? null : Number(turno.cash_difference);
+    const canResolve = seesCash && !turno.is_open && difference != null && difference !== 0 && !turno.cash_resolution;
+
+    const runResolve = async (payload) => {
+        setBusy(true);
+        setError('');
+        try {
+            await onResolve(turno.id, payload);
+            setEditingAmount(false);
+            setConfirmConvalidate(false);
+            setConfirmEdit(null);
+        } catch (resolveError) {
+            setError(getApiErrorMessage(resolveError, 'No se pudo resolver el efectivo del cierre.'));
+        } finally {
+            setBusy(false);
+        }
+    };
+
+    return (
     <div className="border border-gray-200 rounded-lg p-3">
         <div className="flex justify-between items-center mb-2">
             <span className="font-semibold text-gray-800">Turno {numero}</span>
             <EstadoBadge isOpen={turno.is_open} />
         </div>
-        <div className="grid grid-cols-1 xs:grid-cols-2 gap-3 text-sm">
+        <div className="grid grid-cols-1 xs:grid-cols-2 gap-x-8 gap-y-3 text-sm">
             <div>
                 <p className="text-xs font-semibold text-gray-500 uppercase mb-1">Apertura</p>
                 <p className="text-gray-700">{formatMovementDate(turno.opened_at)}</p>
                 <p className="text-gray-600">por {turno.opened_by || 'usuario eliminado'}</p>
-                <p className="font-semibold text-gray-800">{formatMoney(turno.opening_balance)}</p>
+                <dl className="mt-1 space-y-1">
+                    {seesCash && <FilaMonto label="Efectivo" value={turno.opening_cash} />}
+                    <FilaMonto label="Total de dinero" value={turno.opening_balance} />
+                </dl>
             </div>
             <div>
                 <p className="text-xs font-semibold text-gray-500 uppercase mb-1">Cierre</p>
@@ -41,7 +83,117 @@ const TurnoCard = ({ turno, numero }) => (
                     <>
                         <p className="text-gray-700">{formatMovementDate(turno.closed_at)}</p>
                         <p className="text-gray-600">por {turno.closed_by || 'usuario eliminado'}</p>
-                        <p className="font-semibold text-gray-800">{formatMoney(turno.closing_balance)}</p>
+                        <dl className="mt-1 space-y-1">
+                            {seesCash && <FilaMonto label="Efectivo" value={turno.closing_cash} />}
+                            <FilaMonto label="Total de dinero" value={turno.closing_balance} />
+                            {seesCash && turno.declared_closing_cash != null && (
+                                <FilaMonto label="Efectivo declarado" value={turno.declared_closing_cash} />
+                            )}
+                            {seesCash && turno.validated_closing_cash != null && (
+                                <FilaMonto
+                                    label={turno.cash_resolution === 'convalidada' ? 'Efectivo convalidado' : 'Efectivo corregido'}
+                                    value={turno.validated_closing_cash}
+                                />
+                            )}
+                        </dl>
+                        {seesCash && turno.cash_difference != null && <DiferenciaEfectivo value={turno.cash_difference} />}
+                        {canResolve && (
+                            <div className="mt-3 space-y-2">
+                                {confirmConvalidate ? (
+                                    <div className="bg-amber-50 border border-amber-200 rounded-md p-2">
+                                        <p className="text-xs text-amber-800 mb-2">
+                                            El efectivo de la caja pasa a ser {formatMoney(turno.declared_closing_cash)}, el monto que declaró el empleado.
+                                        </p>
+                                        <div className="flex gap-2">
+                                            <button type="button" disabled={busy} onClick={() => runResolve({ action: 'convalidar' })} className="px-2 py-1 bg-blue-600 text-white rounded text-xs font-semibold">Confirmar</button>
+                                            <button type="button" disabled={busy} onClick={() => setConfirmConvalidate(false)} className="px-2 py-1 bg-slate-200 rounded text-xs font-semibold">Cancelar</button>
+                                        </div>
+                                    </div>
+                                ) : editingAmount ? (
+                                    <div className="space-y-2">
+                                        <p className="text-xs text-gray-600">
+                                            {difference < 0
+                                                ? 'Corregí cuánto falta de verdad. La caja se abre con el efectivo del sistema menos ese monto.'
+                                                : 'Corregí cuánto sobra de verdad. La caja se abre con el efectivo del sistema más ese monto.'}
+                                        </p>
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            step={cashIsWhole ? '1' : '0.01'}
+                                            value={amount}
+                                            onChange={event => setAmount(event.target.value)}
+                                            className="w-full px-2 py-1 border border-gray-300 rounded"
+                                        />
+                                        <div className="flex gap-2">
+                                            <button
+                                                type="button"
+                                                disabled={busy}
+                                                onClick={() => {
+                                                    const gap = Number(amount);
+                                                    const base = Number(turno.closing_cash);
+                                                    if (!Number.isFinite(gap) || gap < 0 || !Number.isFinite(base)) {
+                                                        setError('Ingresá un monto de cero o más.');
+                                                        return;
+                                                    }
+                                                    if (cashIsWhole && !Number.isInteger(gap)) {
+                                                        setError('El efectivo tiene que ser un número entero.');
+                                                        return;
+                                                    }
+                                                    const opening = difference < 0 ? base - gap : base + gap;
+                                                    if (opening < 0) {
+                                                        setError('La caja no puede abrirse con un monto negativo.');
+                                                        return;
+                                                    }
+                                                    const normalized = cashIsWhole ? Math.round(opening) : Math.round(opening * 100) / 100;
+                                                    setError('');
+                                                    setConfirmEdit({ amount: normalized, shortage: difference < 0 });
+                                                }}
+                                                className="px-2 py-1 bg-blue-600 text-white rounded text-xs font-semibold"
+                                            >
+                                                Guardar
+                                            </button>
+                                            <button type="button" disabled={busy} onClick={() => { setEditingAmount(false); setConfirmEdit(null); setError(''); }} className="px-2 py-1 bg-slate-200 rounded text-xs font-semibold">Cancelar</button>
+                                        </div>
+                                        {confirmEdit && (
+                                            <div className="bg-amber-50 border border-amber-200 rounded-md p-2">
+                                                <p className="text-xs text-amber-800 mb-2">
+                                                    {confirmEdit.shortage
+                                                        ? '¿Estás seguro que desea editar el monto que falta?'
+                                                        : '¿Estás seguro que desea editar el monto que sobra?'}
+                                                </p>
+                                                <div className="flex gap-2">
+                                                    <button type="button" disabled={busy} onClick={() => runResolve({ action: 'editar', amount: confirmEdit.amount })} className="px-2 py-1 bg-blue-600 text-white rounded text-xs font-semibold">Guardar</button>
+                                                    <button type="button" disabled={busy} onClick={() => setConfirmEdit(null)} className="px-2 py-1 bg-slate-200 rounded text-xs font-semibold">Cancelar</button>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                ) : (
+                                    <div className="flex flex-wrap gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                const gap = Math.abs(Number(turno.cash_difference) || 0);
+                                                setAmount(String(cashIsWhole ? Math.round(gap) : gap));
+                                                setEditingAmount(true);
+                                                setError('');
+                                            }}
+                                            className="px-2 py-1 bg-slate-800 text-white rounded text-xs font-semibold"
+                                        >
+                                            Editar lo que falta o sobra
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => { setConfirmConvalidate(true); setError(''); }}
+                                            className="px-2 py-1 bg-blue-600 text-white rounded text-xs font-semibold"
+                                        >
+                                            Convalidar monto del empleado
+                                        </button>
+                                    </div>
+                                )}
+                                {error && <p className="text-xs text-red-600">{error}</p>}
+                            </div>
+                        )}
                     </>
                 )}
             </div>
@@ -50,7 +202,8 @@ const TurnoCard = ({ turno, numero }) => (
             {turno.movements_count} movimientos · Entradas {formatMoney(turno.total_entradas)} · Salidas {formatMoney(turno.total_salidas)}
         </p>
     </div>
-);
+    );
+};
 
 const Apertura_Cierre_Caja = ({ cashMovements = [], loadCashMovements, userRole }) => {
     const [cashRegister, setCashRegister] = useState(null);
@@ -63,6 +216,9 @@ const Apertura_Cierre_Caja = ({ cashMovements = [], loadCashMovements, userRole 
     const [withdrawAmount, setWithdrawAmount] = useState('');
     const [withdrawMessage, setWithdrawMessage] = useState(null);
     const [withdrawing, setWithdrawing] = useState(false);
+    const [declaredCash, setDeclaredCash] = useState('');
+    const seesCash = userRole === 'Gerente';
+    const mustDeclareCash = ROLES_QUE_DECLARAN_EFECTIVO.includes(userRole);
 
     const loadStatus = useCallback(async () => {
         try {
@@ -115,6 +271,7 @@ const Apertura_Cierre_Caja = ({ cashMovements = [], loadCashMovements, userRole 
         is_open: isOpen,
         session,
         current_balance: currentBalance,
+        current_cash: currentCash,
         openings_today: openingsToday,
         closings_today: closingsToday,
         max_per_day: maxPerDay,
@@ -124,21 +281,38 @@ const Apertura_Cierre_Caja = ({ cashMovements = [], loadCashMovements, userRole 
     } = cashRegister;
     const sessionsToShow = isToday ? (cashRegister.today_sessions || []) : (historySessions || []);
 
+    const declaresNow = confirmAction === 'close' && mustDeclareCash;
+    const declaredCashValue = declaredCash.trim() === '' ? NaN : Number(declaredCash);
+    const declaredCashIsValid = Number.isFinite(declaredCashValue) && declaredCashValue >= 0;
+
     const requestAction = (action) => {
         setMessage(null);
+        setDeclaredCash('');
         setConfirmAction(action);
         loadStatus();
     };
 
     const handleConfirm = async () => {
+        if (declaresNow && !declaredCashIsValid) return;
         setIsSubmitting(true);
         try {
             if (confirmAction === 'open') {
                 const { data } = await openCashRegister();
-                setMessage({ type: 'success', text: `Caja abierta el ${formatMovementDate(data.opened_at)} con ${formatMoney(data.opening_balance)} en caja.` });
+                setMessage({
+                    type: 'success',
+                    text: seesCash
+                        ? `Caja abierta el ${formatMovementDate(data.opened_at)} con ${formatMoney(data.opening_cash)} en efectivo y ${formatMoney(data.opening_balance)} de total de dinero.`
+                        : `Caja abierta el ${formatMovementDate(data.opened_at)} con ${formatMoney(data.opening_balance)} de total de dinero.`,
+                });
             } else {
-                const { data } = await closeCashRegister();
-                setMessage({ type: 'success', text: `Caja cerrada el ${formatMovementDate(data.closed_at)} con ${formatMoney(data.closing_balance)} en caja.` });
+                const declared = declaresNow ? Math.round(declaredCashValue * 100) / 100 : null;
+                const { data } = await closeCashRegister(declared === null ? {} : { declared_cash: declared });
+                setMessage({
+                    type: 'success',
+                    text: seesCash
+                        ? `Caja cerrada el ${formatMovementDate(data.closed_at)} con ${formatMoney(data.closing_cash)} en efectivo y ${formatMoney(data.closing_balance)} de total de dinero.`
+                        : `Caja cerrada el ${formatMovementDate(data.closed_at)} con ${formatMoney(data.closing_balance)} de total de dinero.${declared === null ? '' : ` Efectivo declarado: ${formatMoney(declared)}.`}`,
+                });
             }
         } catch (error) {
             setMessage({ type: 'error', text: getApiErrorMessage(error, 'No se pudo completar la operación. Intentá de nuevo.') });
@@ -170,21 +344,24 @@ const Apertura_Cierre_Caja = ({ cashMovements = [], loadCashMovements, userRole 
                                 Abierta por <span className="font-semibold text-gray-800">{session.opened_by || 'usuario eliminado'}</span> el {formatMovementDate(session.opened_at)}
                             </p>
                             <dl className="space-y-2 text-sm">
-                                <FilaMonto label="Dinero al abrir" value={session.opening_balance} />
+                                {seesCash && <FilaMonto label="Efectivo al abrir" value={session.opening_cash} />}
+                                <FilaMonto label="Total de dinero al abrir" value={session.opening_balance} />
                                 <FilaMonto label="Entradas del turno" value={session.total_entradas} className="text-green-600" />
                                 <FilaMonto label="Salidas del turno" value={session.total_salidas} className="text-red-600" />
-                                <div className="border-t border-gray-200 pt-2">
-                                    <FilaMonto label="Dinero actual en caja" value={currentBalance} destacado />
+                                <div className="border-t border-gray-200 pt-2 space-y-2">
+                                    {seesCash && <FilaMonto label="Efectivo actual en caja" value={currentCash} destacado />}
+                                    <FilaMonto label="Total de dinero actual" value={currentBalance} destacado />
                                 </div>
                             </dl>
                         </>
                     ) : (
                         <>
                             <p className="text-sm text-gray-600 mb-3">
-                                La caja está cerrada. No se pueden registrar ventas ni compras hasta que se abra. La extracción para el banco sí se puede registrar.
+                                La caja está cerrada. No se pueden registrar ventas, compras ni extracciones para el banco hasta que se abra.
                             </p>
-                            <dl className="text-sm">
-                                <FilaMonto label="Dinero actual en caja" value={currentBalance} destacado />
+                            <dl className="space-y-2 text-sm">
+                                {seesCash && <FilaMonto label="Efectivo actual en caja" value={currentCash} destacado />}
+                                <FilaMonto label="Total de dinero actual" value={currentBalance} destacado />
                             </dl>
                         </>
                     )}
@@ -244,7 +421,17 @@ const Apertura_Cierre_Caja = ({ cashMovements = [], loadCashMovements, userRole 
                     ) : (
                         <div className="space-y-3">
                             {sessionsToShow.map((turno, index) => (
-                                <TurnoCard key={turno.id} turno={turno} numero={index + 1} />
+                                <TurnoCard
+                                    key={turno.id}
+                                    turno={turno}
+                                    numero={index + 1}
+                                    seesCash={seesCash}
+                                    onResolve={async (sessionId, payload) => {
+                                        await resolveCashRegister(sessionId, payload);
+                                        await loadStatus();
+                                    }}
+                                    cashIsWhole={Boolean(cashRegister.cash_is_whole)}
+                                />
                             ))}
                         </div>
                     )}
@@ -253,8 +440,10 @@ const Apertura_Cierre_Caja = ({ cashMovements = [], loadCashMovements, userRole 
                 {userRole === 'Gerente' && (
                 <section className="bg-white rounded-lg shadow-md p-4 md:p-6">
                     <h3 className="text-xl font-bold text-gray-700 mb-1">Extracción para el banco</h3>
+                    {isOpen ? (
+                    <>
                     <p className="text-sm text-gray-600 mb-4">
-                        Cada extracción descuenta ese monto de la caja. Las compras también se descuentan solas cuando quedan registradas.
+                        Solo se puede extraer con la caja abierta. El monto no puede superar el efectivo que hay en la caja{seesCash ? ` (${formatMoney(currentCash)})` : ''}.
                     </p>
                     <form
                         className="flex flex-wrap items-end gap-3"
@@ -263,6 +452,10 @@ const Apertura_Cierre_Caja = ({ cashMovements = [], loadCashMovements, userRole 
                             const amount = Number(withdrawAmount);
                             if (!amount || amount <= 0) {
                                 setWithdrawMessage({ type: 'error', text: 'Ingresá cuánto se saca. Tiene que ser mayor a cero.' });
+                                return;
+                            }
+                            if (seesCash && amount > Number(currentCash)) {
+                                setWithdrawMessage({ type: 'error', text: 'La extracción no puede superar el efectivo que hay en la caja.' });
                                 return;
                             }
                             setWithdrawing(true);
@@ -291,6 +484,7 @@ const Apertura_Cierre_Caja = ({ cashMovements = [], loadCashMovements, userRole 
                                 type="number"
                                 min="0.01"
                                 step="0.01"
+                                max={seesCash ? currentCash : undefined}
                                 value={withdrawAmount}
                                 onChange={e => setWithdrawAmount(e.target.value)}
                                 className="mt-1 block w-40 px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
@@ -310,13 +504,20 @@ const Apertura_Cierre_Caja = ({ cashMovements = [], loadCashMovements, userRole 
                             {withdrawMessage.text}
                         </p>
                     )}
+                    </>
+                    ) : (
+                        <p className="text-sm text-gray-600">La extracción para el banco solo se puede hacer con la caja abierta.</p>
+                    )}
                 </section>
                 )}
             </div>
 
             {confirmAction && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6">
+                    <form
+                        className="bg-white rounded-lg shadow-xl w-full max-w-md p-6 max-h-full overflow-y-auto"
+                        onSubmit={event => { event.preventDefault(); handleConfirm(); }}
+                    >
                         <h3 className="text-xl font-bold text-gray-800 mb-2">
                             {confirmAction === 'open' ? '¿Abrir la caja?' : '¿Cerrar la caja?'}
                         </h3>
@@ -327,18 +528,44 @@ const Apertura_Cierre_Caja = ({ cashMovements = [], loadCashMovements, userRole 
                         </p>
                         <dl className="space-y-2 text-sm bg-gray-50 border border-gray-200 rounded-lg p-3 mb-5">
                             {confirmAction === 'open' ? (
-                                <FilaMonto label="Dinero en caja al abrir" value={currentBalance} destacado />
+                                <>
+                                    {seesCash && <FilaMonto label="Efectivo al abrir" value={currentCash} destacado />}
+                                    <FilaMonto label="Total de dinero al abrir" value={currentBalance} destacado />
+                                </>
                             ) : (
                                 <>
-                                    <FilaMonto label="Dinero al abrir" value={session?.opening_balance} />
+                                    {seesCash && <FilaMonto label="Efectivo al abrir" value={session?.opening_cash} />}
+                                    <FilaMonto label="Total de dinero al abrir" value={session?.opening_balance} />
                                     <FilaMonto label="Entradas del turno" value={session?.total_entradas} className="text-green-600" />
                                     <FilaMonto label="Salidas del turno" value={session?.total_salidas} className="text-red-600" />
-                                    <div className="border-t border-gray-200 pt-2">
-                                        <FilaMonto label="Dinero en caja al cerrar" value={currentBalance} destacado />
+                                    <div className="border-t border-gray-200 pt-2 space-y-2">
+                                        {seesCash && <FilaMonto label="Efectivo al cerrar" value={currentCash} destacado />}
+                                        <FilaMonto label="Total de dinero al cerrar" value={currentBalance} destacado />
                                     </div>
                                 </>
                             )}
                         </dl>
+                        {declaresNow && (
+                            <label className="block text-sm font-semibold text-gray-700 mb-5">
+                                Efectivo contado en caja
+                                <input
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    inputMode="decimal"
+                                    value={declaredCash}
+                                    onChange={e => setDeclaredCash(e.target.value)}
+                                    disabled={isSubmitting}
+                                    autoFocus
+                                    required
+                                    placeholder="0,00"
+                                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-base font-normal focus:ring-2 focus:ring-blue-500"
+                                />
+                                <span className="block mt-1 text-xs font-normal text-gray-500">
+                                    Contá los billetes y las monedas que hay en la caja y escribí el total. Es obligatorio para cerrar.
+                                </span>
+                            </label>
+                        )}
                         <div className="flex justify-end gap-3">
                             <button
                                 type="button"
@@ -349,15 +576,14 @@ const Apertura_Cierre_Caja = ({ cashMovements = [], loadCashMovements, userRole 
                                 Cancelar
                             </button>
                             <button
-                                type="button"
-                                onClick={handleConfirm}
-                                disabled={isSubmitting}
-                                className={`px-4 py-2 text-white rounded-lg font-semibold transition-colors disabled:opacity-60 ${confirmAction === 'open' ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'}`}
+                                type="submit"
+                                disabled={isSubmitting || (declaresNow && !declaredCashIsValid)}
+                                className={`px-4 py-2 text-white rounded-lg font-semibold transition-colors disabled:opacity-60 disabled:cursor-not-allowed ${confirmAction === 'open' ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'}`}
                             >
                                 {isSubmitting ? 'Procesando...' : confirmAction === 'open' ? 'Confirmar apertura' : 'Confirmar cierre'}
                             </button>
                         </div>
-                    </div>
+                    </form>
                 </div>
             )}
         </div>

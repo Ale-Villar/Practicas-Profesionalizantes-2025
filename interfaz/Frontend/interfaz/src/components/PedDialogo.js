@@ -68,7 +68,60 @@ const formatMovementDate = (dateInput) => {
     }
 };
 
-function PedDialogo({ orders, setOrders, products = [], loadCashBalance, isOpen, onClose, onMinimize, isMinimized, onOpenNewTab, isFullscreen = false }) {
+const OrderProductsTable = ({ order }) => {
+    const [isExpanded, setIsExpanded] = useState(false);
+    const items = order.items || [];
+
+    return (
+        <div>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+                <button
+                    type="button"
+                    onClick={() => setIsExpanded(expanded => !expanded)}
+                    aria-expanded={isExpanded}
+                    className="inline-flex items-center gap-1.5 px-2 py-1 text-xs font-semibold text-blue-700 border border-blue-200 rounded-md hover:bg-blue-50"
+                >
+                    <span className={`inline-block transition-transform ${isExpanded ? 'rotate-90' : ''}`} aria-hidden="true">▶</span>
+                    {isExpanded ? 'Ocultar productos' : `Ver productos (${items.length})`}
+                </button>
+                {!isExpanded && (
+                    <span className="font-bold text-gray-900 whitespace-nowrap">Total final = ${safeToFixed(order.totalAmount)}</span>
+                )}
+            </div>
+            {isExpanded && (
+                <table className="mt-2 w-full text-sm border border-gray-200 rounded-md overflow-hidden">
+                    <thead className="bg-gray-100 text-gray-700">
+                        <tr>
+                            <th className="px-2 py-2 text-left font-semibold">Producto</th>
+                            <th className="px-2 py-2 text-right font-semibold">Cant.</th>
+                            <th className="px-2 py-2 text-right font-semibold">P. unit.</th>
+                            <th className="px-2 py-2 text-right font-semibold">Total</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {items.map((item, index) => (
+                            <tr key={`${order.id}-${index}`} className="border-t border-gray-200">
+                                <td className="px-2 py-2 text-left">{item.productName || 'N/A'}</td>
+                                <td className="px-2 py-2 text-right">{item.quantity || 0}</td>
+                                <td className="px-2 py-2 text-right">${safeToFixed(item.unitPrice)}</td>
+                                <td className="px-2 py-2 text-right">${safeToFixed(item.total)}</td>
+                            </tr>
+                        ))}
+                    </tbody>
+                    <tfoot>
+                        <tr className="border-t-4 border-gray-900">
+                            <td colSpan={4} className="px-2 py-2 text-right font-bold text-gray-900">
+                                Total final = ${safeToFixed(order.totalAmount)}
+                            </td>
+                        </tr>
+                    </tfoot>
+                </table>
+            )}
+        </div>
+    );
+};
+
+function PedDialogo({ orders, setOrders, products = [], loadCashBalance, isOpen, onClose, onMinimize, isMinimized, onOpenNewTab, isFullscreen = false, isEmbedded = false }) {
     const [ordersIdFilter, setOrdersIdFilter] = useState('');
     const [ordersIdFilterOp, setOrdersIdFilterOp] = useState('equals');
     const [ordersCustomerFilter, setOrdersCustomerFilter] = useState('');
@@ -94,6 +147,7 @@ function PedDialogo({ orders, setOrders, products = [], loadCashBalance, isOpen,
 
     // Estados para drag & drop
     const [position, setPosition] = useState({ x: 100, y: 100 });
+    const [isMaximized, setIsMaximized] = useState(false);
     const [isDragging, setIsDragging] = useState(false);
     const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
     const dialogRef = useRef(null);
@@ -242,6 +296,7 @@ function PedDialogo({ orders, setOrders, products = [], loadCashBalance, isOpen,
     };
 
     const handleMouseDown = (e) => {
+        if (isMaximized) return;
         if (e.target.closest('.dialog-header') && !e.target.closest('button')) {
             setIsDragging(true);
             setDragOffset({
@@ -280,7 +335,14 @@ function PedDialogo({ orders, setOrders, products = [], loadCashBalance, isOpen,
         }
     }, [isDragging, dragOffset]);
 
-    if (!isOpen) return null;
+    if (!isOpen && !isEmbedded) return null;
+
+    const navBottom = () => {
+        const nav = document.querySelector('nav.navbar');
+        return nav ? Math.max(0, nav.getBoundingClientRect().bottom) : 0;
+    };
+    const maximized = isMaximized && !isFullscreen && !isEmbedded;
+    const topLimit = maximized ? navBottom() : 0;
 
     const toDateOnlyString = (value) => {
         if (!value) return '';
@@ -369,16 +431,28 @@ function PedDialogo({ orders, setOrders, products = [], loadCashBalance, isOpen,
     return (
         <div
             ref={dialogRef}
-            className={`fixed bg-white flex flex-col ${
-                isFullscreen
-                    ? 'inset-0 rounded-none'
-                    : `rounded-lg shadow-2xl border-2 border-gray-300 ${isMinimized ? 'h-auto' : 'min-h-0'}`
+            className={`bg-white flex flex-col ${
+                isEmbedded
+                    ? 'relative w-full min-h-[70vh] rounded-lg border border-gray-300 overflow-hidden'
+                    : isFullscreen || maximized
+                    ? 'fixed inset-x-0 rounded-none'
+                    : `fixed rounded-lg shadow-2xl border-2 border-gray-300 ${isMinimized ? 'h-auto' : 'min-h-0'}`
             }`}
-            style={{
+            style={isEmbedded ? undefined : maximized ? {
+                left: 0,
+                top: topLimit,
+                width: '100vw',
+                maxWidth: '100vw',
+                height: `calc(100vh - ${topLimit}px)`,
+                maxHeight: 'none',
+                zIndex: 1000,
+                resize: 'none',
+                overflow: 'hidden',
+            } : {
                 left: isFullscreen ? 0 : `${position.x}px`,
                 top: isFullscreen ? 0 : `${position.y}px`,
                 width: isFullscreen ? '100vw' : (isMinimized ? 'auto' : '90vw'),
-                maxWidth: isFullscreen ? '100vw' : (isMinimized ? 'fit-content' : '1400px'),
+                maxWidth: isFullscreen ? '100vw' : (isMinimized ? 'fit-content' : `calc(100vw - ${Math.max(0, position.x)}px)`),
                 height: isFullscreen ? '100vh' : undefined,
                 maxHeight: isFullscreen || isMinimized ? '100vh' : `calc(100vh - ${Math.max(0, position.y)}px - 16px)`,
                 zIndex: 1000,
@@ -387,13 +461,13 @@ function PedDialogo({ orders, setOrders, products = [], loadCashBalance, isOpen,
             }}
         >
             <div
-                className={`dialog-header shrink-0 bg-gradient-to-r from-blue-600 to-blue-700 text-white px-4 ${isMinimized ? 'py-2 min-h-[56px]' : 'py-3'} ${isFullscreen ? '' : 'rounded-t-lg cursor-move'} flex items-center justify-between`}
-                onMouseDown={isFullscreen ? undefined : handleMouseDown}
+                className={`dialog-header shrink-0 bg-gradient-to-r from-blue-600 to-blue-700 text-white px-4 ${isMinimized && !isEmbedded ? 'py-2 min-h-[56px]' : 'py-3'} ${isFullscreen || maximized || isEmbedded ? '' : 'rounded-t-lg cursor-move'} flex items-center justify-between`}
+                onMouseDown={isFullscreen || maximized || isEmbedded ? undefined : handleMouseDown}
                 style={isMinimized ? { overflow: 'hidden' } : {}}
             >
                 <h3 className="text-lg font-bold flex items-center gap-2 whitespace-nowrap overflow-hidden text-ellipsis w-full">
                     <span>Historial de Pedidos</span>
-                    {!isMinimized && <span className="text-sm font-normal">({filteredOrders.length} pedidos)</span>}
+                    {(!isMinimized || isEmbedded) && <span className="text-sm font-normal">({filteredOrders.length} pedidos)</span>}
                 </h3>
                 <div className="flex items-center gap-2 flex-shrink-0">
                     {!isFullscreen && (
@@ -407,11 +481,11 @@ function PedDialogo({ orders, setOrders, products = [], loadCashBalance, isOpen,
                             </svg>
                         </button>
                     )}
-                    {!isFullscreen && (
+                    {!isFullscreen && !isEmbedded && (
                         <button
                             onClick={onMinimize}
                             className="hover:bg-blue-800 p-1.5 rounded transition-colors"
-                            title={isMinimized ? "Maximizar" : "Minimizar"}
+                            title={isMinimized ? "Restaurar" : "Minimizar"}
                         >
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 {isMinimized ? (
@@ -422,6 +496,29 @@ function PedDialogo({ orders, setOrders, products = [], loadCashBalance, isOpen,
                             </svg>
                         </button>
                     )}
+                    {!isFullscreen && !isEmbedded && (
+                        <button
+                            onClick={() => {
+                                if (isMaximized) {
+                                    setIsMaximized(false);
+                                    return;
+                                }
+                                if (isMinimized && onMinimize) onMinimize();
+                                setIsMaximized(true);
+                            }}
+                            className="hover:bg-blue-800 p-1.5 rounded transition-colors"
+                            title={isMaximized ? 'Restaurar' : 'Maximizar'}
+                        >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                {isMaximized ? (
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5l5.25 5.25" />
+                                ) : (
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+                                )}
+                            </svg>
+                        </button>
+                    )}
+                    {!isEmbedded && (
                     <button
                         onClick={onClose}
                         className="hover:bg-red-600 p-1.5 rounded transition-colors"
@@ -431,10 +528,11 @@ function PedDialogo({ orders, setOrders, products = [], loadCashBalance, isOpen,
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                         </svg>
                     </button>
+                    )}
                 </div>
             </div>
 
-            {!isMinimized && (
+            {(!isMinimized || isEmbedded) && (
                 <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-6 bg-gray-50">
                     <div className="bg-white rounded-lg shadow-md mb-6 border border-gray-200">
                         <button
@@ -662,33 +760,7 @@ function PedDialogo({ orders, setOrders, products = [], loadCashBalance, isOpen,
                                                 </div>
                                             </td>
                                             <td className="px-3 py-3 text-sm text-gray-700 min-w-[280px]">
-                                                <table className="w-full text-sm border border-gray-200 rounded-md overflow-hidden">
-                                                    <thead className="bg-gray-100 text-gray-700">
-                                                        <tr>
-                                                            <th className="px-2 py-2 text-left font-semibold">Producto</th>
-                                                            <th className="px-2 py-2 text-right font-semibold">Cant.</th>
-                                                            <th className="px-2 py-2 text-right font-semibold">P. unit.</th>
-                                                            <th className="px-2 py-2 text-right font-semibold">Total</th>
-                                                        </tr>
-                                                    </thead>
-                                                    <tbody>
-                                                        {(order.items || []).map((item, index) => (
-                                                            <tr key={`${order.id}-${index}`} className="border-t border-gray-200">
-                                                                <td className="px-2 py-2 text-left">{item.productName || 'N/A'}</td>
-                                                                <td className="px-2 py-2 text-right">{item.quantity || 0}</td>
-                                                                <td className="px-2 py-2 text-right">${safeToFixed(item.unitPrice)}</td>
-                                                                <td className="px-2 py-2 text-right">${safeToFixed(item.total)}</td>
-                                                            </tr>
-                                                        ))}
-                                                    </tbody>
-                                                    <tfoot>
-                                                        <tr className="border-t-4 border-gray-900">
-                                                            <td colSpan={4} className="px-2 py-2 text-right font-bold text-gray-900">
-                                                                Total final = ${safeToFixed(order.totalAmount)}
-                                                            </td>
-                                                        </tr>
-                                                    </tfoot>
-                                                </table>
+                                                <OrderProductsTable order={order} />
                                             </td>
                                         </tr>
                                     ))}

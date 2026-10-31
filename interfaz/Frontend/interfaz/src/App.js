@@ -31,7 +31,31 @@ import Dialogo_interfaz_Consultar_Datos from './components/Dialogo_interfaz_Cons
 import DialogoHistorialDePerdidas from './components/dialogoHistorialDePerdidas';
 import Ver_Reportes_De_Faltantes from './components/Ver_Reportes_De_Faltantes';
 import CrearNuevoProducto from './components/crearNuevoProducto';
+import Navbar from './components/Navbar';
 
+// Brave (y el modo estricto de otros navegadores) puede bloquear sessionStorage
+// y lanzar SecurityError al leerlo. Eso ocurre durante el primer render y deja
+// la pantalla de "Ocurrió un error cargando la interfaz".
+const browserSession = () => window['sessionStorage'];
+
+const safeSessionStorage = {
+    getItem(key) {
+        try { return browserSession().getItem(key); }
+        catch (e) { return null; }
+    },
+    setItem(key, value) {
+        try { browserSession().setItem(key, String(value)); }
+        catch (e) { /* almacenamiento bloqueado */ }
+    },
+    removeItem(key) {
+        try { browserSession().removeItem(key); }
+        catch (e) { /* almacenamiento bloqueado */ }
+    },
+    clear() {
+        try { browserSession().clear(); }
+        catch (e) { /* almacenamiento bloqueado */ }
+    },
+};
 
 // Helpers para usar el backend storage seguro
 const loadLS = async (key, fallback) => {
@@ -262,40 +286,40 @@ const App = () => {
     }, []); // Quitar sessionChecked de las dependencias para evitar loop
     const [loginError, setLoginError] = useState('');
     const [failedAttempts, setFailedAttempts] = useState(() => {
-        const saved = sessionStorage.getItem('failedAttempts');
+        const saved = safeSessionStorage.getItem('failedAttempts');
         return saved ? parseInt(saved, 10) : 0;
     });
     const [isLocked, setIsLocked] = useState(() => {
-        const saved = sessionStorage.getItem('isLocked');
+        const saved = safeSessionStorage.getItem('isLocked');
         return saved === 'true';
     });
     const [lockType, setLockType] = useState(() => {
-        return sessionStorage.getItem('lockType') || '';
+        return safeSessionStorage.getItem('lockType') || '';
     });
     const [showModal, setShowModal] = useState(false);
     const [currentEmail, setCurrentEmail] = useState(() => {
-        return sessionStorage.getItem('currentEmail') || '';
+        return safeSessionStorage.getItem('currentEmail') || '';
     });
     const maxAttempts = 5;
     
     // Preservar estado crítico en sessionStorage para resistir remontajes de HMR
     useEffect(() => {
-        sessionStorage.setItem('failedAttempts', failedAttempts.toString());
+        safeSessionStorage.setItem('failedAttempts', failedAttempts.toString());
         console.log('🔄 failedAttempts cambió a:', failedAttempts, '- Guardado en sessionStorage');
     }, [failedAttempts]);
     
     useEffect(() => {
-        sessionStorage.setItem('isLocked', isLocked.toString());
+        safeSessionStorage.setItem('isLocked', isLocked.toString());
         console.log('🔒 isLocked cambió a:', isLocked, '- Guardado en sessionStorage');
     }, [isLocked]);
     
     useEffect(() => {
-        sessionStorage.setItem('lockType', lockType);
+        safeSessionStorage.setItem('lockType', lockType);
         console.log('🔐 lockType cambió a:', lockType, '- Guardado en sessionStorage');
     }, [lockType]);
     
     useEffect(() => {
-        sessionStorage.setItem('currentEmail', currentEmail);
+        safeSessionStorage.setItem('currentEmail', currentEmail);
         console.log('📧 currentEmail cambió a:', currentEmail, '- Guardado en sessionStorage');
     }, [currentEmail]);
     
@@ -394,9 +418,19 @@ const App = () => {
 
     // Permitir abrir el diálogo desde cualquier componente usando un evento global
     React.useEffect(() => {
-        const openDialog = () => handleOpenPedDialogo();
+        const openDialog = () => {
+            if (window.innerWidth < 790) return;
+            handleOpenPedDialogo();
+        };
         window.addEventListener('openPedDialogo', openDialog);
-        return () => window.removeEventListener('openPedDialogo', openDialog);
+        const closeIfNarrow = () => {
+            if (window.innerWidth < 790) setIsPedDialogoOpen(false);
+        };
+        window.addEventListener('resize', closeIfNarrow);
+        return () => {
+            window.removeEventListener('openPedDialogo', openDialog);
+            window.removeEventListener('resize', closeIfNarrow);
+        };
     }, []);
     
     // Cerrar el diálogo de pedidos cuando se cambia de página
@@ -432,9 +466,9 @@ const App = () => {
             setLockType('');
             setShowModal(false);
             // Limpiar sessionStorage del estado anterior
-            sessionStorage.removeItem('failedAttempts');
-            sessionStorage.removeItem('isLocked');
-            sessionStorage.removeItem('lockType');
+            safeSessionStorage.removeItem('failedAttempts');
+            safeSessionStorage.removeItem('isLocked');
+            safeSessionStorage.removeItem('lockType');
         }
         
         try {
@@ -442,8 +476,8 @@ const App = () => {
             
             // Limpiar estado de bloqueo del sessionStorage ANTES de cada intento
             // El servidor es la única fuente de verdad - si está bloqueado, el servidor responderá con error
-            sessionStorage.removeItem('isLocked');
-            sessionStorage.removeItem('lockType');
+            safeSessionStorage.removeItem('isLocked');
+            safeSessionStorage.removeItem('lockType');
             setIsLocked(false);
             setLockType('');
             
@@ -497,10 +531,10 @@ const App = () => {
             setLockType('');
             
             // Limpiar estado crítico de sessionStorage al login exitoso
-            sessionStorage.removeItem('failedAttempts');
-            sessionStorage.removeItem('isLocked');
-            sessionStorage.removeItem('lockType');
-            sessionStorage.removeItem('currentEmail');
+            safeSessionStorage.removeItem('failedAttempts');
+            safeSessionStorage.removeItem('isLocked');
+            safeSessionStorage.removeItem('lockType');
+            safeSessionStorage.removeItem('currentEmail');
             setCurrentEmail('');
             
             // Limpiar TODO localStorage de lockTypes al login exitoso
@@ -996,17 +1030,17 @@ const App = () => {
         setShowModal(false);   // Cerrar modal
         
         // Limpiar estado crítico de sessionStorage al logout
-        sessionStorage.removeItem('failedAttempts');
-        sessionStorage.removeItem('isLocked');
-        sessionStorage.removeItem('lockType');
-        sessionStorage.removeItem('currentEmail');
+        safeSessionStorage.removeItem('failedAttempts');
+        safeSessionStorage.removeItem('isLocked');
+        safeSessionStorage.removeItem('lockType');
+        safeSessionStorage.removeItem('currentEmail');
         setCurrentEmail('');
 
         // Limpiar almacenamiento local y token en memoria
         try { await removeAccessToken(); } catch (e) {}
         try { clearInMemoryToken(); } catch (e) {}
         try { localStorage.removeItem('access'); localStorage.removeItem('refresh'); } catch (e) {}
-        try { sessionStorage.clear(); } catch (e) {}
+        try { safeSessionStorage.clear(); } catch (e) {}
 
         // Notificar a otras pestañas que se ha cerrado la sesión
         try {
@@ -1033,7 +1067,7 @@ const App = () => {
                 // Otra pestaña hizo logout: limpiar estado aquí también
                 try { clearInMemoryToken(); } catch (err) {}
                 try { localStorage.removeItem('access'); localStorage.removeItem('refresh'); } catch (err) {}
-                try { sessionStorage.clear(); } catch (err) {}
+                try { safeSessionStorage.clear(); } catch (err) {}
                 setIsLoggedIn(false);
                 setUserRole(null);
                 setCurrentPage('login');
@@ -1064,7 +1098,7 @@ const App = () => {
                             }
                         });
                     } catch (err) {}
-                    sessionStorage.clear();
+                    safeSessionStorage.clear();
                     
                     // Forzar recarga COMPLETA sin cache
                     window.location.href = window.location.origin + window.location.pathname + '?_t=' + Date.now();
@@ -1100,7 +1134,7 @@ const App = () => {
                         }
                     });
                 } catch (e) {}
-                sessionStorage.clear();
+                safeSessionStorage.clear();
                 
                 // Forzar recarga COMPLETA sin cache
                 window.location.href = window.location.origin + window.location.pathname + '?_t=' + Date.now();
@@ -1176,10 +1210,10 @@ const App = () => {
         setLoginError('');
         
         // Limpiar estado crítico de sessionStorage al reintentar
-        sessionStorage.removeItem('failedAttempts');
-        sessionStorage.removeItem('isLocked');
-        sessionStorage.removeItem('lockType');
-        sessionStorage.removeItem('currentEmail');
+        safeSessionStorage.removeItem('failedAttempts');
+        safeSessionStorage.removeItem('isLocked');
+        safeSessionStorage.removeItem('lockType');
+        safeSessionStorage.removeItem('currentEmail');
         setCurrentEmail('');
     };
 
@@ -1529,31 +1563,6 @@ const App = () => {
       );
     };
 
-    // Componente de la interfaz de navegación superior.
-    const Navbar = () => {
-        const itemsToShow = rolePermissions[userRole] || [];
-
-        return (
-            <nav className="navbar">
-                <ul className="nav-list">
-                    {itemsToShow.map(item => (
-                        <li key={item}>
-                            <button onClick={() => navigateTo(item.toLowerCase())} className={`nav-button ${currentPage === item.toLowerCase() ? 'active' : ''}`}>
-                                {item}
-                            </button>
-                        </li>
-                    ))}
-                </ul>
-                {/* Mostrar botón de cerrar sesión solo si está autenticado y no estamos en la pantalla pública de 'forgot-password' */}
-                {(isLoggedIn && userRole && currentPage !== 'forgot-password') && (
-                    <button onClick={handleLogout} className="logout-button">Cerrar Sesión</button>
-                )}
-            </nav>
-        );
-    };
-
-
-
     // Componente del tablero (Dashboard).
     const Dashboard = () => {
         // Estados para manejar el colapso de las secciones
@@ -1693,6 +1702,8 @@ const App = () => {
         const [insumoStockFilter, setInsumoStockFilter] = useState('');
         const [insumoStockOp, setInsumoStockOp] = useState('equals');
         const [insumoStockUnit, setInsumoStockUnit] = useState('unidades');
+        const [productFiltersOpen, setProductFiltersOpen] = useState(false);
+        const [insumoFiltersOpen, setInsumoFiltersOpen] = useState(false);
 
         const handleRegisterChange = (e) => {
             if (e && typeof e.preventDefault === 'function') e.preventDefault();
@@ -1793,8 +1804,15 @@ const App = () => {
                     <div className="tab-content">
                         {/* Filtros para productos */}
                         <div className="inventory-filters">
-                            <h4>FILTROS DE BÚSQUEDA</h4>
-                            
+                            <button
+                                type="button"
+                                className="inventory-filters-toggle"
+                                onClick={() => setProductFiltersOpen(open => !open)}
+                            >
+                                <h4>FILTROS DE BÚSQUEDA</h4>
+                                <span>{productFiltersOpen ? 'Ocultar' : 'Mostrar'}</span>
+                            </button>
+                            {productFiltersOpen && (
                             <div className="inventory-filters-row">
                                 <div className="filter-row">
                                     <label>Nombre del Producto</label>
@@ -1825,6 +1843,7 @@ const App = () => {
                                     <span className="unit-label">unidades</span>
                                 </div>
                             </div>
+                            )}
                         </div>
                         
                         <div className="inventory-results">
@@ -1895,8 +1914,15 @@ const App = () => {
                     <div className="tab-content">
                         {/* Filtros para insumos */}
                         <div className="inventory-filters">
-                            <h4>FILTROS DE BÚSQUEDA</h4>
-                            
+                            <button
+                                type="button"
+                                className="inventory-filters-toggle"
+                                onClick={() => setInsumoFiltersOpen(open => !open)}
+                            >
+                                <h4>FILTROS DE BÚSQUEDA</h4>
+                                <span>{insumoFiltersOpen ? 'Ocultar' : 'Mostrar'}</span>
+                            </button>
+                            {insumoFiltersOpen && (
                             <div className="inventory-filters-row">
                                 <div className="filter-row">
                                     <label>Nombre del Insumo</label>
@@ -1935,6 +1961,7 @@ const App = () => {
                                     </select>
                                 </div>
                             </div>
+                            )}
                         </div>
                         
                         <div className="inventory-results">
@@ -2904,6 +2931,7 @@ const PurchaseRequests = () => {
                         purchases={purchases}
                         reloadPurchases={fetchPurchases}
                         reloadProducts={loadProducts}
+                        loadCashBalance={loadCashBalance}
                     /> : <div>Acceso Denegado</div>;
             case 'pedidos':
                 return userRole === 'Gerente' ? (
@@ -3171,17 +3199,25 @@ const PurchaseRequests = () => {
     // IMPORTANTE: Estos hooks deben estar ANTES de cualquier return condicional
     // Detectar si estamos en modo "Ventana Independiente" (Standalone)
     const [isStandaloneMode, setIsStandaloneMode] = useState(false);
+    const [isPurchaseHistoryWindow, setIsPurchaseHistoryWindow] = useState(false);
 
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
         if (params.get('view') === 'loss-history-window') {
             setIsStandaloneMode(true);
         }
+        if (params.get('view') === 'purchase-history-window') {
+            setIsPurchaseHistoryWindow(true);
+        }
     }, []);
 
     // Si estamos en modo standalone, renderizamos SOLO el componente de historial a pantalla completa
     if (isStandaloneMode) {
         return <DialogoHistorialDePerdidas isWindowMode={true} />;
+    }
+
+    if (isPurchaseHistoryWindow) {
+        return <PurchaseHistory isWindowMode />;
     }
 
     if (!sessionChecked) {
@@ -3202,7 +3238,14 @@ const PurchaseRequests = () => {
             {/* Mostrar la barra superior SOLO cuando el usuario esté autenticado y
                 no estemos en páginas públicas como 'forgot-password' o 'login'.
                 Evita que la barra azul aparezca en la pantalla de inicio de sesión. */}
-            {isLoggedIn && !['forgot-password', 'login'].includes(currentPage) && <Navbar />}
+            {isLoggedIn && !['forgot-password', 'login'].includes(currentPage) && (
+                <Navbar
+                    items={rolePermissions[userRole] || []}
+                    currentPage={currentPage}
+                    onNavigate={navigateTo}
+                    onLogout={userRole ? handleLogout : null}
+                />
+            )}
             {renderPage()}
             
             {/* Diálogo de Pedidos */}

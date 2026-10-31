@@ -253,11 +253,12 @@ const Registrar_Venta = ({ products, loadProducts, loadCashMovements, isCashRegi
                 </div>
             )}
 
-            <div className="w-full max-w-[3000px] mx-auto px-2">
-                <div className="grid grid-cols-1 md:grid-cols-12 gap-2 md:gap-3 items-start">
+            <div className="w-full mx-auto px-1 sm:px-2">
+                {/* En celulares y tablets chicas el total va arriba, en el flujo normal.
+                    A partir de 1100px queda al costado y se pega al hacer scroll, sin tapar la tabla. */}
+                <div className="flex flex-col min-[1100px]:flex-row min-[1100px]:items-start gap-3">
                     
-                    {/* Columna izquierda: Filtros y total */}
-                    <div className="md:col-span-3 lg:col-span-3 xl:col-span-3 2xl:col-span-3 space-y-3 sticky top-0">
+                    <div className="w-full min-w-0 min-[1100px]:w-80 min-[1100px]:shrink-0 min-[1100px]:sticky min-[1100px]:top-2 min-[1100px]:z-20 min-[1100px]:max-h-[calc(100vh-1rem)] min-[1100px]:overflow-y-auto space-y-3">
                             <div className="bg-white rounded-lg shadow-md p-4">
                                 <div className="flex items-center justify-between mb-2">
                                     <h3 className="text-lg font-bold text-gray-800">🔍 Filtros</h3>
@@ -362,11 +363,11 @@ const Registrar_Venta = ({ products, loadProducts, loadCashMovements, isCashRegi
 
                                 <div className="space-y-3">
                                     {paymentMethods.map((pm, index) => (
-                                        <div key={index} className="flex gap-2 items-center">
+                                        <div key={index} className="flex flex-wrap gap-2 items-center">
                                             <select
                                                 value={pm.method}
                                                 onChange={(e) => updatePaymentMethod(index, 'method', e.target.value)}
-                                                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                                                className="min-w-0 flex-1 basis-32 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                                             >
                                                 <option value="efectivo">Efectivo</option>
                                                 <option value="debito">Débito</option>
@@ -378,7 +379,7 @@ const Registrar_Venta = ({ products, loadProducts, loadCashMovements, isCashRegi
                                                 value={pm.amount}
                                                 onChange={(e) => updatePaymentMethod(index, 'amount', e.target.value)}
                                                 placeholder="Monto"
-                                                className="w-24 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                                                className="w-full min-[420px]:w-28 min-w-0 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                                             />
                                             {paymentMethods.length > 1 && (
                                                 <button onClick={() => removePaymentMethod(index)} className="text-red-500 hover:text-red-700">
@@ -415,8 +416,7 @@ const Registrar_Venta = ({ products, loadProducts, loadCashMovements, isCashRegi
                         </div>
                     </div>
 
-                    {/* Columna central: Buscador y Productos (NUEVA TABLA) */}
-                    <div className="md:col-span-9 lg:col-span-9 xl:col-span-9 2xl:col-span-9 space-y-2">
+                    <div className="min-w-0 flex-1 w-full space-y-2">
                         <div className="bg-white rounded-lg shadow-md p-2 w-full">
                             <div className="relative w-full">
                                 <input
@@ -430,15 +430,15 @@ const Registrar_Venta = ({ products, loadProducts, loadCashMovements, isCashRegi
                         </div>
 
                         <div className="bg-white rounded-lg shadow-md overflow-hidden w-full">
-                            <div className="overflow-x-auto max-h-[70vh]">
-                                <table className="w-full text-left border-collapse relative">
-                                    <thead className="bg-slate-100 border-b-2 border-slate-200 text-xs uppercase text-slate-600 font-semibold sticky top-0 z-10">
+                            <div className="overflow-x-auto min-[1100px]:max-h-[calc(100vh-9rem)] min-[1100px]:overflow-y-auto">
+                                <table className="w-full min-w-[34rem] table-fixed text-left border-collapse">
+                                    <thead className="bg-slate-100 border-b-2 border-slate-200 text-xs uppercase text-slate-600 font-semibold sticky top-0 z-10 [&_th]:overflow-hidden">
                                         <tr>
-                                            <th className="py-3 px-4 w-16 text-center">Marcar</th>
-                                            <th className="py-3 px-4">Producto</th>
-                                            <th className="py-3 px-4 text-right">Precio por unidad</th>
-                                            <th className="py-3 px-4 text-center">Cantidad</th>
-                                            <th className="py-3 px-4 text-center">Stock</th>
+                                            <th className="py-3 px-2 w-20 text-center text-[11px] leading-tight">Marcar</th>
+                                            <th className="py-3 px-2 sm:px-4">Producto</th>
+                                            <th className="py-3 px-2 sm:px-3 w-28 sm:w-36 text-right leading-tight">Precio por unidad</th>
+                                            <th className="py-3 px-2 sm:px-3 w-24 sm:w-28 text-center leading-tight">Cantidad</th>
+                                            <th className="py-3 px-2 sm:px-3 w-20 text-center leading-tight">Stock</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-100 text-sm">
@@ -447,7 +447,7 @@ const Registrar_Venta = ({ products, loadProducts, loadCashMovements, isCashRegi
                                             const cartQuantity = getCartQuantity(product.id);
                                             return (
                                                 <tr key={product.id} className="hover:bg-slate-50 transition-colors">
-                                                    <td className="py-2.5 px-4 text-center">
+                                                    <td className="py-2.5 px-2 sm:px-4 text-center">
                                                         <input
                                                             type="checkbox"
                                                             checked={isInCart}
@@ -461,9 +461,9 @@ const Registrar_Venta = ({ products, loadProducts, loadCashMovements, isCashRegi
                                                             className="w-4 h-4 accent-blue-600 cursor-pointer"
                                                         />
                                                     </td>
-                                                    <td className="py-2.5 px-4 font-medium text-slate-800">{product.name}</td>
-                                                    <td className="py-2.5 px-4 text-right font-bold text-slate-700">${product.price}</td>
-                                                    <td className="py-2.5 px-4 text-center">
+                                                    <td className="py-2.5 px-2 sm:px-4 font-medium text-slate-800 break-words">{product.name}</td>
+                                                    <td className="py-2.5 px-2 sm:px-4 text-right font-bold text-slate-700">${product.price}</td>
+                                                    <td className="py-2.5 px-2 sm:px-4 text-center">
                                                         <input
                                                             type="number"
                                                             min="0"
@@ -472,10 +472,10 @@ const Registrar_Venta = ({ products, loadProducts, loadCashMovements, isCashRegi
                                                             pattern="[0-9]*"
                                                             value={cartQuantity}
                                                             onChange={(e) => handleQuantityInputChange(product, e.target.value)}
-                                                            className="w-24 px-2 py-1 border border-gray-300 rounded-lg text-center focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                                            className="w-full max-w-24 px-2 py-1 border border-gray-300 rounded-lg text-center focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                                                         />
                                                     </td>
-                                                    <td className="py-2.5 px-4 text-center text-slate-500">{parseInt(product.stock, 10)}</td>
+                                                    <td className="py-2.5 px-2 sm:px-4 text-center text-slate-500">{parseInt(product.stock, 10)}</td>
                                                 </tr>
                                             );
                                         })}

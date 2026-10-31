@@ -21,12 +21,23 @@ class ErrorBoundary extends React.Component {
 
   render() {
     if (this.state.hasError) {
-      // Mostrar fallback simple que permite al usuario intentar volver al Login
+      const detail = this.state.error && (this.state.error.message || String(this.state.error));
       return (
-        <div style={{padding: 40, textAlign: 'center'}}>
+        <div style={{padding: 40, textAlign: 'center', fontFamily: 'system-ui, sans-serif'}}>
           <h2>Ocurrió un error cargando la interfaz</h2>
-          <p>Por favor, cierra sesión y vuelve a iniciar sesión. Si el problema persiste, recarga la página.</p>
-          <button onClick={() => { try { window.localStorage.clear(); } catch(e){}; window.location.reload(); }}>Recargar / Limpiar</button>
+          <p>Recargá la página. Si sigue igual, cerrá sesión y volvé a entrar.</p>
+          {detail ? (
+            <p style={{margin: '16px auto', maxWidth: 640, color: '#7f1d1d', fontSize: 14, wordBreak: 'break-word'}}>
+              {detail}
+            </p>
+          ) : null}
+          <button
+            type="button"
+            onClick={() => { window.location.href = window.location.origin + window.location.pathname; }}
+            style={{padding: '8px 16px', cursor: 'pointer'}}
+          >
+            Recargar
+          </button>
         </div>
       );
     }

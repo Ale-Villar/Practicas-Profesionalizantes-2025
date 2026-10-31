@@ -17,7 +17,7 @@ from .serializers import (
     CashMovementSerializer, InventoryChangeSerializer, SaleSerializer,
     UserQuerySerializer, SupplierSerializer, UserStorageSerializer, RoleSerializer, UserUpdateSerializer,
     LowStockReportSerializer, InventoryChangeAuditSerializer, RecipeIngredientSerializer, RecipeIngredientWriteSerializer, LossRecordSerializer,
-    ProductionSerializer, CashRegisterSessionSerializer, require_open_cash_register
+    ProductionSerializer, CashRegisterSessionSerializer, CloseCashRegisterSerializer, require_open_cash_register
 )
 from .models import UserStorage
 from django.db import transaction, IntegrityError
@@ -161,14 +161,24 @@ class LowStockReportCreateView(generics.CreateAPIView):
         serializer.save(reported_by=self.request.user)
 
 class LowStockReportListView(generics.ListAPIView):
-    queryset = LowStockReport.objects.all().order_by('-created_at')
+    queryset = LowStockReport.objects.filter(is_active=True).order_by('-created_at')
     serializer_class = LowStockReportSerializer
     permission_classes = [IsAuthenticated, IsGerente]
 
 class LowStockReportUpdateView(generics.UpdateAPIView):
-    queryset = LowStockReport.objects.all()
+    queryset = LowStockReport.objects.filter(is_active=True)
     serializer_class = LowStockReportSerializer
     permission_classes = [IsAuthenticated, IsGerente]
+
+class LowStockReportDeleteView(generics.DestroyAPIView):
+    queryset = LowStockReport.objects.filter(is_active=True)
+    serializer_class = LowStockReportSerializer
+    permission_classes = [IsAuthenticated, IsGerente]
+
+    def perform_destroy(self, instance):
+        instance.is_active = False
+        instance.deleted_at = timezone.now()
+        instance.save(update_fields=['is_active', 'deleted_at'])
 
 # ViewSet para Roles (solo lectura)
 class RoleViewSet(viewsets.ReadOnlyModelViewSet):
@@ -1095,6 +1105,31 @@ def _stored_base_unit(product_unit):
     return unit
 
 
+def _purchase_base_quantity(product, quantity, purchase_unit):
+    """Cantidad de la compra expresada en la unidad de stock del producto."""
+    purchase_unit = (purchase_unit or '').lower()
+    product_base_unit = _stored_base_unit(product.unit)
+    if product_base_unit == 'g':
+        if purchase_unit == 'kg':
+            return quantity * Decimal('1000')
+        if purchase_unit == 'g':
+            return quantity
+        raise ValueError(f"Unidad de compra '{purchase_unit}' inválida para '{product.name}' (unidad base: kilos).")
+    if product_base_unit == 'ml':
+        if purchase_unit == 'l':
+            return quantity * Decimal('1000')
+        if purchase_unit == 'ml':
+            return quantity
+        raise ValueError(f"Unidad de compra '{purchase_unit}' inválida para '{product.name}' (unidad base: litros).")
+    if product_base_unit == 'u':
+        if purchase_unit not in ('u', 'unidades', 'unidad'):
+            raise ValueError(f"Unidad de compra '{purchase_unit}' inválida para '{product.name}' (unidad base: unidades).")
+        return quantity
+    if purchase_unit != product_base_unit:
+        raise ValueError(f"No se puede convertir de '{purchase_unit}' a '{product_base_unit}' para '{product.name}'.")
+    return quantity
+
+
 def apply_purchase_item_stock(item, supplier=None):
     """Suma el ítem al stock. Si el producto está en 0, la compra define la unidad.
     Un nombre nuevo se crea y queda ligado al proveedor de la línea."""
@@ -1137,24 +1172,7 @@ def apply_purchase_item_stock(item, supplier=None):
     if not purchase_unit:
         purchase_unit = _stored_base_unit(product.unit)
 
-    base_quantity = quantity
-    product_base_unit = _stored_base_unit(product.unit)
-
-    if product_base_unit == 'g':
-        if purchase_unit == 'kg':
-            base_quantity = quantity * 1000
-        elif purchase_unit != 'g':
-            raise ValueError(f"Unidad de compra '{purchase_unit}' inválida para '{product.name}' (unidad base: kilos).")
-    elif product_base_unit == 'ml':
-        if purchase_unit == 'l':
-            base_quantity = quantity * 1000
-        elif purchase_unit != 'ml':
-            raise ValueError(f"Unidad de compra '{purchase_unit}' inválida para '{product.name}' (unidad base: litros).")
-    elif product_base_unit == 'u':
-        if purchase_unit not in ('u', 'unidades', 'unidad'):
-            raise ValueError(f"Unidad de compra '{purchase_unit}' inválida para '{product.name}' (unidad base: unidades).")
-    elif purchase_unit != product_base_unit:
-        raise ValueError(f"No se puede convertir de '{purchase_unit}' a '{product_base_unit}' para '{product.name}'.")
+    base_quantity = _purchase_base_quantity(product, quantity, purchase_unit)
 
     product.stock += base_quantity
     product.save(update_fields=['stock'])
@@ -1165,7 +1183,7 @@ def apply_purchase_item_stock(item, supplier=None):
 
 def deduct_purchase_from_cash(purchase, user):
     """La compra sale de la caja: registra una salida por el total."""
-    amount = purchase.total_amount or Decimal('0')
+    amount = CashMovement.present_money(purchase.total_amount or Decimal('0'), CashMovement.cash_must_be_whole() or CashMovement.total_must_be_whole())
     if amount <= 0:
         return
     session = CashRegisterSession.objects.filter(is_open=True).first()
@@ -1210,7 +1228,7 @@ class PurchaseViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         if self.action == 'create':
             self.permission_classes = [IsAuthenticated, IsGerenteOrEncargado]
-        elif self.action in ['update', 'partial_update', 'destroy', 'approve', 'reject', 'pending_approval']:
+        elif self.action in ['update', 'partial_update', 'destroy', 'approve', 'reject', 'pending_approval', 'edit']:
             self.permission_classes = [IsAuthenticated, IsGerente]
         else: # list, retrieve, history
             self.permission_classes = [IsAuthenticated, IsGerenteOrEncargado]
@@ -1351,6 +1369,152 @@ class PurchaseViewSet(viewsets.ModelViewSet):
         
         return Response(self.get_serializer(purchase).data)
 
+    @action(detail=True, methods=['post'], url_path='edit')
+    def edit(self, request, pk=None):
+        """Cambia los ítems de una compra aprobada y ajusta stock y caja."""
+        purchase = self.get_object()
+        if purchase.status not in ('Aprobada', 'Completada'):
+            return Response(
+                {'detail': 'Solo se pueden editar compras ya aprobadas.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        raw_items = request.data.get('items')
+        if not isinstance(raw_items, list) or len(raw_items) == 0:
+            return Response(
+                {'detail': 'La compra tiene que tener al menos un insumo o producto.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        supplier = None
+        if purchase.supplier_id:
+            supplier = Supplier.objects.filter(id=purchase.supplier_id).first()
+        if supplier is None and purchase.supplier:
+            supplier = Supplier.objects.filter(name__iexact=purchase.supplier, is_active=True).first()
+        allowed_ids = set(supplier.supplied_products.values_list('id', flat=True)) if supplier else set()
+
+        current_ids = set()
+        for old_item in purchase.items or []:
+            old_product_id = old_item.get('product_id') or old_item.get('productId')
+            try:
+                current_ids.add(int(old_product_id))
+            except (TypeError, ValueError):
+                continue
+
+        try:
+            normalized = []
+            new_bases = {}
+            line_totals = []
+            for raw in raw_items:
+                product_id = raw.get('product_id') or raw.get('productId')
+                try:
+                    product_id = int(product_id)
+                except (TypeError, ValueError):
+                    raise ValueError('Elegí un insumo o producto del proveedor.')
+                if product_id not in allowed_ids and product_id not in current_ids:
+                    raise ValueError('Solo se puede elegir un insumo o producto de ese proveedor.')
+                product = Product.objects.filter(id=product_id, is_active=True).first()
+                if product is None:
+                    raise ValueError('Ese insumo o producto no está en el inventario.')
+                try:
+                    quantity = Decimal(str(raw.get('quantity')))
+                except Exception:
+                    raise ValueError('La cantidad tiene que ser un número.')
+                if quantity <= 0:
+                    raise ValueError('La cantidad tiene que ser mayor a cero.')
+                unit = (raw.get('unit') or '').lower()
+                if not unit:
+                    base_unit = _stored_base_unit(product.unit)
+                    unit = {'g': 'kg', 'ml': 'l', 'u': 'u'}.get(base_unit, 'u')
+                price_raw = raw.get('unitPrice')
+                if price_raw is None:
+                    price_raw = raw.get('unit_price')
+                if price_raw is None:
+                    price_raw = product.price or 0
+                try:
+                    unit_price = Decimal(str(price_raw))
+                except Exception:
+                    unit_price = Decimal(str(product.price or 0))
+                if unit_price < 0:
+                    raise ValueError('El precio no puede ser negativo.')
+                base_quantity = _purchase_base_quantity(product, quantity, unit)
+                new_bases[product.id] = new_bases.get(product.id, Decimal('0')) + base_quantity
+                line_total = (quantity * unit_price).quantize(Decimal('0.01'))
+                line_totals.append(line_total)
+                normalized.append({
+                    'product_id': product.id,
+                    'productId': product.id,
+                    'productName': product.name,
+                    'quantity': float(quantity),
+                    'unit': unit,
+                    'unitPrice': float(unit_price),
+                    'total': float(line_total),
+                    'category': product.category,
+                    'itemKind': product.category,
+                })
+
+            old_bases = {}
+            for old_item in purchase.items or []:
+                old_product_id = old_item.get('product_id') or old_item.get('productId')
+                product = None
+                try:
+                    product = Product.objects.filter(id=int(old_product_id)).first()
+                except (TypeError, ValueError):
+                    product = None
+                if product is None:
+                    name = str(old_item.get('productName') or '').strip()
+                    if name:
+                        product = Product.objects.filter(name__iexact=name).first()
+                if product is None:
+                    label = old_item.get('productName') or old_product_id or 'un ítem'
+                    raise ValueError(f'No se encontró {label} para ajustar el stock de la compra.')
+                try:
+                    old_quantity = Decimal(str(old_item.get('quantity') or 0))
+                except Exception:
+                    old_quantity = Decimal('0')
+                if old_quantity <= 0:
+                    continue
+                old_unit = (old_item.get('unit') or '').lower() or _stored_base_unit(product.unit)
+                old_base = _purchase_base_quantity(product, old_quantity, old_unit)
+                old_bases[product.id] = old_bases.get(product.id, Decimal('0')) + old_base
+
+            with transaction.atomic():
+                locked_ids = set(old_bases) | set(new_bases)
+                locked = {
+                    product.id: product
+                    for product in Product.objects.select_for_update().filter(id__in=locked_ids)
+                }
+                for product_id in locked_ids:
+                    product = locked.get(product_id)
+                    if product is None:
+                        raise ValueError('No se encontró un insumo o producto para ajustar el stock.')
+                    delta = new_bases.get(product_id, Decimal('0')) - old_bases.get(product_id, Decimal('0'))
+                    if product.stock + delta < 0:
+                        raise ValueError(
+                            f'No se puede cambiar la compra: el stock de {product.name} ya se usó y no alcanza para descontar lo comprado.'
+                        )
+                    if delta != 0:
+                        product.stock = product.stock + delta
+                        product.save(update_fields=['stock'])
+
+                purchase.items = normalized
+                purchase.total_amount = sum(line_totals, Decimal('0'))
+                purchase.save(update_fields=['items', 'total_amount'])
+
+                movement = CashMovement.objects.filter(
+                    type='Salida',
+                    payment_method='Compra',
+                    description__startswith=f'Compra #{purchase.id}',
+                ).order_by('id').first()
+                if movement is not None:
+                    movement.amount = purchase.total_amount
+                    movement.save(update_fields=['amount'])
+        except ValueError as error:
+            return Response({'detail': str(error)}, status=status.HTTP_400_BAD_REQUEST)
+
+        purchase.refresh_from_db()
+        return Response(self.get_serializer(purchase).data)
+
     def destroy(self, request, *args, **kwargs):
         """
         Implementa eliminación lógica para compras
@@ -1427,6 +1591,12 @@ class CashMovementViewSet(viewsets.ModelViewSet):
             if role_name != 'Gerente':
                 raise ValidationError({'detail': 'Solo el Gerente puede registrar una extracción para el banco.'})
             session = CashRegisterSession.objects.filter(is_open=True).first()
+            if session is None:
+                raise ValidationError({'detail': 'La caja está cerrada. La extracción para el banco solo se puede hacer con la caja abierta.'})
+            amount = serializer.validated_data.get('amount') or Decimal('0')
+            available = CashMovement.current_cash()
+            if amount > available:
+                raise ValidationError({'detail': 'La extracción no puede superar el efectivo que hay en la caja.'})
         else:
             session = require_open_cash_register()
         serializer.save(user=self.request.user, session=session)
@@ -1439,6 +1609,11 @@ class CashMovementViewSet(viewsets.ModelViewSet):
         except Exception as e:
             print(f"[CashMovementViewSet.list] Error checking cookies: {e}")
         return super().list(request, *args, **kwargs)
+
+
+def _role_name(user):
+    role = getattr(user, 'role', None)
+    return role.name if role else None
 
 
 def user_can_manage_cash_register(user):
@@ -1497,7 +1672,7 @@ class CashRegisterSessionViewSet(viewsets.ReadOnlyModelViewSet):
         ).order_by('opened_at')
         can_manage = user_can_manage_cash_register(request.user)
 
-        return Response({
+        data = {
             'is_open': open_session is not None,
             'session': self.get_serializer(open_session).data if open_session else None,
             'current_balance': float(CashMovement.current_balance()),
@@ -1509,7 +1684,12 @@ class CashRegisterSessionViewSet(viewsets.ReadOnlyModelViewSet):
             'can_open': can_manage and open_session is None and openings_today < CashRegisterSession.MAX_OPENINGS_PER_DAY,
             'can_close': can_manage and open_session is not None,
             'today_sessions': self.get_serializer(today_sessions, many=True).data,
-        })
+        }
+        if _role_name(request.user) == 'Gerente':
+            data['current_cash'] = float(CashMovement.current_cash())
+        data['cash_is_whole'] = CashMovement.cash_must_be_whole()
+        data['total_is_whole'] = CashMovement.total_must_be_whole()
+        return Response(data)
 
     @action(detail=False, methods=['post'], url_path='open')
     def open_register(self, request):
@@ -1527,6 +1707,7 @@ class CashRegisterSessionViewSet(viewsets.ReadOnlyModelViewSet):
                 session = CashRegisterSession.objects.create(
                     opened_by=request.user,
                     opening_balance=CashMovement.current_balance(),
+                    opening_cash=CashMovement.current_cash(),
                 )
         except IntegrityError:
             return Response({'detail': 'La caja ya fue abierta por otro usuario.'}, status=status.HTTP_400_BAD_REQUEST)
@@ -1534,6 +1715,15 @@ class CashRegisterSessionViewSet(viewsets.ReadOnlyModelViewSet):
 
     @action(detail=False, methods=['post'], url_path='close')
     def close_register(self, request):
+        declared_cash = None
+        if _role_name(request.user) in CashRegisterSession.DECLARING_ROLES:
+            declaration = CloseCashRegisterSerializer(data=request.data)
+            if not declaration.is_valid():
+                return Response(
+                    {'detail': 'Ingresá cuánto efectivo contaste en la caja (un monto de cero o más) para poder cerrarla.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            declared_cash = declaration.validated_data['declared_cash']
         with transaction.atomic():
             session = CashRegisterSession.objects.select_for_update().filter(is_open=True).first()
             if session is None:
@@ -1541,8 +1731,64 @@ class CashRegisterSessionViewSet(viewsets.ReadOnlyModelViewSet):
             session.closed_by = request.user
             session.closed_at = timezone.now()
             session.closing_balance = CashMovement.current_balance()
+            session.closing_cash = CashMovement.current_cash()
+            session.declared_closing_cash = declared_cash
             session.is_open = False
-            session.save(update_fields=['closed_by', 'closed_at', 'closing_balance', 'is_open'])
+            session.save(update_fields=[
+                'closed_by', 'closed_at', 'closing_balance', 'closing_cash', 'declared_closing_cash', 'is_open',
+            ])
+        return Response(self._serialize_session(session))
+
+    @action(detail=True, methods=['post'], url_path='resolve')
+    def resolve_cash(self, request, pk=None):
+        """El Gerente corrige el efectivo del cierre o convalida lo que declaró el empleado."""
+        if _role_name(request.user) != 'Gerente':
+            return Response({'detail': 'Solo el Gerente puede resolver la diferencia de efectivo.'}, status=status.HTTP_403_FORBIDDEN)
+        session = CashRegisterSession.objects.filter(pk=pk, is_open=False).first()
+        if session is None or session.declared_closing_cash is None or session.closing_cash is None:
+            return Response({'detail': 'Ese cierre no tiene un efectivo declarado para resolver.'}, status=status.HTTP_400_BAD_REQUEST)
+        action_name = request.data.get('action')
+        if action_name == 'convalidar':
+            target = session.declared_closing_cash
+            resolution = 'convalidada'
+        elif action_name == 'editar':
+            raw_amount = request.data.get('amount')
+            try:
+                target = Decimal(str(raw_amount))
+            except Exception:
+                return Response({'detail': 'Ingresá el efectivo que corroboraste. Con ese monto se abre la caja.'}, status=status.HTTP_400_BAD_REQUEST)
+            resolution = 'editada'
+        else:
+            return Response({'detail': 'Elegí editar el monto o convalidar el del empleado.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if target < 0:
+            return Response({'detail': 'El efectivo no puede ser negativo.'}, status=status.HTTP_400_BAD_REQUEST)
+        if CashMovement.cash_must_be_whole() and target != target.to_integral_value():
+            return Response({'detail': 'El efectivo tiene que ser un número entero porque los precios de los productos son enteros.'}, status=status.HTTP_400_BAD_REQUEST)
+        target = CashMovement.present_money(target, CashMovement.cash_must_be_whole())
+
+        desired_delta = (target - session.closing_cash).quantize(Decimal('0.01'))
+        already = session.cash_adjustment or Decimal('0')
+        change = (desired_delta - already).quantize(Decimal('0.01'))
+        projected_cash = CashMovement._raw_cash() + change
+        projected_total = CashMovement._raw_balance() + change
+        if projected_cash < 0 or projected_total < 0:
+            return Response({'detail': 'Ese monto dejaría la caja en negativo. El efectivo y el total tienen que quedar en cero o más.'}, status=status.HTTP_400_BAD_REQUEST)
+        with transaction.atomic():
+            if change != 0:
+                CashMovement.objects.create(
+                    type='Entrada' if change > 0 else 'Salida',
+                    amount=abs(change),
+                    description=f'Ajuste de efectivo del cierre de caja #{session.id}',
+                    payment_method='Efectivo',
+                    user=request.user,
+                    session=session,
+                    hidden_from_history=True,
+                )
+            session.validated_closing_cash = target
+            session.cash_adjustment = desired_delta
+            session.cash_resolution = resolution
+            session.save(update_fields=['validated_closing_cash', 'cash_adjustment', 'cash_resolution'])
         return Response(self._serialize_session(session))
 
 # ViewSet para la gestión de cambios de inventario (CRUD)

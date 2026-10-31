@@ -14,8 +14,6 @@ const UserManagement = ({ users, loadUsers, userRole }) => {
     const [error, setError] = useState('');
 
     // Estados para paginación y filtros
-    const [currentPage, setCurrentPage] = useState(1);
-    const usersPerPage = 10; // Cantidad fija de usuarios por página
     const [searchTerm, setSearchTerm] = useState('');
     const [filterRole, setFilterRole] = useState([]); // Array para múltiples roles
     const [filterStatus, setFilterStatus] = useState(''); // '', 'active', 'locked'
@@ -24,12 +22,15 @@ const UserManagement = ({ users, loadUsers, userRole }) => {
     const [showUsersDialog, setShowUsersDialog] = useState(false);
     const [dialogFiltersOpen, setDialogFiltersOpen] = useState(false);
     const [isMinimized, setIsMinimized] = useState(false);
+    const [isMaximized, setIsMaximized] = useState(false);
     const [dialogSize, setDialogSize] = useState({ width: 1200, height: 700 });
     const [isDragging, setIsDragging] = useState(false);
     const [isResizing, setIsResizing] = useState(false);
     const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
     const [dialogPosition, setDialogPosition] = useState({ x: 150, y: 50 });
     const [resizeStart, setResizeStart] = useState({ width: 0, height: 0 });
+    const [screenWidth, setScreenWidth] = useState(() => window.innerWidth);
+    const usersEmbedded = screenWidth < 800;
 
     // Estados para el formulario de creación
     const [newUser, setNewUser] = useState({
@@ -56,10 +57,24 @@ const UserManagement = ({ users, loadUsers, userRole }) => {
         loadRoles();
     }, []);
 
+    useEffect(() => {
+        const onResize = () => {
+            const width = window.innerWidth;
+            setScreenWidth(width);
+            if (width < 800) {
+                setShowUsersDialog(false);
+                setIsMinimized(false);
+                setIsMaximized(false);
+            }
+        };
+        window.addEventListener('resize', onResize);
+        return () => window.removeEventListener('resize', onResize);
+    }, []);
+
     // Effect para manejar drag/resize con eventos globales
     useEffect(() => {
         const handleMouseMove = (e) => {
-            if (isDragging) {
+            if (isDragging && !isMaximized) {
                 const dx = e.clientX - dragStart.x;
                 const dy = e.clientY - dragStart.y;
                 let newX = dialogPosition.x + dx;
@@ -95,7 +110,7 @@ const UserManagement = ({ users, loadUsers, userRole }) => {
                 document.removeEventListener('mouseup', handleMouseUp);
             };
         }
-    }, [isDragging, isResizing, dragStart, dialogPosition, resizeStart]);
+    }, [isDragging, isResizing, isMaximized, dragStart, dialogPosition, resizeStart]);
 
     const loadRoles = async () => {
         try {
@@ -1088,17 +1103,6 @@ const UserManagement = ({ users, loadUsers, userRole }) => {
         return matchesSearch && matchesRole && matchesStatus;
     });
 
-    // Calcular paginación
-    const indexOfLastUser = currentPage * usersPerPage;
-    const indexOfFirstUser = indexOfLastUser - usersPerPage;
-    const currentUsers = filteredUsers.slice(indexOfFirstUser, indexOfLastUser);
-    const totalPages = Math.ceil(filteredUsers.length / usersPerPage);
-
-    // Resetear a página 1 cuando cambian los filtros
-    useEffect(() => {
-        setCurrentPage(1);
-    }, [searchTerm, filterRole, filterStatus]);
-
     // Verificar permisos
     if (userRole !== 'Gerente') {
         return (
@@ -1146,7 +1150,7 @@ const UserManagement = ({ users, loadUsers, userRole }) => {
                 )}
 
                 {/* Botón para abrir diálogo en pantallas ≥1200px */}
-                <div className="hidden min-[1200px]:flex justify-center items-center mb-6">
+                <div className="hidden min-[800px]:flex justify-center items-center mb-6">
                     <button
                         onClick={() => setShowUsersDialog(true)}
                         className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-4 rounded-lg font-semibold text-lg transition-colors shadow-lg"
@@ -1155,297 +1159,21 @@ const UserManagement = ({ users, loadUsers, userRole }) => {
                     </button>
                 </div>
 
-                {/* Barra de búsqueda y filtros - Solo visible en pantallas <1200px */}
-                <div className="min-[1200px]:hidden">
-                <div className="bg-white rounded-lg shadow-md p-4 mb-6">
-                    {/* Búsqueda */}
-                    <div className="mb-4">
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                            🔍 Buscar usuario
-                        </label>
-                        <input
-                            type="text"
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            placeholder="Nombre, apellido, email o usuario..."
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        />
-                    </div>
 
-                    {/* Filtros por rol y estado */}
-                    <div className="mb-4 flex flex-col md:flex-row gap-4 md:items-end">
-                        {/* Filtro por rol (checkboxes) */}
-                        <div className="flex-shrink-0">
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                                👔 Filtrar por rol
-                            </label>
-                            <div className="flex flex-wrap gap-4">
-                                {roles.map(role => (
-                                    <label key={role.id} className="flex items-center cursor-pointer">
-                                        <input
-                                            type="checkbox"
-                                            checked={filterRole.includes(role.name)}
-                                            onChange={(e) => {
-                                                if (e.target.checked) {
-                                                    setFilterRole([...filterRole, role.name]);
-                                                } else {
-                                                    setFilterRole(filterRole.filter(r => r !== role.name));
-                                                }
-                                            }}
-                                            className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
-                                        />
-                                        <span className="ml-2 text-sm text-gray-700">{role.name}</span>
-                                    </label>
-                                ))}
-                            </div>
-                        </div>
-
-                        {/* Filtro por estado */}
-                        <div className="flex-1 md:max-w-sm">
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                                🔒 Estado
-                            </label>
-                            <select
-                                value={filterStatus}
-                                onChange={(e) => setFilterStatus(e.target.value)}
-                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                            >
-                                <option value="">Seleccione un Estado de usuario a filtrar</option>
-                                <option value="active">Activos</option>
-                                <option value="locked">Bloqueados</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    {/* Información de resultados */}
-                    <div className="text-sm text-gray-600">
-                        Mostrando <strong>{currentUsers.length}</strong> de <strong>{filteredUsers.length}</strong> usuarios
-                        {filteredUsers.length !== users.length && ` (filtrados de ${users.length} totales)`}
-                    </div>
-                </div>
-
-                {/* Lista de usuarios en cuadrícula */}
-                {currentUsers.length === 0 ? (
-                    <div className="bg-white rounded-lg shadow-md p-12 text-center">
-                        <div className="text-gray-400">
-                            <div className="text-5xl mb-3">��</div>
-                            <p className="text-lg font-medium text-gray-600">No se encontraron usuarios</p>
-                            <p className="text-sm text-gray-500 mt-1">
-                                {searchTerm || filterRole.length > 0 || filterStatus ? 
-                                    'Intenta ajustar los filtros de búsqueda' : 
-                                    'No hay usuarios registrados en el sistema'}
-                            </p>
-                        </div>
-                    </div>
-                ) : (
-                    <div className="grid grid-cols-1 xs:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 ultra:grid-cols-7 gap-4">
-                        {currentUsers.map((user) => (
-                            <div key={user.id} className="bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow p-5 flex-shrink min-w-0 overflow-hidden">
-                                {/* Avatar y nombre */}
-                                <div className="flex items-center mb-3">
-                                    <div className="flex-shrink-0 h-12 w-12 bg-blue-100 rounded-full flex items-center justify-center">
-                                        <span className="text-blue-600 font-bold text-lg">
-                                            {user.first_name?.[0]?.toUpperCase() || user.username?.[0]?.toUpperCase()}
-                                        </span>
-                                    </div>
-                                    <div className="ml-3 flex-1 min-w-0 overflow-hidden">
-                                        <div className="text-sm font-semibold text-gray-900 truncate overflow-hidden text-ellipsis">
-                                            {user.first_name} {user.last_name}
-                                        </div>
-                                        <div className="text-xs text-gray-500 truncate">
-                                            @{user.username}
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Email */}
-                                <div className="mb-3 min-w-0">
-                                    <div className="text-xs text-gray-500 mb-1">Email</div>
-                                    <div className="text-sm text-gray-900 truncate">{user.email}</div>
-                                </div>
-
-                                {/* Rol y estado */}
-                                <div className="flex flex-wrap gap-2 mb-4">
-                                    <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                                        user.role?.name === 'Gerente' ? 'bg-purple-100 text-purple-800' :
-                                        user.role?.name === 'Encargado' ? 'bg-blue-100 text-blue-800' :
-                                        user.role?.name === 'Panadero' ? 'bg-green-100 text-green-800' :
-                                        user.role?.name === 'Cajero' ? 'bg-yellow-100 text-yellow-800' :
-                                        'bg-gray-100 text-gray-800'
-                                    }`}>
-                                        {user.role?.name || 'Sin rol'}
-                                    </span>
-                                    {user.is_locked && (
-                                        <span className="px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800">
-                                            🔒 Bloqueado
-                                        </span>
-                                    )}
-                                </div>
-
-                                {/* Acciones */}
-                                <div className="flex flex-col gap-2 min-w-0">
-                                    {user.is_locked ? (
-                                        <button
-                                            onClick={() => handleConfirmUnlock(user)}
-                                            className="w-full px-3 py-2 text-xs font-medium text-white bg-green-600 hover:bg-green-700 rounded-md transition-colors"
-                                        >
-                                            🔓 Desbloquear
-                                        </button>
-                                    ) : (
-                                        // Solo mostrar botón de bloqueo si NO es Gerente
-                                        user.role?.name !== 'Gerente' && (
-                                            <button
-                                                onClick={() => handleConfirmLock(user)}
-                                                className="w-full px-3 py-2 text-xs font-medium text-white bg-orange-600 hover:bg-orange-700 rounded-md transition-colors"
-                                            >
-                                                🔒 Bloquear
-                                            </button>
-                                        )
-                                    )}
-                                    <div className="grid grid-cols-2 gap-2 min-w-0">
-                                        <button
-                                            onClick={() => handleOpenEditModal(user)}
-                                            className="px-3 py-2 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors"
-                                        >
-                                            ✏️ Editar
-                                        </button>
-                                        <button
-                                            onClick={() => handleConfirmDelete(user)}
-                                            className="px-3 py-2 text-xs font-medium text-white bg-red-600 hover:bg-red-700 rounded-md transition-colors"
-                                        >
-                                            🗑️ Eliminar
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                )}
-
-
-                {/* Paginación */}
-                {filteredUsers.length > 0 && totalPages > 1 && (
-                    <div className="mt-6 bg-white rounded-lg shadow-md p-4">
-                            <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-                                {/* Información de página */}
-                                <div className="text-sm text-gray-600">
-                                    Página <strong>{currentPage}</strong> de <strong>{totalPages}</strong>
-                                </div>
-
-                                {/* Botones de paginación */}
-                                <div className="flex items-center gap-2">
-                                    {/* Primera página */}
-                                    <button
-                                        onClick={() => setCurrentPage(1)}
-                                        disabled={currentPage === 1}
-                                        className={`px-3 py-2 rounded-lg font-medium transition-colors ${
-                                            currentPage === 1
-                                                ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                                                : 'bg-white text-gray-700 hover:bg-blue-50 hover:text-blue-600 border border-gray-300'
-                                        }`}
-                                    >
-                                        ⏮️
-                                    </button>
-
-                                    {/* Página anterior */}
-                                    <button
-                                        onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                                        disabled={currentPage === 1}
-                                        className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                                            currentPage === 1
-                                                ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                                                : 'bg-white text-gray-700 hover:bg-blue-50 hover:text-blue-600 border border-gray-300'
-                                        }`}
-                                    >
-                                        ← Anterior
-                                    </button>
-
-                                    {/* Números de página */}
-                                    <div className="hidden sm:flex items-center gap-2">
-                                        {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                                            let pageNum;
-                                            if (totalPages <= 5) {
-                                                pageNum = i + 1;
-                                            } else if (currentPage <= 3) {
-                                                pageNum = i + 1;
-                                            } else if (currentPage >= totalPages - 2) {
-                                                pageNum = totalPages - 4 + i;
-                                            } else {
-                                                pageNum = currentPage - 2 + i;
-                                            }
-
-                                            return (
-                                                <button
-                                                    key={pageNum}
-                                                    onClick={() => setCurrentPage(pageNum)}
-                                                    className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                                                        currentPage === pageNum
-                                                            ? 'bg-blue-600 text-white'
-                                                            : 'bg-white text-gray-700 hover:bg-blue-50 hover:text-blue-600 border border-gray-300'
-                                                    }`}
-                                                >
-                                                    {pageNum}
-                                                </button>
-                                            );
-                                        })}
-                                    </div>
-
-                                    {/* Página siguiente */}
-                                    <button
-                                        onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                                        disabled={currentPage === totalPages}
-                                        className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                                            currentPage === totalPages
-                                                ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                                                : 'bg-white text-gray-700 hover:bg-blue-50 hover:text-blue-600 border border-gray-300'
-                                        }`}
-                                    >
-                                        Siguiente →
-                                    </button>
-
-                                    {/* Última página */}
-                                    <button
-                                        onClick={() => setCurrentPage(totalPages)}
-                                        disabled={currentPage === totalPages}
-                                        className={`px-3 py-2 rounded-lg font-medium transition-colors ${
-                                            currentPage === totalPages
-                                                ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                                                : 'bg-white text-gray-700 hover:bg-blue-50 hover:text-blue-600 border border-gray-300'
-                                        }`}
-                                    >
-                                        ⏭️
-                                    </button>
-                                </div>
-
-                                {/* Ir a página específica */}
-                                <div className="flex items-center gap-2 text-sm">
-                                    <label className="text-gray-600">Ir a:</label>
-                                    <input
-                                        type="number"
-                                        min="1"
-                                        max={totalPages}
-                                        value={currentPage}
-                                        onChange={(e) => {
-                                            const page = parseInt(e.target.value);
-                                            if (page >= 1 && page <= totalPages) {
-                                                setCurrentPage(page);
-                                            }
-                                        }}
-                                        className="w-16 px-2 py-1 border border-gray-300 rounded-lg text-center focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                    />
-                                </div>
-                            </div>
-                        </div>
-                    )}
-                </div>
-                {/* Fin de contenido solo visible en <1200px */}
-
-                {/* Diálogo pop-up para usuarios (solo ≥1200px) */}
-                {showUsersDialog && (
+                {/* Diálogo flotante desde 800px; incrustado por debajo */}
+                {(showUsersDialog || usersEmbedded) && (
                     <>
                         <div 
-                            className="fixed bg-white rounded-lg shadow-2xl border-2 border-gray-300 flex flex-col"
-                            style={{
+                            className={usersEmbedded
+                                ? 'relative w-full min-h-[70vh] bg-white rounded-lg border-2 border-gray-300 flex flex-col overflow-hidden mb-6'
+                                : `fixed bg-white shadow-2xl border-2 border-gray-300 flex flex-col ${isMaximized && !isMinimized ? 'rounded-none' : 'rounded-lg'}`}
+                            style={usersEmbedded ? undefined : isMaximized && !isMinimized ? {
+                                left: 0,
+                                top: `${document.querySelector('nav.navbar')?.getBoundingClientRect().bottom || 0}px`,
+                                width: '100vw',
+                                height: `calc(100vh - ${document.querySelector('nav.navbar')?.getBoundingClientRect().bottom || 0}px)`,
+                                zIndex: 1000,
+                            } : {
                                 left: `${dialogPosition.x}px`,
                                 top: `${dialogPosition.y}px`,
                                 width: isMinimized ? '350px' : `${dialogSize.width}px`,
@@ -1459,8 +1187,9 @@ const UserManagement = ({ users, loadUsers, userRole }) => {
                         >
                             {/* Barra de título draggable */}
                             <div 
-                                className={`bg-blue-600 text-white px-4 py-3 cursor-move flex justify-between items-center select-none ${isMinimized ? 'min-h-[48px] px-2' : ''}`}
+                                className={`bg-blue-600 text-white px-4 py-3 flex justify-between items-center select-none ${usersEmbedded ? '' : 'cursor-move'} ${isMinimized && !usersEmbedded ? 'min-h-[48px] px-2' : ''}`}
                                 onMouseDown={(e) => {
+                                    if (usersEmbedded || isMaximized || e.target.closest('button')) return;
                                     e.preventDefault();
                                     setIsDragging(true);
                                     setDragStart({ x: e.clientX, y: e.clientY });
@@ -1470,7 +1199,7 @@ const UserManagement = ({ users, loadUsers, userRole }) => {
                                     <h3 className={`font-bold ${isMinimized ? 'text-sm' : 'text-base'} whitespace-normal`}>
                                         👥 Gestión de Usuarios
                                     </h3>
-                                    {!isMinimized && (
+                                    {(!isMinimized || usersEmbedded) && (
                                         <span className="bg-white text-blue-600 px-2 py-1 rounded text-xs font-semibold">
                                             {filteredUsers.length} usuarios
                                         </span>
@@ -1489,13 +1218,15 @@ const UserManagement = ({ users, loadUsers, userRole }) => {
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                                         </svg>
                                     </button>
+                                    {!usersEmbedded && (
+                                    <>
                                     <button 
                                         className="hover:bg-blue-800 p-1.5 rounded transition-colors"
                                         onClick={(e) => {
                                             e.stopPropagation();
                                             setIsMinimized(!isMinimized);
                                         }}
-                                        title={isMinimized ? "Maximizar" : "Minimizar"}
+                                        title={isMinimized ? "Restaurar" : "Minimizar"}
                                     >
                                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             {isMinimized ? (
@@ -1506,11 +1237,29 @@ const UserManagement = ({ users, loadUsers, userRole }) => {
                                         </svg>
                                     </button>
                                     <button 
+                                        className="hover:bg-blue-800 p-1.5 rounded transition-colors"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setIsMinimized(false);
+                                            setIsMaximized(value => !value);
+                                        }}
+                                        title={isMaximized ? 'Restaurar' : 'Maximizar'}
+                                    >
+                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            {isMaximized ? (
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5l5.25 5.25" />
+                                            ) : (
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+                                            )}
+                                        </svg>
+                                    </button>
+                                    <button 
                                         className="hover:bg-red-600 p-1.5 rounded transition-colors"
                                         onClick={(e) => {
                                             e.stopPropagation();
                                             setShowUsersDialog(false);
                                             setIsMinimized(false);
+                                            setIsMaximized(false);
                                         }}
                                         title="Cerrar"
                                     >
@@ -1518,11 +1267,13 @@ const UserManagement = ({ users, loadUsers, userRole }) => {
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                                         </svg>
                                     </button>
+                                    </>
+                                    )}
                                 </div>
                             </div>
 
                             {/* Contenido del diálogo */}
-                            {!isMinimized && (
+                            {(!isMinimized || usersEmbedded) && (
                                 <div className="flex flex-col flex-1" style={{minHeight: 0}}>
                                     {/* Filtros dentro del diálogo */}
                                     <div className="border-b border-gray-200 bg-gray-50 flex-shrink-0">
@@ -1668,7 +1419,7 @@ const UserManagement = ({ users, loadUsers, userRole }) => {
                                         )}
                                     </div>
 
-                                    {/* Manejador de resize */}
+                                    {!isMaximized && !usersEmbedded && (
                                     <div
                                         className="absolute bottom-0 right-0 w-4 h-4 cursor-se-resize"
                                         onMouseDown={(e) => {
@@ -1682,6 +1433,7 @@ const UserManagement = ({ users, loadUsers, userRole }) => {
                                             background: 'linear-gradient(135deg, transparent 0%, transparent 50%, #94a3b8 50%, #94a3b8 100%)'
                                         }}
                                     />
+                                    )}
                                 </div>
                             )}
                         </div>

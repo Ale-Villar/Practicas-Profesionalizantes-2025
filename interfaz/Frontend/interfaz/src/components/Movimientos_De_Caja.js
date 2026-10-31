@@ -50,6 +50,7 @@ const withPrices = (items, products) => items.map(item => {
 });
 
 const ProductsCell = ({ movement, products }) => {
+    const [isExpanded, setIsExpanded] = useState(false);
     if (isBankWithdrawal(movement)) {
         const amount = Math.abs(Number(movement.amount) || 0);
         return (
@@ -57,38 +58,57 @@ const ProductsCell = ({ movement, products }) => {
         );
     }
     const items = withPrices(parseSaleItems(movement.description), products);
+    const finalTotal = items.reduce((sum, item) => sum + (item.total || 0), 0);
     return (
-        <table className="w-full text-xs border border-gray-200 rounded-md overflow-hidden">
-            <thead className="bg-gray-100 text-gray-700">
-                <tr>
-                    <th className="px-2 py-1 text-left font-semibold">Producto</th>
-                    <th className="px-2 py-1 text-right font-semibold">Cant.</th>
-                    <th className="px-2 py-1 text-right font-semibold">P. unit.</th>
-                    <th className="px-2 py-1 text-right font-semibold">Total</th>
-                </tr>
-            </thead>
-            <tbody>
-                {items.length === 0 ? (
-                    <tr>
-                        <td colSpan={4} className="px-2 py-1">{movement.description || '—'}</td>
-                    </tr>
-                ) : items.map((item, index) => (
-                    <tr key={index} className="border-t border-gray-200">
-                        <td className="px-2 py-1 text-left">{item.name}</td>
-                        <td className="px-2 py-1 text-right">{item.quantity}</td>
-                        <td className="px-2 py-1 text-right">{formatMoney(item.unitPrice)}</td>
-                        <td className="px-2 py-1 text-right">{formatMoney(item.total)}</td>
-                    </tr>
-                ))}
-            </tbody>
-            <tfoot>
-                <tr className="border-t-4 border-gray-900">
-                    <td colSpan={4} className="px-2 py-1 text-right font-bold">
-                        Total final = {formatMoney(items.reduce((sum, item) => sum + (item.total || 0), 0))}
-                    </td>
-                </tr>
-            </tfoot>
-        </table>
+        <div>
+            <div className="flex flex-wrap items-center justify-end gap-2">
+                <button
+                    type="button"
+                    onClick={() => setIsExpanded(expanded => !expanded)}
+                    aria-expanded={isExpanded}
+                    className="inline-flex items-center gap-1.5 px-2 py-1 text-xs font-semibold text-blue-700 border border-blue-200 rounded-md hover:bg-blue-50"
+                >
+                    <span className={`inline-block transition-transform ${isExpanded ? 'rotate-90' : ''}`} aria-hidden="true">▶</span>
+                    {isExpanded ? 'Ocultar productos' : `Ver productos (${items.length})`}
+                </button>
+                {!isExpanded && (
+                    <span className="font-bold whitespace-nowrap">Total final = {formatMoney(finalTotal)}</span>
+                )}
+            </div>
+            {isExpanded && (
+                <table className="mt-2 w-full text-xs border border-gray-200 rounded-md overflow-hidden">
+                    <thead className="bg-gray-100 text-gray-700">
+                        <tr>
+                            <th className="px-2 py-1 text-left font-semibold">Producto</th>
+                            <th className="px-2 py-1 text-right font-semibold">Cant.</th>
+                            <th className="px-2 py-1 text-right font-semibold">P. unit.</th>
+                            <th className="px-2 py-1 text-right font-semibold">Total</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {items.length === 0 ? (
+                            <tr>
+                                <td colSpan={4} className="px-2 py-1">{movement.description || '—'}</td>
+                            </tr>
+                        ) : items.map((item, index) => (
+                            <tr key={index} className="border-t border-gray-200">
+                                <td className="px-2 py-1 text-left">{item.name}</td>
+                                <td className="px-2 py-1 text-right">{item.quantity}</td>
+                                <td className="px-2 py-1 text-right">{formatMoney(item.unitPrice)}</td>
+                                <td className="px-2 py-1 text-right">{formatMoney(item.total)}</td>
+                            </tr>
+                        ))}
+                    </tbody>
+                    <tfoot>
+                        <tr className="border-t-4 border-gray-900">
+                            <td colSpan={4} className="px-2 py-1 text-right font-bold">
+                                Total final = {formatMoney(finalTotal)}
+                            </td>
+                        </tr>
+                    </tfoot>
+                </table>
+            )}
+        </div>
     );
 };
 
@@ -145,6 +165,7 @@ const Movimientos_De_Caja = ({ cashMovements, cashBalance, products = [] }) => {
     // Estado para el diálogo de historial
     const [showHistoryDialog, setShowHistoryDialog] = useState(false);
     const [isMinimized, setIsMinimized] = useState(false);
+    const [isMaximized, setIsMaximized] = useState(false);
     const [dialogSize, setDialogSize] = useState({ width: 1000, height: 700 });
     const [isDragging, setIsDragging] = useState(false);
     const [isResizing, setIsResizing] = useState(false);
@@ -251,7 +272,7 @@ const Movimientos_De_Caja = ({ cashMovements, cashBalance, products = [] }) => {
     // Effect para manejar drag/resize con eventos globales
     useEffect(() => {
         const handleMouseMove = (e) => {
-            if (isDragging) {
+            if (isDragging && !isMaximized) {
                 const newX = Math.max(0, Math.min(window.innerWidth - 200, e.clientX - dragStart.x));
                 const newY = Math.max(0, Math.min(window.innerHeight - 50, e.clientY - dragStart.y));
                 setDialogPosition({ x: newX, y: newY });
@@ -277,7 +298,7 @@ const Movimientos_De_Caja = ({ cashMovements, cashBalance, products = [] }) => {
                 document.removeEventListener('mouseup', handleMouseUp);
             };
         }
-    }, [isDragging, isResizing, dragStart, dialogPosition, resizeStart]);
+    }, [isDragging, isResizing, isMaximized, dragStart, dialogPosition, resizeStart]);
 
     // Función para abrir el diálogo en ventana nueva
     const openInNewWindow = () => {
@@ -515,9 +536,25 @@ const Movimientos_De_Caja = ({ cashMovements, cashBalance, products = [] }) => {
                                 return '<tr class="border-t border-gray-200"><td class="px-2 py-1">' + name + '</td><td class="px-2 py-1 text-right">' + quantity + '</td><td class="px-2 py-1 text-right">' + formatMoney(unitPrice) + '</td><td class="px-2 py-1 text-right">' + formatMoney(total) + '</td></tr>';
                             }).join('');
                             const finalAmount = items.length ? lineTotal : movement.amount;
-                            return '<table class="w-full text-xs border border-gray-200 rounded-md overflow-hidden"><thead class="bg-gray-100"><tr><th class="px-2 py-1 text-left">Producto</th><th class="px-2 py-1 text-right">Cant.</th><th class="px-2 py-1 text-right">P. unit.</th><th class="px-2 py-1 text-right">Total</th></tr></thead><tbody>'
+                            const isExpanded = expandedMovements.has(movement.id);
+                            const toggle = '<div class="flex flex-wrap items-center justify-end gap-2">'
+                                + '<button type="button" onclick="toggleMovementProducts(' + Number(movement.id) + ')" aria-expanded="' + isExpanded + '" class="inline-flex items-center gap-1.5 px-2 py-1 text-xs font-semibold text-blue-700 border border-blue-200 rounded-md hover:bg-blue-50">'
+                                + '<span class="inline-block' + (isExpanded ? ' rotate-90' : '') + '" aria-hidden="true">▶</span>'
+                                + (isExpanded ? 'Ocultar productos' : 'Ver productos (' + items.length + ')')
+                                + '</button>'
+                                + (isExpanded ? '' : '<span class="font-bold whitespace-nowrap">Total final = ' + formatMoney(finalAmount) + '</span>')
+                                + '</div>';
+                            if (!isExpanded) return toggle;
+                            return toggle + '<table class="mt-2 w-full text-xs border border-gray-200 rounded-md overflow-hidden"><thead class="bg-gray-100"><tr><th class="px-2 py-1 text-left">Producto</th><th class="px-2 py-1 text-right">Cant.</th><th class="px-2 py-1 text-right">P. unit.</th><th class="px-2 py-1 text-right">Total</th></tr></thead><tbody>'
                                 + (rows || '<tr><td class="px-2 py-1" colspan="4">' + (movement.description || '—') + '</td></tr>')
                                 + '</tbody><tfoot><tr class="border-t-4 border-gray-900"><td colspan="4" class="px-2 py-1 text-right font-bold">Total final = ' + formatMoney(finalAmount) + '</td></tr></tfoot></table>';
+                        }
+
+                        const expandedMovements = new Set();
+                        function toggleMovementProducts(id) {
+                            if (expandedMovements.has(id)) expandedMovements.delete(id);
+                            else expandedMovements.add(id);
+                            renderMovements();
                         }
                         
                         function updateFilter(key, value) {
@@ -1011,8 +1048,14 @@ const Movimientos_De_Caja = ({ cashMovements, cashBalance, products = [] }) => {
             {showHistoryDialog && (
                 <>
                     <div 
-                        className="fixed bg-white rounded-lg shadow-2xl border-2 border-gray-300 flex flex-col"
-                        style={{
+                        className={`fixed bg-white shadow-2xl border-2 border-gray-300 flex flex-col ${isMaximized && !isMinimized ? 'rounded-none' : 'rounded-lg'}`}
+                        style={isMaximized && !isMinimized ? {
+                            left: 0,
+                            top: `${document.querySelector('nav.navbar')?.getBoundingClientRect().bottom || 0}px`,
+                            width: '100vw',
+                            height: `calc(100vh - ${document.querySelector('nav.navbar')?.getBoundingClientRect().bottom || 0}px)`,
+                            zIndex: 1000,
+                        } : {
                             left: `${dialogPosition.x}px`,
                             top: `${dialogPosition.y}px`,
                             width: isMinimized ? '300px' : `${dialogSize.width}px`,
@@ -1027,6 +1070,7 @@ const Movimientos_De_Caja = ({ cashMovements, cashBalance, products = [] }) => {
                         <div 
                             className={`bg-blue-600 text-white px-4 py-3 cursor-move flex justify-between items-center select-none ${isMinimized ? 'min-h-[48px] px-2' : ''}`}
                             onMouseDown={(e) => {
+                                if (isMaximized || e.target.closest('button')) return;
                                 e.preventDefault();
                                 setIsDragging(true);
                                 setDragStart({ x: e.clientX - dialogPosition.x, y: e.clientY - dialogPosition.y });
@@ -1061,7 +1105,7 @@ const Movimientos_De_Caja = ({ cashMovements, cashBalance, products = [] }) => {
                                         e.stopPropagation();
                                         setIsMinimized(!isMinimized);
                                     }}
-                                    title={isMinimized ? "Maximizar" : "Minimizar"}
+                                    title={isMinimized ? "Restaurar" : "Minimizar"}
                                 >
                                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         {isMinimized ? (
@@ -1071,12 +1115,30 @@ const Movimientos_De_Caja = ({ cashMovements, cashBalance, products = [] }) => {
                                         )}
                                     </svg>
                                 </button>
+                                <button
+                                    className="hover:bg-blue-800 p-1.5 rounded transition-colors"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setIsMinimized(false);
+                                        setIsMaximized(value => !value);
+                                    }}
+                                    title={isMaximized ? 'Restaurar' : 'Maximizar'}
+                                >
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        {isMaximized ? (
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5l5.25 5.25" />
+                                        ) : (
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+                                        )}
+                                    </svg>
+                                </button>
                                 <button 
                                     className="hover:bg-red-600 p-1.5 rounded transition-colors"
                                     onClick={(e) => {
                                         e.stopPropagation();
                                         setShowHistoryDialog(false);
                                         setIsMinimized(false);
+                                        setIsMaximized(false);
                                     }}
                                     title="Cerrar"
                                 >
@@ -1214,6 +1276,7 @@ const Movimientos_De_Caja = ({ cashMovements, cashBalance, products = [] }) => {
                                     <MovementsTable movements={filteredMovements} products={products} />
                                 </div>
 
+                                {!isMinimized && !isMaximized && (
                                 <div 
                                     className="absolute bottom-0 right-0 w-5 h-5 cursor-se-resize"
                                     style={{ 
@@ -1227,6 +1290,7 @@ const Movimientos_De_Caja = ({ cashMovements, cashBalance, products = [] }) => {
                                         setDragStart({ x: e.clientX, y: e.clientY });
                                     }}
                                 />
+                                )}
                             </>
                         )}
                     </div>

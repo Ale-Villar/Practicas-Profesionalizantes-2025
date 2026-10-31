@@ -12,7 +12,8 @@ const DialogoCompras = ({
     userRole,
     onSubmit,
     externalWindow,
-    setExternalWindow
+    setExternalWindow,
+    isEmbedded = false
 }) => {
     const [screenWidth, setScreenWidth] = useState(window.innerWidth);
     const [purchaseData, setPurchaseData] = useState({
@@ -819,11 +820,14 @@ const DialogoCompras = ({
 
     latestHandlers.current = { updateItem, handleSubmit, onClose };
 
-    if (!isOpen || screenWidth < 1100) return null;
+    if (!isEmbedded && (!isOpen || screenWidth < 926)) return null;
 
-    if (externalWindow && !externalWindow.closed) return null;
+    if (!isEmbedded && externalWindow && !externalWindow.closed) return null;
 
     const getDialogClasses = () => {
+        if (isEmbedded) {
+            return 'relative w-full min-h-[70vh] bg-slate-50 rounded-xl border border-slate-200 flex flex-col overflow-hidden';
+        }
         if (isFullscreen) {
             return 'fixed inset-0 z-[1000] bg-slate-50 flex flex-col overflow-hidden';
         }
@@ -837,16 +841,16 @@ const DialogoCompras = ({
         <div 
             ref={dialogRef}
             className={getDialogClasses()}
-            style={!isFullscreen ? {
+            style={isEmbedded || isFullscreen ? undefined : {
                 top: dialogPosition.y,
                 left: dialogPosition.x,
                 width: isMinimized ? 380 : dialogSize.width,
                 height: isMinimized ? 48 : dialogSize.height
-            } : undefined}
-            onMouseDown={handleMouseDown}
+            }}
+            onMouseDown={isEmbedded ? undefined : handleMouseDown}
         >
             {/* Header */}
-            <div className="dialog-header-draggable flex justify-between items-center px-4 py-3 bg-white border-b border-slate-200 cursor-move select-none">
+            <div className={`flex justify-between items-center px-4 py-3 bg-white border-b border-slate-200 select-none ${isEmbedded ? '' : 'dialog-header-draggable cursor-move'}`}>
                 <div className="flex items-center gap-3">
                     <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center">
                         <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -858,6 +862,8 @@ const DialogoCompras = ({
                     </span>
                 </div>
                 <div className="flex gap-2">
+                    {!isEmbedded && (
+                    <>
                     <button
                         onClick={openInNewWindow}
                         className="w-7 h-7 border-none rounded-md bg-slate-100 hover:bg-slate-200 cursor-pointer flex items-center justify-center transition-colors"
@@ -905,11 +911,13 @@ const DialogoCompras = ({
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/>
                         </svg>
                     </button>
+                    </>
+                    )}
                 </div>
             </div>
 
             {/* Content */}
-            {!isMinimized && (
+            {(!isMinimized || isEmbedded) && (
                 <>
                     <div className="flex-1 overflow-auto p-4">
                         {message && (
@@ -919,8 +927,8 @@ const DialogoCompras = ({
                         )}
 
                         {/* Fila superior: Fecha, Proveedores y Botones */}
-                        <div className="flex gap-4 mb-5 flex-wrap items-end bg-white p-4 rounded-xl shadow-sm border border-slate-200">
-                            <div className="w-40">
+                        <div className={`gap-4 mb-5 bg-white p-4 rounded-xl shadow-sm border border-slate-200 ${isEmbedded ? 'grid grid-cols-1' : 'flex flex-wrap items-end'}`}>
+                            <div className={isEmbedded ? 'min-w-0 w-full overflow-hidden' : 'w-44 shrink-0'}>
                                 <label className="block text-[11px] font-semibold text-slate-500 mb-1.5 uppercase tracking-wide">
                                     Fecha *
                                 </label>
@@ -928,10 +936,10 @@ const DialogoCompras = ({
                                     type="date"
                                     value={purchaseData.date}
                                     onChange={(e) => setPurchaseData(prev => ({ ...prev, date: e.target.value }))}
-                                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                                    className="block w-full max-w-full min-w-0 box-border px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                                 />
                             </div>
-                            <div className="flex-1 min-w-[240px]">
+                            <div className={isEmbedded ? 'min-w-0 w-full' : 'flex-1 min-w-[240px]'}>
                                 <label className="block text-[11px] font-semibold text-slate-500 mb-1.5 uppercase tracking-wide">
                                     Proveedor
                                 </label>
@@ -1122,7 +1130,14 @@ const DialogoCompras = ({
                         <div className="flex gap-3">
                             <button
                                 type="button"
-                                onClick={onClose}
+                                onClick={() => {
+                                    if (isEmbedded) {
+                                        setPurchaseData({ date: '', selectedSuppliers: [], items: [] });
+                                        setMessage('');
+                                        return;
+                                    }
+                                    onClose();
+                                }}
                                 className="px-5 py-2.5 border-none rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 cursor-pointer text-sm font-semibold transition-colors"
                             >
                                 Cancelar

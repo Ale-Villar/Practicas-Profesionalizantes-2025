@@ -191,8 +191,12 @@ const openCashRegister = () => {
   return api.post('/cash-register/open/');
 };
 
-const closeCashRegister = () => {
-  return api.post('/cash-register/close/');
+const closeCashRegister = (data = {}) => {
+  return api.post('/cash-register/close/', data);
+};
+
+const resolveCashRegister = (sessionId, data) => {
+  return api.post(`/cash-register/${sessionId}/resolve/`, data);
 };
 
 // Extrae el mensaje de error que devuelve DRF ({ detail }, { non_field_errors } o una lista)
@@ -241,6 +245,7 @@ export {
   getCashRegisterSessions,
   openCashRegister,
   closeCashRegister,
+  resolveCashRegister,
   getApiErrorMessage,
   getLossRecords // Nueva exportación
 };

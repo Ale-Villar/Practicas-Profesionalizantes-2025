@@ -25,7 +25,8 @@ const Ver_Reportes_De_Faltantes = ({ products }) => {
     const handleResolve = async (reportId) => {
         try {
             await api.patch(`/low-stock-reports/${reportId}/update/`, { is_resolved: true });
-            setReports(reports.map(r => r.id === reportId ? { ...r, is_resolved: true } : r));
+            setReports(current => current.map(report => report.id === reportId ? { ...report, is_resolved: true } : report));
+            setError('');
         } catch (err) {
             setError('Error al marcar como resuelto.');
             console.error('Error resolving report:', err);
@@ -34,10 +35,11 @@ const Ver_Reportes_De_Faltantes = ({ products }) => {
 
     const handleDeleteReport = async (reportId) => {
         if (!window.confirm('¿Estás seguro de que quieres eliminar este reporte?')) return;
-        
+
         try {
             await api.delete(`/low-stock-reports/${reportId}/delete/`);
-            setReports(reports.filter(r => r.id !== reportId));
+            setReports(current => current.filter(report => report.id !== reportId));
+            setError('');
         } catch (err) {
             setError('Error al eliminar el reporte.');
             console.error('Error deleting report:', err);
@@ -52,16 +54,6 @@ const Ver_Reportes_De_Faltantes = ({ products }) => {
         );
     }
 
-    if (error) {
-        return (
-            <div className="px-4 py-4 max-w-full mx-auto">
-                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-center my-4">
-                    {error}
-                </div>
-            </div>
-        );
-    }
-
     return (
         <div className="max-w-full mx-2">
             <div className="flex items-center justify-between mb-3 px-1">
@@ -72,6 +64,11 @@ const Ver_Reportes_De_Faltantes = ({ products }) => {
                     {reports.filter(r => !r.is_resolved).length} pendientes
                 </span>
             </div>
+            {error && (
+                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-center mb-3">
+                    {error}
+                </div>
+            )}
             
             {reports.length === 0 ? (
                 <div className="text-center py-6 text-base text-gray-600">
@@ -79,7 +76,7 @@ const Ver_Reportes_De_Faltantes = ({ products }) => {
                 </div>
             ) : (
                 <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
-                    {reports.slice(0, 1).map((report, index) => {
+                    {reports.map((report, index) => {
                         const productos = report.products_detail?.filter(p => p.category === 'Producto') || [];
                         const insumos = report.products_detail?.filter(p => p.category === 'Insumo') || [];
                         
@@ -164,10 +161,11 @@ const Ver_Reportes_De_Faltantes = ({ products }) => {
                                 </div>
                                 
                                 {/* Footer con botón */}
-                                {!report.is_resolved ? (
-                                    <div className="px-2 pb-2">
-                                        <button 
-                                            onClick={() => handleResolve(report.id)} 
+                                <div className="px-2 pb-2 flex flex-col gap-1.5">
+                                    {!report.is_resolved && (
+                                        <button
+                                            type="button"
+                                            onClick={() => handleResolve(report.id)}
                                             className="w-full px-2 py-1.5 bg-gradient-to-r from-green-500 to-green-600 text-white rounded text-xs font-semibold hover:from-green-600 hover:to-green-700 transition-all duration-200 hover:shadow-md flex items-center justify-center gap-1"
                                         >
                                             <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -175,11 +173,11 @@ const Ver_Reportes_De_Faltantes = ({ products }) => {
                                             </svg>
                                             Marcar como Resuelto
                                         </button>
-                                    </div>
-                                ) : (
-                                    <div className="px-2 pb-2">
-                                        <button 
-                                            onClick={() => handleDeleteReport(report.id)} 
+                                    )}
+                                    {report.is_resolved && (
+                                        <button
+                                            type="button"
+                                            onClick={() => handleDeleteReport(report.id)}
                                             className="w-full px-2 py-1.5 bg-gradient-to-r from-red-500 to-red-600 text-white rounded text-xs font-semibold hover:from-red-600 hover:to-red-700 transition-all duration-200 hover:shadow-md flex items-center justify-center gap-1"
                                         >
                                             <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -187,8 +185,8 @@ const Ver_Reportes_De_Faltantes = ({ products }) => {
                                             </svg>
                                             Eliminar Reporte
                                         </button>
-                                    </div>
-                                )}
+                                    )}
+                                </div>
                             </div>
                         );
                     })}

@@ -25,7 +25,7 @@ from api.views import (
     InventoryChangeViewSet, SaleViewSet, SaleCreate,
     UserListCreate, UserDestroy, login_view, ExportDataView,
     UserQueryViewSet, SupplierViewSet, UserStorageViewSet, CurrentUserView,
-    LowStockReportCreateView, LowStockReportListView, LowStockReportUpdateView,
+    LowStockReportCreateView, LowStockReportListView, LowStockReportUpdateView, LowStockReportDeleteView,
     RecipeIngredientViewSet, ProductProductionView, LossRecordViewSet,
     get_ingredients_with_suggested_unit, refresh_from_cookie, logout_view,
     RoleViewSet, PurchaseViewSet, OrderViewSet, ProductionViewSet,
@@ -83,6 +83,7 @@ urlpatterns = [
     path('api/low-stock-reports/', LowStockReportListView.as_view(), name='low-stock-report-list'),
     path('api/low-stock-reports/create/', LowStockReportCreateView.as_view(), name='low-stock-report-create'),
     path('api/low-stock-reports/<int:pk>/update/', LowStockReportUpdateView.as_view(), name='low-stock-report-update'),
+    path('api/low-stock-reports/<int:pk>/delete/', LowStockReportDeleteView.as_view(), name='low-stock-report-delete'),
     # Router general después
     path('api/', include(router.urls)),
 ]

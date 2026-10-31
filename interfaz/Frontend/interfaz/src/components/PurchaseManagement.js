@@ -8,16 +8,14 @@ import PurchaseHistory from './PurchaseHistory';
 import DialogoCompras from './Dialogo_Compras';
 import SearchableSelect, { portalSelectProps, portalMenuStyle } from './SearchableSelect';
 
-const PurchaseManagement = ({ userRole, inventory = [], suppliers = [], products = [], purchases = [], reloadPurchases, reloadProducts }) => {
+const PurchaseManagement = ({ userRole, inventory = [], suppliers = [], products = [], purchases = [], reloadPurchases, reloadProducts, loadCashBalance }) => {
     const [pendingPurchases, setPendingPurchases] = useState([]);
     const [purchaseHistory, setPurchaseHistory] = useState([]);
     const [view, setView] = useState('requests'); // 'requests', 'history', or 'create'
     const [message, setMessage] = useState('');
     const [showAddPurchase, setShowAddPurchase] = useState(false);
-    const [confirmDelete, setConfirmDelete] = useState(null); // ID de la compra a eliminar (legacy)
     const [showConfirmPurchase, setShowConfirmPurchase] = useState(false); // Confirmación para registrar compra
-    const [showConfirmDeleteModal, setShowConfirmDeleteModal] = useState(false); // Modal para confirmar eliminación
-    const [pendingDeleteId, setPendingDeleteId] = useState(null);
+    const [showPurchaseSuccess, setShowPurchaseSuccess] = useState(false);
     const [newPurchase, setNewPurchase] = useState({
         date: '',
         supplierId: '', // Legacy - mantener para compatibilidad
@@ -39,7 +37,7 @@ const PurchaseManagement = ({ userRole, inventory = [], suppliers = [], products
     }, []);
 
     // Determinar si usar diálogo (pantallas >= 1100px)
-    const useDialogMode = screenWidth >= 1100;
+    const useDialogMode = screenWidth >= 926;
 
     // Función para mapear unidades del backend al frontend - DEBE estar antes de productOptions
     const mapBackendUnitToFrontend = (backendUnit) => {
@@ -253,12 +251,8 @@ const PurchaseManagement = ({ userRole, inventory = [], suppliers = [], products
                 console.log('Respuesta del servidor:', response.data);
             }
 
-            const supplierCount = groups.size;
-
-            setMessage(userRole === 'Gerente' ? 
-                (supplierCount > 1 ? 'Compras registradas y completadas con éxito.' : 'Compra registrada y completada con éxito.') : 
-                (supplierCount > 1 ? 'Solicitudes de compra enviadas. Esperando aprobación del gerente.' : 'Solicitud de compra enviada. Esperando aprobación del gerente.')
-            );
+            setMessage('');
+            setShowPurchaseSuccess(true);
 
             // Limpiar el formulario
             setNewPurchase({
@@ -290,35 +284,13 @@ const PurchaseManagement = ({ userRole, inventory = [], suppliers = [], products
         setMessage('');
     };
 
-    // Función para iniciar confirmación de eliminación (abre modal)
-    const handleDeletePurchase = (purchaseId) => {
-        setPendingDeleteId(purchaseId);
-        setShowConfirmDeleteModal(true);
-    };
-
-    // Función que confirma y ejecuta la eliminación
-    const confirmDeletePurchase = async () => {
-        if (!pendingDeleteId) return;
-        try {
-            await api.delete(`/purchases/${pendingDeleteId}/`);
-            // Actualizar la lista de historial
-            setPurchaseHistory(prev => prev.filter(p => p.id !== pendingDeleteId));
-            setPendingDeleteId(null);
-            setShowConfirmDeleteModal(false);
-            setMessage('✅ Compra eliminada del historial exitosamente.');
-            setTimeout(() => setMessage(''), 3000);
-        } catch (error) {
-            console.error('Error al eliminar la compra:', error);
-            setMessage('Error al eliminar la compra.');
-            setTimeout(() => setMessage(''), 3000);
-        }
-    };
-
-    // Cancelar diálogo de eliminación
-    const handleCancelDeleteModal = () => {
-        setPendingDeleteId(null);
-        setShowConfirmDeleteModal(false);
-        setMessage('');
+    const handleEditPurchase = async (purchaseId, items) => {
+        await api.post(`/purchases/${purchaseId}/edit/`, { items });
+        await fetchPurchaseHistory();
+        if (reloadProducts) await reloadProducts();
+        if (loadCashBalance) await loadCashBalance();
+        setMessage('Compra actualizada.');
+        setTimeout(() => setMessage(''), 3000);
     };
 
     useEffect(() => {
@@ -413,10 +385,8 @@ const PurchaseManagement = ({ userRole, inventory = [], suppliers = [], products
                 await api.post('/purchases/', data);
             }
 
-            setMessage(userRole === 'Gerente' ? 
-                'Compra(s) registrada(s) y completada(s) con éxito.' : 
-                'Solicitud(es) de compra enviada(s). Esperando aprobación del gerente.'
-            );
+            setMessage('');
+            setShowPurchaseSuccess(true);
 
             setShowDialog(false);
             
@@ -435,8 +405,6 @@ const PurchaseManagement = ({ userRole, inventory = [], suppliers = [], products
             if (reloadProducts) {
                 reloadProducts();
             }
-            
-            setTimeout(() => setMessage(''), 3000);
         } catch (error) {
             console.error('Error al registrar la compra desde diálogo:', error);
             setMessage(getApiErrorMessage(error, 'Error al registrar la compra. Por favor, intente nuevamente.'));
@@ -472,19 +440,33 @@ const PurchaseManagement = ({ userRole, inventory = [], suppliers = [], products
                 </div>
             )}
 
-            {/* Modal de confirmación para eliminar compra del historial */}
-            {showConfirmDeleteModal && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[2000]">
-                    <div className="bg-white p-5 rounded-lg w-[90%] max-w-[480px] shadow-xl">
-                        <h3 className="mt-0">Confirmar eliminación</h3>
-                        <p>¿Estás seguro que deseas eliminar esta compra del historial? Esta acción no se puede deshacer.</p>
-                        <div className="flex justify-end gap-2 mt-4">
-                            <button onClick={confirmDeletePurchase} className="action-button primary">Eliminar</button>
-                            <button onClick={handleCancelDeleteModal} className="action-button secondary">Cancelar</button>
+            {showPurchaseSuccess && (
+                <div
+                    className="fixed inset-0 bg-black/60 flex items-center justify-center z-[3000] p-4"
+                    role="alertdialog"
+                    aria-modal="true"
+                    aria-labelledby="purchase-success-title"
+                    onKeyDown={e => { if (e.key === 'Escape') setShowPurchaseSuccess(false); }}
+                >
+                    <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl border-t-8 border-green-500 p-6 sm:p-8 text-center">
+                        <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-green-100 ring-8 ring-green-50">
+                            <span className="text-5xl font-bold leading-none text-green-600" aria-hidden="true">✓</span>
                         </div>
+                        <h3 id="purchase-success-title" className="mt-0 mb-6 text-2xl font-bold text-gray-800">
+                            {userRole === 'Gerente' ? 'Compra registrada con éxito' : 'Solicitud de compra registrada con éxito'}
+                        </h3>
+                        <button
+                            type="button"
+                            autoFocus
+                            onClick={() => setShowPurchaseSuccess(false)}
+                            className="w-full py-3 rounded-lg bg-green-600 hover:bg-green-700 text-lg font-bold text-white"
+                        >
+                            Aceptar
+                        </button>
                     </div>
                 </div>
             )}
+
             <div className="purchase-tabs-container flex flex-wrap gap-1 xs:gap-1.5 sm:gap-2 mb-4 p-1 bg-slate-100 rounded-xl">
                 <button
                     className={`purchase-tab-btn flex-1 min-w-[90px] px-2 py-2 sm:px-4 sm:py-2.5 text-xs sm:text-sm font-medium rounded-lg transition-all duration-200 ${
@@ -524,7 +506,7 @@ const PurchaseManagement = ({ userRole, inventory = [], suppliers = [], products
 
             {view === 'create' ? (
                 <>
-                    {/* Diálogo para pantallas >= 1100px */}
+                    {/* Diálogo para pantallas >= 926px */}
                     {useDialogMode && (
                         <div className="relative min-h-[600px]">
                             {!showDialog && !externalWindow ? (
@@ -566,243 +548,19 @@ const PurchaseManagement = ({ userRole, inventory = [], suppliers = [], products
                         </div>
                     )}
 
-                    {/* Formulario tradicional para pantallas < 1100px */}
+                    {/* Formulario del diálogo, incrustado en pantallas < 926px */}
                     {!useDialogMode && (
-                        <div className="purchase-form">
-                            <h3>{userRole === 'Encargado' ? 'Solicitar Nueva Compra' : 'Registrar Nueva Compra'}</h3>
-                            <form onSubmit={handleAddPurchase}>
-                                {/* Fecha y Proveedores - En fila para xs+ (515px+), columna para <515px */}
-                                <div className="flex flex-col xs:flex-row xs:items-end gap-3 mb-4">
-                                    <div className="form-group mb-0 w-full xs:w-[160px] xs:flex-shrink-0">
-                                        <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Fecha *</label>
-                                        <input
-                                            type="date"
-                                            value={newPurchase.date}
-                                            onChange={(e) => setNewPurchase({ ...newPurchase, date: e.target.value })}
-                                            required
-                                            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:border-blue-500"
-                                        />
-                                    </div>
-
-                                    <div className="form-group mb-0 flex-1 min-w-0">
-                                        <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Proveedores</label>
-                                        <SearchableSelect
-                                            isMulti
-                                            options={suppliers.map(supplier => ({ value: supplier.id, label: supplier.name }))}
-                                            value={newPurchase.selectedSupplierIds}
-                                            onChange={ids => setNewPurchase(prev => ({ ...prev, selectedSupplierIds: ids }))}
-                                            placeholder="Buscar proveedor..."
-                                        />
-                                    </div>
-                                </div>
-
-                                {/* Botón Agregar tarjetas */}
-                                <div className="flex gap-2 items-center mb-4">
-                                    <input
-                                        type="number"
-                                        min="1"
-                                        max="100"
-                                        value={itemsToAdd}
-                                        onChange={(e) => setItemsToAdd(Math.max(1, Math.min(100, parseInt(e.target.value) || 1)))}
-                                        onKeyDown={(e) => {
-                                            if (e.key === 'Enter') {
-                                                e.preventDefault();
-                                                addItems(itemsToAdd);
-                                            }
-                                        }}
-                                        className="w-16 px-2 py-2.5 border border-slate-200 rounded-lg text-sm text-center focus:outline-none focus:border-blue-500"
-                                    />
-                                    <button
-                                        type="button"
-                                        onClick={() => addItems(itemsToAdd)}
-                                        className="px-4 py-2.5 bg-gradient-to-br from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-lg font-semibold text-sm flex items-center gap-2 transition-all whitespace-nowrap"
-                                    >
-                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/>
-                                        </svg>
-                                        Agregar Producto/Insumo
-                                    </button>
-                                </div>
-
-                                {/* Grid de tarjetas de productos */}
-                                {newPurchase.items.length === 0 ? (
-                                    <div className="text-center py-10 text-slate-400 bg-slate-50 rounded-lg border border-dashed border-slate-300">
-                                        <svg className="w-12 h-12 mx-auto mb-3 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
-                                        </svg>
-                                        <p>Haz clic en "Agregar Producto/Insumo" para comenzar</p>
-                                    </div>
-                                ) : (
-                                    <div className="grid gap-3 grid-cols-[repeat(auto-fill,minmax(280px,1fr))]">
-                                        {newPurchase.items.map((item) => (
-                                            <div
-                                                key={item.id}
-                                                className={`relative p-3.5 rounded-xl border transition-all hover:shadow-md ${
-                                                    item.isExisting 
-                                                        ? 'bg-gradient-to-br from-green-50 to-slate-50 border-green-500' 
-                                                        : item.productName 
-                                                            ? 'bg-gradient-to-br from-amber-50 to-slate-50 border-amber-500' 
-                                                            : 'bg-slate-50 border-slate-200'
-                                                }`}
-                                            >
-                                                {/* Botón eliminar */}
-                                                <button
-                                                    type="button"
-                                                    onClick={() => removeItem(item.id)}
-                                                    className="absolute top-2 right-2 w-6 h-6 rounded-full border-none bg-red-100 hover:bg-red-200 text-red-500 cursor-pointer flex items-center justify-center transition-colors"
-                                                >
-                                                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/>
-                                                    </svg>
-                                                </button>
-
-                                                {/* Producto/Insumo */}
-                                                <div className="mb-2.5">
-                                                    <label className="block text-[11px] font-semibold text-slate-500 uppercase mb-1">
-                                                        Producto/Insumo
-                                                    </label>
-                                                    <CreatableSelect
-                                                        {...portalSelectProps}
-                                                        options={productOptions}
-                                                        value={item.productName ? { value: item.isExisting ? item.productId : item.productName, label: item.productName } : null}
-                                                        onChange={(selected) => {
-                                                            if (!selected) updateItem(item.id, 'productName', '');
-                                                            else if (selected.__isNew__) updateItem(item.id, 'productName', selected.value);
-                                                            else updateItem(item.id, 'productId', selected.value);
-                                                        }}
-                                                        placeholder={newPurchase.selectedSupplierIds.length ? 'Buscar en lo que vende el proveedor...' : 'Buscar producto o insumo...'}
-                                                        formatCreateLabel={(input) => `Usar "${input}" (no está en el sistema)`}
-                                                        isClearable
-                                                        styles={{
-                                                            control: (base, state) => ({
-                                                                ...base,
-                                                                minHeight: '36px',
-                                                                fontSize: '13px',
-                                                                borderColor: state.isFocused ? '#3b82f6' : '#e2e8f0',
-                                                                boxShadow: state.isFocused ? '0 0 0 2px rgba(59, 130, 246, 0.1)' : 'none'
-                                                            }),
-                                                            menu: (base) => ({ ...base, zIndex: 50, fontSize: '13px' }),
-                                                            menuPortal: portalMenuStyle,
-                                                            option: (base) => ({ ...base, padding: '8px 10px' })
-                                                        }}
-                                                        noOptionsMessage={() => newPurchase.selectedSupplierIds.length ? 'Ese proveedor no tiene ese ítem. Podés escribir uno nuevo.' : 'Escribí el nombre si no está en el sistema'}
-                                                    />
-                                                    {(() => {
-                                                        if (!item.isExisting && item.productName) {
-                                                            const options = suppliers.map(supplier => ({ value: supplier.id, label: supplier.name }));
-                                                            return (
-                                                                <div className="mt-1.5">
-                                                                    <SearchableSelect
-                                                                        options={options}
-                                                                        value={item.supplierId}
-                                                                        onChange={(supplierId) => updateItem(item.id, 'supplierId', supplierId)}
-                                                                        placeholder="Buscar proveedor..."
-                                                                    />
-                                                                    <select
-                                                                        value={item.itemKind || ''}
-                                                                        onChange={(e) => updateItem(item.id, 'itemKind', e.target.value)}
-                                                                        className="w-full mt-1.5 px-2.5 py-2 border border-slate-200 rounded-md text-sm bg-white focus:outline-none focus:border-blue-500"
-                                                                    >
-                                                                        <option value="">¿Producto o insumo?</option>
-                                                                        <option value="Producto">Registrar como producto</option>
-                                                                        <option value="Insumo">Registrar como insumo</option>
-                                                                    </select>
-                                                                </div>
-                                                            );
-                                                        }
-                                                        const sellers = suppliersForProduct(suppliers, item.productId);
-                                                        if (!item.productId || sellers.length === 0) return null;
-                                                        if (sellers.length === 1) {
-                                                            return <span className="inline-block mt-1.5 text-[11px] text-slate-500">Proveedor: {sellers[0].name}</span>;
-                                                        }
-                                                        const options = sellers.map(supplier => ({ value: supplier.id, label: supplier.name }));
-                                                        return (
-                                                            <div className="mt-1.5">
-                                                                <SearchableSelect
-                                                                    options={options}
-                                                                    value={item.supplierId}
-                                                                    onChange={(supplierId) => updateItem(item.id, 'supplierId', supplierId)}
-                                                                    placeholder="Buscar proveedor..."
-                                                                />
-                                                            </div>
-                                                        );
-                                                    })()}
-                                                </div>
-
-                                                {/* Cantidad y Unidad */}
-                                                <div className="flex gap-2 mb-2.5">
-                                                    <div className="flex-1">
-                                                        <label className="block text-[11px] font-semibold text-slate-500 uppercase mb-1">
-                                                            Cantidad
-                                                        </label>
-                                                        <input
-                                                            type="number"
-                                                            value={item.quantity}
-                                                            onChange={(e) => updateItem(item.id, 'quantity', parseFloat(e.target.value) || 0)}
-                                                            min="0.01"
-                                                            step="0.01"
-                                                            className="w-full px-2.5 py-2 border border-slate-200 rounded-md text-sm focus:outline-none focus:border-blue-500"
-                                                        />
-                                                    </div>
-                                                    <div className="flex-1">
-                                                        <label className="block text-[11px] font-semibold text-slate-500 uppercase mb-1">
-                                                            Unidad
-                                                        </label>
-                                                        <select
-                                                            value={item.unit}
-                                                            onChange={(e) => updateItem(item.id, 'unit', e.target.value)}
-                                                            disabled={item.isExisting && Number(item.stock) > 0}
-                                                            className={`w-full px-2.5 py-2 border border-slate-200 rounded-md text-sm focus:outline-none focus:border-blue-500 ${item.isExisting && Number(item.stock) > 0 ? 'bg-slate-100 text-slate-500' : 'bg-white'}`}
-                                                        >
-                                                            <option value="u">Unidades</option>
-                                                            <option value="kg">Kilos (kg)</option>
-                                                            <option value="l">Litros (l)</option>
-                                                        </select>
-                                                    </div>
-                                                </div>
-
-                                                {/* Precio Unitario */}
-                                                <div className="mb-2.5">
-                                                    <label className="block text-[11px] font-semibold text-slate-500 uppercase mb-1">
-                                                        Precio Unitario
-                                                    </label>
-                                                    <input
-                                                        type="number"
-                                                        value={item.unitPrice}
-                                                        onChange={(e) => updateItem(item.id, 'unitPrice', parseFloat(e.target.value) || 0)}
-                                                        min="0"
-                                                        step="0.01"
-                                                        className="w-full px-2.5 py-2 border border-slate-200 rounded-md text-sm focus:outline-none focus:border-blue-500"
-                                                    />
-                                                </div>
-
-                                                {/* Total */}
-                                                <div className="flex justify-between items-center pt-2.5 border-t border-slate-200 mt-2.5">
-                                                    <span className="text-xs text-slate-500">Total:</span>
-                                                    <span className="text-base font-bold text-slate-800">
-                                                        {formatMoney(item.total || 0)}
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
-
-                                <div className="total-section mt-4">
-                                    <h4>Total de la Compra: {formatMoney(calculatePurchaseTotal())}</h4>
-                                </div>
-
-                                <button 
-                                    type="submit" 
-                                    className="w-full mt-4 px-6 py-3 bg-gradient-to-br from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-lg font-semibold text-sm flex items-center justify-center gap-2 transition-all shadow-md hover:shadow-lg"
-                                >
-                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/>
-                                    </svg>
-                                    {userRole === 'Encargado' ? 'Enviar Solicitud' : 'Registrar Compra'}
-                                </button>
-                            </form>
-                        </div>
+                        <DialogoCompras
+                            isEmbedded
+                            isOpen
+                            onClose={() => {}}
+                            inventory={inventory}
+                            suppliers={suppliers}
+                            userRole={userRole}
+                            onSubmit={handleDialogSubmit}
+                            externalWindow={externalWindow}
+                            setExternalWindow={setExternalWindow}
+                        />
                     )}
                 </>
             ) : view === 'requests' ? (
@@ -815,9 +573,7 @@ const PurchaseManagement = ({ userRole, inventory = [], suppliers = [], products
             ) : (
                 <PurchaseHistory 
                     purchases={purchaseHistory} 
-                    onDeletePurchase={handleDeletePurchase}
-                    confirmDelete={confirmDelete}
-                    onCancelDelete={handleCancelDeleteModal}
+                    onEditPurchase={handleEditPurchase}
                     userRole={userRole}
                     inventory={inventory}
                     suppliers={suppliers}

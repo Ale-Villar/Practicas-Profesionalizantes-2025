@@ -106,14 +106,22 @@ class Product(models.Model):
 # Modelo para la apertura y cierre de caja: cada registro es un turno de caja
 class CashRegisterSession(models.Model):
     ALLOWED_ROLES = ('Gerente', 'Encargado', 'Cajero')
-    MAX_OPENINGS_PER_DAY = 2
+    # Cierran contando el efectivo a ciegas: no ven el efectivo que calcula el sistema
+    DECLARING_ROLES = ('Encargado', 'Cajero')
+    MAX_OPENINGS_PER_DAY = 10
 
     opened_by = models.ForeignKey('User', on_delete=models.SET_NULL, null=True, blank=True, related_name='opened_cash_sessions')
     opened_at = models.DateTimeField(auto_now_add=True)
     opening_balance = models.DecimalField(max_digits=12, decimal_places=2)
+    opening_cash = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
     closed_by = models.ForeignKey('User', on_delete=models.SET_NULL, null=True, blank=True, related_name='closed_cash_sessions')
     closed_at = models.DateTimeField(null=True, blank=True)
     closing_balance = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    closing_cash = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    declared_closing_cash = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    validated_closing_cash = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    cash_adjustment = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    cash_resolution = models.CharField(max_length=20, blank=True, null=True)
     is_open = models.BooleanField(default=True)
 
     class Meta:
@@ -152,12 +160,68 @@ class CashMovement(models.Model):
         super().save(*args, **kwargs)
 
     @classmethod
-    def current_balance(cls):
+    def _prices_are_whole(cls, category):
+        prices = Product.objects.filter(is_active=True, category=category).values_list('price', flat=True)
+        for price in prices:
+            if price is None:
+                continue
+            amount = Decimal(price)
+            if amount != amount.to_integral_value():
+                return False
+        return True
+
+    @classmethod
+    def cash_must_be_whole(cls):
+        return cls._prices_are_whole('Producto')
+
+    @classmethod
+    def total_must_be_whole(cls):
+        return cls._prices_are_whole('Insumo')
+
+    @staticmethod
+    def present_money(amount, whole):
+        from decimal import ROUND_HALF_UP
+        value = Decimal(amount or 0)
+        if value < 0:
+            value = Decimal('0')
+        quantum = Decimal('1') if whole else Decimal('0.01')
+        return value.quantize(quantum, rounding=ROUND_HALF_UP)
+
+    @classmethod
+    def _raw_balance(cls):
         totals = cls.objects.aggregate(
             entradas=models.Sum('amount', filter=models.Q(type='Entrada')),
             salidas=models.Sum('amount', filter=models.Q(type='Salida')),
         )
         return (totals['entradas'] or Decimal('0')) - (totals['salidas'] or Decimal('0'))
+
+    @classmethod
+    def _raw_cash(cls):
+        totals = cls.objects.aggregate(
+            entradas=models.Sum('amount', filter=cls.cash_entries_filter()),
+            salidas=models.Sum('amount', filter=models.Q(type='Salida')),
+        )
+        return (totals['entradas'] or Decimal('0')) - (totals['salidas'] or Decimal('0'))
+
+    @classmethod
+    def current_balance(cls):
+        return cls.present_money(cls._raw_balance(), cls.total_must_be_whole())
+
+    @staticmethod
+    def cash_entries_filter():
+        # Los movimientos anteriores al selector de método de pago no lo guardaban y se toman como efectivo.
+        # Un pedido con efectivo entre sus métodos se cobra entero en efectivo (el monto entregado debe cubrir el total).
+        return models.Q(type='Entrada') & (
+            models.Q(payment_method__isnull=True)
+            | models.Q(payment_method='')
+            | models.Q(payment_method__icontains='efectivo')
+        )
+
+    @classmethod
+    def current_cash(cls):
+        # Las salidas (extracciones para el banco y compras) se pagan con el efectivo de la caja.
+        # Nunca es negativo. Si los precios de los productos son enteros, el efectivo también lo es.
+        return cls.present_money(cls._raw_cash(), cls.cash_must_be_whole())
 
 # Modelo para cambios de inventario (no por ventas)
 class InventoryChange(models.Model):
@@ -299,6 +363,8 @@ class LowStockReport(models.Model):
     reported_by = models.ForeignKey(User, on_delete=models.CASCADE)
     created_at = models.DateTimeField(auto_now_add=True)
     is_resolved = models.BooleanField(default=False)
+    is_active = models.BooleanField(default=True)
+    deleted_at = models.DateTimeField(null=True, blank=True)
 
     def __str__(self):
         product_names = ", ".join([p.name for p in self.products.all()[:3]])
