@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import CreatableSelect from 'react-select/creatable';
 import { formatMoney } from '../utils/format';
+import { getApiErrorMessage } from '../services/api';
 import { productLabel, productsForSuppliers, suppliersForProduct } from '../utils/supplierCatalog';
 import SearchableSelect, { portalSelectProps, portalMenuStyle } from './SearchableSelect';
 
@@ -22,6 +23,8 @@ const DialogoCompras = ({
         items: []
     });
     const [message, setMessage] = useState('');
+    const [submitting, setSubmitting] = useState(false);
+    const cashClosed = /caja está cerrada/i.test(message);
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [isMinimized, setIsMinimized] = useState(false);
     const [dialogPosition, setDialogPosition] = useState({ x: 50, y: 64 });
@@ -312,7 +315,8 @@ const DialogoCompras = ({
         return purchaseData.items.reduce((sum, item) => sum + (item.total || 0), 0);
     };
 
-    const handleSubmit = () => {
+    const handleSubmit = async () => {
+        if (submitting) return;
         if (!purchaseData.date) {
             setMessage('Por favor, ingrese una fecha.');
             return;
@@ -331,27 +335,34 @@ const DialogoCompras = ({
             return;
         }
 
-        onSubmit({
-            date: purchaseData.date,
-            items: purchaseData.items.map(item => ({
-                productId: item.productId,
-                productName: item.productName,
-                supplierId: item.supplierId,
-                quantity: parseFloat(item.quantity),
-                unit: item.unit,
-                unitPrice: parseFloat(item.unitPrice),
-                total: item.total,
-                isExisting: item.isExisting,
-                itemKind: item.itemKind || ''
-            })),
-        });
-
-        setPurchaseData({
-            date: '',
-            selectedSuppliers: [],
-            items: []
-        });
+        setSubmitting(true);
         setMessage('');
+        try {
+            await onSubmit({
+                date: purchaseData.date,
+                items: purchaseData.items.map(item => ({
+                    productId: item.productId,
+                    productName: item.productName,
+                    supplierId: item.supplierId,
+                    quantity: parseFloat(item.quantity),
+                    unit: item.unit,
+                    unitPrice: parseFloat(item.unitPrice),
+                    total: item.total,
+                    isExisting: item.isExisting,
+                    itemKind: item.itemKind || ''
+                })),
+            });
+            setPurchaseData({
+                date: '',
+                selectedSuppliers: [],
+                items: []
+            });
+            setMessage('');
+        } catch (error) {
+            setMessage(getApiErrorMessage(error, 'Error al registrar la compra. Por favor, intente nuevamente.'));
+        } finally {
+            setSubmitting(false);
+        }
     };
 
     const MINIMIZED_TOP_POSITION = 70;
@@ -778,9 +789,17 @@ const DialogoCompras = ({
             
             const msgContainer = win.document.getElementById('message-container');
             if (msgContainer) {
-                msgContainer.innerHTML = message 
-                    ? `<div class="px-4 py-3 rounded-lg mb-4 bg-red-100 text-red-600 border border-red-200 text-sm">${message}</div>` 
-                    : '';
+                msgContainer.replaceChildren();
+                if (message) {
+                    const box = win.document.createElement('div');
+                    box.setAttribute('role', 'alert');
+                    box.textContent = message;
+                    const closed = /caja está cerrada/i.test(message);
+                    box.className = closed
+                        ? 'px-5 py-4 rounded-xl mb-4 bg-red-50 text-red-800 border-2 border-red-600 text-lg font-bold leading-snug shadow-md'
+                        : 'px-4 py-3 rounded-lg mb-4 bg-red-100 text-red-600 border border-red-200 text-sm';
+                    msgContainer.appendChild(box);
+                }
             }
         } catch (e) {
             console.error('Error updating external window:', e);
@@ -919,8 +938,13 @@ const DialogoCompras = ({
             {/* Content */}
             {(!isMinimized || isEmbedded) && (
                 <>
+                    {message && cashClosed && (
+                        <div role="alert" className="mx-4 mt-4 rounded-xl border-2 border-red-600 bg-red-50 px-5 py-4 shadow-md">
+                            <p className="text-lg font-bold leading-snug text-red-800">{message}</p>
+                        </div>
+                    )}
                     <div className="flex-1 overflow-auto p-4">
-                        {message && (
+                        {message && !cashClosed && (
                             <div className="px-4 py-2.5 rounded-lg mb-4 bg-red-100 text-red-600 border border-red-200 text-sm">
                                 {message}
                             </div>
@@ -1145,9 +1169,10 @@ const DialogoCompras = ({
                             <button
                                 type="button"
                                 onClick={handleSubmit}
-                                className="px-5 py-2.5 border-none rounded-lg bg-green-600 hover:bg-green-700 text-white cursor-pointer text-sm font-semibold transition-all shadow-sm"
+                                disabled={submitting}
+                                className="px-5 py-2.5 border-none rounded-lg bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white cursor-pointer text-sm font-semibold transition-all shadow-sm"
                             >
-                                {userRole === 'Encargado' ? '✓ Enviar Solicitud' : '✓ Registrar Compra'}
+                                {submitting ? 'Registrando...' : (userRole === 'Encargado' ? '✓ Enviar Solicitud' : '✓ Registrar Compra')}
                             </button>
                         </div>
                     </div>

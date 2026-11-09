@@ -339,25 +339,37 @@ class CashMovementSerializer(serializers.ModelSerializer):
 # Serializer para los turnos de caja (apertura y cierre).
 # Los totales se calculan con anotaciones en la consulta del ViewSet.
 class CashRegisterSessionSerializer(serializers.ModelSerializer):
-    # Solo el Gerente ve el efectivo: Encargado y Cajero declaran el suyo al cerrar sin conocerlo
-    CASH_FIELDS = ('opening_cash', 'closing_cash', 'declared_closing_cash', 'validated_closing_cash', 'cash_resolution', 'cash_difference')
+    # El Gerente ve el efectivo del sistema. Encargado y Cajero solo ven el efectivo que ellos declararon al abrir y al cerrar.
+    CASH_FIELDS = (
+        'opening_cash', 'validated_opening_cash', 'opening_cash_resolution', 'opening_cash_difference',
+        'closing_cash', 'validated_closing_cash', 'cash_resolution', 'cash_difference',
+    )
+    DECLARED_CASH_FIELDS = ('declared_opening_cash', 'declared_closing_cash')
 
     opened_by = serializers.ReadOnlyField(source='opened_by.username')
     closed_by = serializers.ReadOnlyField(source='closed_by.username')
     total_entradas = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
     total_salidas = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
     movements_count = serializers.IntegerField(read_only=True)
+    opening_cash_difference = serializers.SerializerMethodField()
     cash_difference = serializers.SerializerMethodField()
 
     class Meta:
         model = CashRegisterSession
         fields = (
             'id', 'opened_by', 'opened_at', 'opening_balance', 'opening_cash',
+            'declared_opening_cash', 'validated_opening_cash', 'opening_cash_resolution', 'opening_cash_difference',
             'closed_by', 'closed_at', 'closing_balance', 'closing_cash',
             'declared_closing_cash', 'validated_closing_cash', 'cash_resolution', 'cash_difference', 'is_open',
             'total_entradas', 'total_salidas', 'movements_count',
         )
         read_only_fields = fields
+
+    def get_opening_cash_difference(self, obj):
+        reference = obj.validated_opening_cash if obj.validated_opening_cash is not None else obj.declared_opening_cash
+        if reference is None or obj.opening_cash is None:
+            return None
+        return str(reference - obj.opening_cash)
 
     def get_cash_difference(self, obj):
         reference = obj.validated_closing_cash if obj.validated_closing_cash is not None else obj.declared_closing_cash
@@ -369,8 +381,12 @@ class CashRegisterSessionSerializer(serializers.ModelSerializer):
         data = super().to_representation(instance)
         request = self.context.get('request')
         role = getattr(getattr(request, 'user', None), 'role', None)
-        if not role or role.name != 'Gerente':
+        role_name = role.name if role else None
+        if role_name != 'Gerente':
             for field in self.CASH_FIELDS:
+                data.pop(field, None)
+        if role_name not in ('Gerente', 'Encargado', 'Cajero'):
+            for field in self.DECLARED_CASH_FIELDS:
                 data.pop(field, None)
         return data
 
@@ -483,13 +499,24 @@ class PurchaseSerializer(serializers.ModelSerializer):
     user = serializers.ReadOnlyField(source='user.username')
     approved_by = serializers.ReadOnlyField(source='approved_by.username', allow_null=True)
     approved_by_name = serializers.SerializerMethodField()
+    deleted_by_name = serializers.SerializerMethodField()
     supplier_name = serializers.ReadOnlyField(source='supplier')
     total = serializers.SerializerMethodField()
 
     class Meta:
         model = Purchase
         fields = '__all__'
-        read_only_fields = ('id', 'created_at', 'user', 'status', 'approved_by', 'approved_at')
+        read_only_fields = (
+            'id', 'created_at', 'user', 'status', 'approved_by', 'approved_at',
+            'is_active', 'deleted_at', 'deletion_reason', 'deleted_by',
+        )
+
+    def get_deleted_by_name(self, obj):
+        user = obj.deleted_by
+        if user is None:
+            return None
+        full_name = f'{user.first_name or ""} {user.last_name or ""}'.strip()
+        return full_name or user.username
 
     def get_approved_by_name(self, obj):
         user = obj.approved_by

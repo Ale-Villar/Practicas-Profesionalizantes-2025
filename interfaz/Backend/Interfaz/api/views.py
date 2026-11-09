@@ -1228,7 +1228,7 @@ class PurchaseViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         if self.action == 'create':
             self.permission_classes = [IsAuthenticated, IsGerenteOrEncargado]
-        elif self.action in ['update', 'partial_update', 'destroy', 'approve', 'reject', 'pending_approval', 'edit']:
+        elif self.action in ['update', 'partial_update', 'destroy', 'approve', 'reject', 'pending_approval', 'edit', 'eliminar']:
             self.permission_classes = [IsAuthenticated, IsGerente]
         else: # list, retrieve, history
             self.permission_classes = [IsAuthenticated, IsGerenteOrEncargado]
@@ -1305,12 +1305,12 @@ class PurchaseViewSet(viewsets.ModelViewSet):
     def history(self, request):
         """
         Endpoint para que Gerentes y Encargados vean el historial de compras aprobadas y completadas.
+        Las eliminadas siguen en el historial, con el motivo.
         """
-        # Gerentes y Encargados pueden ver todas las compras aprobadas y completadas
         from django.db.models import Q
         completed_purchases = Purchase.objects.filter(
-            Q(status='Aprobada', is_active=True) | Q(status='Completada', is_active=True)
-        ).order_by('-created_at')
+            Q(status='Aprobada') | Q(status='Completada')
+        ).select_related('deleted_by', 'approved_by').order_by('-created_at')
         
         page = self.paginate_queryset(completed_purchases)
         if page is not None:
@@ -1515,6 +1515,80 @@ class PurchaseViewSet(viewsets.ModelViewSet):
         purchase.refresh_from_db()
         return Response(self.get_serializer(purchase).data)
 
+    def _bases_compradas(self, items):
+        bases = {}
+        for old_item in items or []:
+            old_product_id = old_item.get('product_id') or old_item.get('productId')
+            product = None
+            try:
+                product = Product.objects.filter(id=int(old_product_id)).first()
+            except (TypeError, ValueError):
+                product = None
+            if product is None:
+                name = str(old_item.get('productName') or '').strip()
+                if name:
+                    product = Product.objects.filter(name__iexact=name).first()
+            if product is None:
+                label = old_item.get('productName') or old_product_id or 'un ítem'
+                raise ValueError(f'No se encontró {label} para ajustar el stock de la compra.')
+            try:
+                old_quantity = Decimal(str(old_item.get('quantity') or 0))
+            except Exception:
+                old_quantity = Decimal('0')
+            if old_quantity <= 0:
+                continue
+            old_unit = (old_item.get('unit') or '').lower() or _stored_base_unit(product.unit)
+            old_base = _purchase_base_quantity(product, old_quantity, old_unit)
+            bases[product.id] = bases.get(product.id, Decimal('0')) + old_base
+        return bases
+
+    @action(detail=True, methods=['post'], url_path='eliminar')
+    def eliminar(self, request, pk=None):
+        """El Gerente borra la compra de forma lógica. El motivo queda en el historial."""
+        if _role_name(request.user) != 'Gerente':
+            return Response({'detail': 'Solo el Gerente puede eliminar una compra.'}, status=status.HTTP_403_FORBIDDEN)
+        purchase = self.get_object()
+        if not purchase.is_active:
+            return Response({'detail': 'Esa compra ya fue eliminada.'}, status=status.HTTP_400_BAD_REQUEST)
+        if purchase.status not in ('Aprobada', 'Completada'):
+            return Response({'detail': 'Solo se pueden eliminar compras del historial.'}, status=status.HTTP_400_BAD_REQUEST)
+        reason = str(request.data.get('reason') or '').strip()
+        if not reason:
+            return Response({'detail': 'El motivo de la eliminación es obligatorio.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            bases = self._bases_compradas(purchase.items)
+            with transaction.atomic():
+                locked = {
+                    product.id: product
+                    for product in Product.objects.select_for_update().filter(id__in=bases.keys()).order_by('id')
+                }
+                for product_id, quantity in bases.items():
+                    product = locked.get(product_id)
+                    if product is None:
+                        raise ValueError('No se encontró un insumo o producto para ajustar el stock.')
+                    if product.stock - quantity < 0:
+                        raise ValueError(
+                            f'No se puede eliminar la compra: el stock de {product.name} ya se usó y no alcanza para descontar lo comprado.'
+                        )
+                    product.stock = product.stock - quantity
+                    product.save(update_fields=['stock'])
+                CashMovement.objects.filter(
+                    type='Salida',
+                    payment_method='Compra',
+                    description__startswith=f'Compra #{purchase.id}',
+                ).delete()
+                purchase.is_active = False
+                purchase.deleted_at = timezone.now()
+                purchase.deletion_reason = reason
+                purchase.deleted_by = request.user
+                purchase.save(update_fields=['is_active', 'deleted_at', 'deletion_reason', 'deleted_by'])
+        except ValueError as error:
+            return Response({'detail': str(error)}, status=status.HTTP_400_BAD_REQUEST)
+
+        purchase.refresh_from_db()
+        return Response(self.get_serializer(purchase).data)
+
     def destroy(self, request, *args, **kwargs):
         """
         Implementa eliminación lógica para compras
@@ -1675,7 +1749,6 @@ class CashRegisterSessionViewSet(viewsets.ReadOnlyModelViewSet):
         data = {
             'is_open': open_session is not None,
             'session': self.get_serializer(open_session).data if open_session else None,
-            'current_balance': float(CashMovement.current_balance()),
             'today': today.isoformat(),
             'openings_today': openings_today,
             'closings_today': closings_today,
@@ -1687,6 +1760,7 @@ class CashRegisterSessionViewSet(viewsets.ReadOnlyModelViewSet):
         }
         if _role_name(request.user) == 'Gerente':
             data['current_cash'] = float(CashMovement.current_cash())
+            data['current_balance'] = float(CashMovement.current_balance())
         data['cash_is_whole'] = CashMovement.cash_must_be_whole()
         data['total_is_whole'] = CashMovement.total_must_be_whole()
         return Response(data)
@@ -1695,6 +1769,15 @@ class CashRegisterSessionViewSet(viewsets.ReadOnlyModelViewSet):
     def open_register(self, request):
         today = timezone.localdate()
         max_per_day = CashRegisterSession.MAX_OPENINGS_PER_DAY
+        declared_cash = None
+        if _role_name(request.user) in CashRegisterSession.DECLARING_ROLES:
+            declaration = CloseCashRegisterSerializer(data=request.data)
+            if not declaration.is_valid():
+                return Response(
+                    {'detail': 'Ingresá cuánto efectivo contaste en la caja (un monto de cero o más) para poder abrirla.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            declared_cash = declaration.validated_data['declared_cash']
         try:
             with transaction.atomic():
                 if CashRegisterSession.objects.filter(is_open=True).exists():
@@ -1708,6 +1791,7 @@ class CashRegisterSessionViewSet(viewsets.ReadOnlyModelViewSet):
                     opened_by=request.user,
                     opening_balance=CashMovement.current_balance(),
                     opening_cash=CashMovement.current_cash(),
+                    declared_opening_cash=declared_cash,
                 )
         except IntegrityError:
             return Response({'detail': 'La caja ya fue abierta por otro usuario.'}, status=status.HTTP_400_BAD_REQUEST)
@@ -1739,17 +1823,11 @@ class CashRegisterSessionViewSet(viewsets.ReadOnlyModelViewSet):
             ])
         return Response(self._serialize_session(session))
 
-    @action(detail=True, methods=['post'], url_path='resolve')
-    def resolve_cash(self, request, pk=None):
-        """El Gerente corrige el efectivo del cierre o convalida lo que declaró el empleado."""
-        if _role_name(request.user) != 'Gerente':
-            return Response({'detail': 'Solo el Gerente puede resolver la diferencia de efectivo.'}, status=status.HTTP_403_FORBIDDEN)
-        session = CashRegisterSession.objects.filter(pk=pk, is_open=False).first()
-        if session is None or session.declared_closing_cash is None or session.closing_cash is None:
-            return Response({'detail': 'Ese cierre no tiene un efectivo declarado para resolver.'}, status=status.HTTP_400_BAD_REQUEST)
+    def _apply_cash_target(self, request, session, *, system_cash, declared_cash, adjustment_attr, validated_attr, resolution_attr, description):
+        """Ajusta el efectivo del sistema al monto que el Gerente convalida o corrige. No toca el efectivo hasta que él actúa."""
         action_name = request.data.get('action')
         if action_name == 'convalidar':
-            target = session.declared_closing_cash
+            target = declared_cash
             resolution = 'convalidada'
         elif action_name == 'editar':
             raw_amount = request.data.get('amount')
@@ -1767,8 +1845,8 @@ class CashRegisterSessionViewSet(viewsets.ReadOnlyModelViewSet):
             return Response({'detail': 'El efectivo tiene que ser un número entero porque los precios de los productos son enteros.'}, status=status.HTTP_400_BAD_REQUEST)
         target = CashMovement.present_money(target, CashMovement.cash_must_be_whole())
 
-        desired_delta = (target - session.closing_cash).quantize(Decimal('0.01'))
-        already = session.cash_adjustment or Decimal('0')
+        desired_delta = (target - system_cash).quantize(Decimal('0.01'))
+        already = getattr(session, adjustment_attr) or Decimal('0')
         change = (desired_delta - already).quantize(Decimal('0.01'))
         projected_cash = CashMovement._raw_cash() + change
         projected_total = CashMovement._raw_balance() + change
@@ -1779,16 +1857,55 @@ class CashRegisterSessionViewSet(viewsets.ReadOnlyModelViewSet):
                 CashMovement.objects.create(
                     type='Entrada' if change > 0 else 'Salida',
                     amount=abs(change),
-                    description=f'Ajuste de efectivo del cierre de caja #{session.id}',
+                    description=description,
                     payment_method='Efectivo',
                     user=request.user,
                     session=session,
                     hidden_from_history=True,
                 )
-            session.validated_closing_cash = target
-            session.cash_adjustment = desired_delta
-            session.cash_resolution = resolution
-            session.save(update_fields=['validated_closing_cash', 'cash_adjustment', 'cash_resolution'])
+            setattr(session, validated_attr, target)
+            setattr(session, adjustment_attr, desired_delta)
+            setattr(session, resolution_attr, resolution)
+            session.save(update_fields=[validated_attr, adjustment_attr, resolution_attr])
+        return None
+
+    @action(detail=True, methods=['post'], url_path='resolve')
+    def resolve_cash(self, request, pk=None):
+        """El Gerente corrige el faltante o sobrante de la apertura o del cierre, o convalida lo que declaró el empleado."""
+        if _role_name(request.user) != 'Gerente':
+            return Response({'detail': 'Solo el Gerente puede resolver la diferencia de efectivo.'}, status=status.HTTP_403_FORBIDDEN)
+        phase = request.data.get('phase') or 'cierre'
+        if phase not in ('apertura', 'cierre'):
+            return Response({'detail': 'Elegí si resolvés la apertura o el cierre.'}, status=status.HTTP_400_BAD_REQUEST)
+        session = CashRegisterSession.objects.filter(pk=pk).first()
+        if phase == 'apertura':
+            if session is None or session.declared_opening_cash is None or session.opening_cash is None:
+                return Response({'detail': 'Esa apertura no tiene un efectivo declarado para resolver.'}, status=status.HTTP_400_BAD_REQUEST)
+            error = self._apply_cash_target(
+                request,
+                session,
+                system_cash=session.opening_cash,
+                declared_cash=session.declared_opening_cash,
+                adjustment_attr='opening_cash_adjustment',
+                validated_attr='validated_opening_cash',
+                resolution_attr='opening_cash_resolution',
+                description=f'Ajuste de efectivo de la apertura de caja #{session.id}',
+            )
+        else:
+            if session is None or session.is_open or session.declared_closing_cash is None or session.closing_cash is None:
+                return Response({'detail': 'Ese cierre no tiene un efectivo declarado para resolver.'}, status=status.HTTP_400_BAD_REQUEST)
+            error = self._apply_cash_target(
+                request,
+                session,
+                system_cash=session.closing_cash,
+                declared_cash=session.declared_closing_cash,
+                adjustment_attr='cash_adjustment',
+                validated_attr='validated_closing_cash',
+                resolution_attr='cash_resolution',
+                description=f'Ajuste de efectivo del cierre de caja #{session.id}',
+            )
+        if error is not None:
+            return error
         return Response(self._serialize_session(session))
 
 # ViewSet para la gestión de cambios de inventario (CRUD)
