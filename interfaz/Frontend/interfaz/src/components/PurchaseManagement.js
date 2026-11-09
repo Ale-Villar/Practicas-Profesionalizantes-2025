@@ -284,13 +284,10 @@ const PurchaseManagement = ({ userRole, inventory = [], suppliers = [], products
         setMessage('');
     };
 
-    const handleEditPurchase = async (purchaseId, items) => {
-        await api.post(`/purchases/${purchaseId}/edit/`, { items });
+    const handlePurchaseDeleted = async () => {
         await fetchPurchaseHistory();
         if (reloadProducts) await reloadProducts();
         if (loadCashBalance) await loadCashBalance();
-        setMessage('Compra actualizada.');
-        setTimeout(() => setMessage(''), 3000);
     };
 
     useEffect(() => {
@@ -407,8 +404,7 @@ const PurchaseManagement = ({ userRole, inventory = [], suppliers = [], products
             }
         } catch (error) {
             console.error('Error al registrar la compra desde diálogo:', error);
-            setMessage(getApiErrorMessage(error, 'Error al registrar la compra. Por favor, intente nuevamente.'));
-            setTimeout(() => setMessage(''), 3000);
+            throw error;
         }
     };
 
@@ -573,7 +569,7 @@ const PurchaseManagement = ({ userRole, inventory = [], suppliers = [], products
             ) : (
                 <PurchaseHistory 
                     purchases={purchaseHistory} 
-                    onEditPurchase={handleEditPurchase}
+                    onPurchaseDeleted={handlePurchaseDeleted}
                     userRole={userRole}
                     inventory={inventory}
                     suppliers={suppliers}

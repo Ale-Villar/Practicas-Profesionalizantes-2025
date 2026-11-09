@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import SearchableSelect from './SearchableSelect';
 import { nameOptions, productNameOptions, sameName } from '../utils/filterOptions';
-import { productsForSuppliers } from '../utils/supplierCatalog';
 import { formatMoney } from '../utils/format';
 import api, { getApiErrorMessage } from '../services/api';
 
@@ -10,7 +9,7 @@ const tabButtonClass = (active, color) =>
         active ? color : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
     }`;
 
-const PurchaseHistory = ({ purchases = [], onEditPurchase, userRole, inventory = [], suppliers = [], isWindowMode = false }) => {
+const PurchaseHistory = ({ purchases = [], onPurchaseDeleted, userRole, inventory = [], suppliers = [], isWindowMode = false }) => {
     const [purchasesIdFilter, setPurchasesIdFilter] = useState('');
     const [purchasesIdFilterOp, setPurchasesIdFilterOp] = useState('equals');
     const [purchasesSupplierFilter, setPurchasesSupplierFilter] = useState('');
@@ -32,15 +31,15 @@ const PurchaseHistory = ({ purchases = [], onEditPurchase, userRole, inventory =
     const dialogRef = useRef(null);
     const [activeTab, setActiveTab] = useState('all');
     const [selectedId, setSelectedId] = useState(null);
-    const [editing, setEditing] = useState(false);
-    const [editItems, setEditItems] = useState([]);
-    const [editError, setEditError] = useState('');
+    const [historyError, setHistoryError] = useState('');
+    const [purchaseToDelete, setPurchaseToDelete] = useState(null);
+    const [deleteReason, setDeleteReason] = useState('');
+    const [deleteError, setDeleteError] = useState('');
+    const [deleting, setDeleting] = useState(false);
     const [windowPurchases, setWindowPurchases] = useState([]);
     const [windowInventory, setWindowInventory] = useState([]);
     const [windowSuppliers, setWindowSuppliers] = useState([]);
     const [windowRole, setWindowRole] = useState(userRole);
-    const [saving, setSaving] = useState(false);
-    const [purchaseToConfirm, setPurchaseToConfirm] = useState(null);
     const historyPurchases = isWindowMode ? windowPurchases : purchases;
     const historyInventory = isWindowMode ? windowInventory : inventory;
     const historySuppliers = isWindowMode ? windowSuppliers : suppliers;
@@ -63,7 +62,7 @@ const PurchaseHistory = ({ purchases = [], onEditPurchase, userRole, inventory =
 
     useEffect(() => {
         if (!isWindowMode) return;
-        loadWindowData().catch(() => setEditError('No se pudo cargar el historial de compras.'));
+        loadWindowData().catch(() => setHistoryError('No se pudo cargar el historial de compras.'));
     }, [isWindowMode]);
 
     useEffect(() => {
@@ -229,13 +228,6 @@ const PurchaseHistory = ({ purchases = [], onEditPurchase, userRole, inventory =
         return `${quantity} ${amount === 1 ? name : `${name}s`}`;
     };
 
-    const mapUnit = (backendUnit) => {
-        const unit = String(backendUnit || '').toLowerCase();
-        if (unit === 'g' || unit === 'kg') return 'kg';
-        if (unit === 'ml' || unit === 'l') return 'l';
-        return 'u';
-    };
-
     const normalizedPurchases = (historyPurchases || []).map(purchase => {
         const itemsArray = Array.isArray(purchase.items) ? purchase.items.map(it => {
             const productName = it.productName || it.product_name || it.product || it.name || '';
@@ -273,6 +265,8 @@ const PurchaseHistory = ({ purchases = [], onEditPurchase, userRole, inventory =
             total: Number(purchase.total_amount ?? purchase.total ?? 0),
             type: purchaseType,
             approvedBy: purchase.approved_by_name || 'N/A',
+            isActive: purchase.is_active !== false,
+            deletionReason: purchase.deletion_reason || '',
         };
     });
 
@@ -397,11 +391,6 @@ const PurchaseHistory = ({ purchases = [], onEditPurchase, userRole, inventory =
         });
     }, [visibleKey, isLargeScreen]);
 
-    useEffect(() => {
-        setEditing(false);
-        setEditError('');
-    }, [selectedId]);
-
     const selectedPurchase = visiblePurchases.find(purchase => Number(purchase.id) === Number(selectedId)) || null;
 
     const activeFiltersCount = [
@@ -409,103 +398,34 @@ const PurchaseHistory = ({ purchases = [], onEditPurchase, userRole, inventory =
         purchasesQuantityFilter, purchasesDateFrom, purchasesDateTo,
     ].filter(Boolean).length;
 
-    const findSupplier = (purchase) => {
-        if (!purchase) return null;
-        return (historySuppliers || []).find(supplier => Number(supplier.id) === Number(purchase.supplierId))
-            || (historySuppliers || []).find(supplier => sameName(supplier.name, purchase.supplier))
-            || null;
+    const openDelete = (purchase) => {
+        setDeleteReason('');
+        setDeleteError('');
+        setPurchaseToDelete(purchase);
     };
 
-    const supplierProducts = (purchase) => {
-        const supplier = findSupplier(purchase);
-        if (!supplier) return [];
-        return productsForSuppliers(historyInventory, historySuppliers, [supplier.id]);
-    };
-
-    const startEdit = (purchase) => {
-        setEditItems(purchase.items.map(item => ({
-            key: `${item.productId || item.productName}-${Math.random()}`,
-            productId: item.productId || '',
-            productName: item.productName,
-            quantity: item.quantity,
-            unit: item.unit || 'u',
-            unitPrice: item.unitPrice,
-            category: item.category,
-        })));
-        setEditError('');
-        setEditing(true);
-    };
-
-    const updateEditItem = (key, patch) => {
-        setEditItems(items => items.map(item => item.key === key ? { ...item, ...patch } : item));
-    };
-
-    const changeEditProduct = (key, productId, purchase) => {
-        const catalog = supplierProducts(purchase);
-        const product = catalog.find(item => Number(item.id) === Number(productId))
-            || (historyInventory || []).find(item => Number(item.id) === Number(productId));
-        if (!product) {
-            updateEditItem(key, { productId: '', productName: '', unitPrice: 0, category: '' });
+    const confirmDelete = async (event) => {
+        event.preventDefault();
+        const reason = deleteReason.trim();
+        if (!purchaseToDelete || !reason) {
+            setDeleteError('El motivo de la eliminación es obligatorio.');
             return;
         }
-        updateEditItem(key, {
-            productId: product.id,
-            productName: product.name,
-            unit: mapUnit(product.unit),
-            unitPrice: product.price || 0,
-            category: product.category || product.type || '',
-        });
-    };
-
-    const requestSave = (purchase) => {
-        if (editItems.length === 0) {
-            setEditError('La compra tiene que tener al menos un insumo o producto.');
-            return;
-        }
-        if (editItems.some(item => !item.productId || Number(item.quantity) <= 0)) {
-            setEditError('Elegí un insumo o producto del proveedor y una cantidad mayor a cero.');
-            return;
-        }
-        if (editItems.some(item => item.unit === 'u' && !Number.isInteger(Number(item.quantity)))) {
-            setEditError('La cantidad en unidades tiene que ser un número entero.');
-            return;
-        }
-        setEditError('');
-        setPurchaseToConfirm(purchase);
-    };
-
-    const saveEdit = async (purchase) => {
-        setPurchaseToConfirm(null);
-        setSaving(true);
-        setEditError('');
+        setDeleting(true);
+        setDeleteError('');
         try {
+            await api.post(`/purchases/${purchaseToDelete.id}/eliminar/`, { reason });
             if (isWindowMode) {
-                await api.post(`/purchases/${purchase.id}/edit/`, { items: editItems.map(item => ({
-                    product_id: item.productId,
-                    productId: item.productId,
-                    productName: item.productName,
-                    quantity: Number(item.quantity),
-                    unit: item.unit,
-                    unitPrice: Number(item.unitPrice) || 0,
-                    category: item.category,
-                })) });
                 await loadWindowData();
-            } else {
-                await onEditPurchase(purchase.id, editItems.map(item => ({
-                    product_id: item.productId,
-                    productId: item.productId,
-                    productName: item.productName,
-                    quantity: Number(item.quantity),
-                    unit: item.unit,
-                    unitPrice: Number(item.unitPrice) || 0,
-                    category: item.category,
-                })));
+            } else if (onPurchaseDeleted) {
+                await onPurchaseDeleted();
             }
-            setEditing(false);
+            setPurchaseToDelete(null);
+            setDeleteReason('');
         } catch (error) {
-            setEditError(getApiErrorMessage(error, 'No se pudo guardar la compra.'));
+            setDeleteError(getApiErrorMessage(error, 'No se pudo eliminar la compra.'));
         } finally {
-            setSaving(false);
+            setDeleting(false);
         }
     };
 
@@ -594,75 +514,13 @@ const PurchaseHistory = ({ purchases = [], onEditPurchase, userRole, inventory =
                 </div>
             );
         }
-        if (editing) {
-            const catalog = supplierProducts(purchase);
-            const editTotal = editItems.reduce((sum, item) => sum + (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0), 0);
+        if (!purchase.isActive) {
             return (
-                <div className="p-4 sm:p-6 space-y-4">
-                    <div className="flex items-center gap-3">
-                        <span className="bg-slate-800 text-white px-3 py-1.5 rounded-lg font-mono font-bold">#{purchase.id}</span>
-                        <h3 className="text-lg font-bold text-slate-800">Editar compra</h3>
-                    </div>
-                    <p className="text-sm text-slate-500">Podés cambiar un ítem por otro que provea {purchase.supplier || 'el proveedor'}, cambiar la cantidad o agregar otro.</p>
-                    {editError && <div className="px-3 py-2 rounded-lg bg-red-50 text-red-700 text-sm">{editError}</div>}
-                    <div className="space-y-3">
-                        {editItems.map(item => {
-                            const options = catalog.map(product => ({ value: product.id, label: product.name }));
-                            if (item.productId && !options.some(option => Number(option.value) === Number(item.productId))) {
-                                options.unshift({ value: Number(item.productId), label: item.productName || `Ítem ${item.productId}` });
-                            }
-                            return (
-                                <div key={item.key} className="bg-white border border-slate-200 rounded-xl p-3 space-y-2">
-                                    <SearchableSelect
-                                        options={options}
-                                        value={item.productId}
-                                        onChange={productId => changeEditProduct(item.key, productId, purchase)}
-                                        placeholder="Elegir insumo o producto del proveedor..."
-                                    />
-                                    <div className="flex items-center gap-2">
-                                        <input
-                                            type="number"
-                                            min="0"
-                                            step={item.unit === 'u' ? '1' : '0.01'}
-                                            value={item.quantity}
-                                            onChange={e => updateEditItem(item.key, { quantity: e.target.value })}
-                                            className="w-28 px-2 py-1.5 border border-slate-300 rounded text-sm"
-                                        />
-                                        <span className="text-sm text-slate-500">{getUnitName(item.unit)}</span>
-                                        <span className="text-sm text-slate-600 ml-auto">{getPriceLabel(item.unit)}: {formatMoney(item.unitPrice || 0)}</span>
-                                        {editItems.length > 1 && (
-                                            <button type="button" onClick={() => setEditItems(items => items.filter(line => line.key !== item.key))} className="text-sm text-red-600">Quitar</button>
-                                        )}
-                                    </div>
-                                </div>
-                            );
-                        })}
-                    </div>
-                    <button
-                        type="button"
-                        onClick={() => setEditItems(items => [...items, {
-                            key: `new-${Date.now()}`,
-                            productId: '',
-                            productName: '',
-                            quantity: 1,
-                            unit: 'u',
-                            unitPrice: 0,
-                            category: '',
-                        }])}
-                        className="text-sm font-semibold text-blue-700"
-                    >
-                        + Agregar insumo o producto
-                    </button>
-                    <div className="flex items-end justify-between gap-3 pt-3 border-t border-slate-200">
-                        <div>
-                            <div className="text-xs uppercase font-bold text-slate-400">Total</div>
-                            <div className="text-xl font-bold text-green-700">{formatMoney(editTotal)}</div>
-                            <div className="text-sm text-slate-600">{purchase.supplier || 'Sin proveedor'}</div>
-                        </div>
-                        <div className="flex gap-2">
-                            <button type="button" onClick={() => { setEditing(false); setEditError(''); }} className="px-3 py-2 rounded-lg bg-slate-200 text-slate-700 text-sm font-semibold">Cancelar</button>
-                            <button type="button" disabled={saving} onClick={() => requestSave(purchase)} className="px-3 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold disabled:opacity-60">{saving ? 'Guardando...' : 'Guardar'}</button>
-                        </div>
+                <div className="p-4 sm:p-6 h-full flex flex-col gap-4">
+                    <span className="shrink-0 w-fit bg-slate-800 text-white px-3 py-2 rounded-lg font-mono text-lg font-bold">#{purchase.id}</span>
+                    <div>
+                        <div className="text-xs uppercase font-bold text-red-700 mb-1">Motivo de la eliminación</div>
+                        <p className="text-base text-slate-800 whitespace-pre-wrap">{purchase.deletionReason || 'Sin motivo'}</p>
                     </div>
                 </div>
             );
@@ -700,9 +558,9 @@ const PurchaseHistory = ({ purchases = [], onEditPurchase, userRole, inventory =
                         <div className="font-semibold text-slate-800">{purchase.supplier || 'Sin proveedor'}</div>
                     </div>
                 </div>
-                {historyRole === 'Gerente' && (
-                    <button type="button" onClick={() => startEdit(purchase)} className="w-full py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold">
-                        Editar
+                {historyRole === 'Gerente' && purchase.isActive && (
+                    <button type="button" onClick={() => openDelete(purchase)} className="w-full py-2.5 rounded-lg bg-red-600 hover:bg-red-700 text-white font-semibold">
+                        Eliminar
                     </button>
                 )}
             </div>
@@ -712,11 +570,17 @@ const PurchaseHistory = ({ purchases = [], onEditPurchase, userRole, inventory =
     const renderListButton = (purchase, compact) => (
         <button
             type="button"
-            onClick={() => { setSelectedId(purchase.id); setEditing(false); }}
+            onClick={() => setSelectedId(purchase.id)}
             className={`w-full text-left border-b border-slate-100 hover:bg-blue-50 ${
                 Number(selectedId) === Number(purchase.id) ? 'bg-blue-50 border-l-4 border-l-blue-600' : 'border-l-4 border-l-transparent'
             } ${compact ? 'p-4' : 'px-3 py-3'}`}
         >
+            {!purchase.isActive ? (
+                <div className="min-w-0">
+                    <div className="font-mono text-xs text-slate-400">#{purchase.id}</div>
+                    <div className="text-sm text-slate-800">{purchase.deletionReason || 'Sin motivo'}</div>
+                </div>
+            ) : (
             <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
                     <div className="font-mono text-xs text-slate-400">#{purchase.id}</div>
@@ -728,6 +592,7 @@ const PurchaseHistory = ({ purchases = [], onEditPurchase, userRole, inventory =
                     <div className="text-[11px] text-slate-400">{formatDate(purchase.date)}</div>
                 </div>
             </div>
+            )}
         </button>
     );
 
@@ -779,15 +644,45 @@ const PurchaseHistory = ({ purchases = [], onEditPurchase, userRole, inventory =
     );
     const panelWidth = Math.min(panelLimits.max, Math.max(panelLimits.min, desiredPanelWidth));
 
-    const confirmSaveModal = purchaseToConfirm && (
+    const deleteModal = purchaseToDelete && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[2000] p-4">
-            <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6">
-                <p className="text-lg text-slate-800 mb-6">¿Estás seguro que deseas guardar la edición de la compra?</p>
+            <form
+                className="bg-white rounded-lg shadow-xl w-full max-w-md p-6"
+                onSubmit={confirmDelete}
+            >
+                <p className="text-lg text-slate-800 mb-4">¿Estás seguro que deseas eliminar esta compra?</p>
+                <label className="block text-sm font-semibold text-slate-700 mb-4">
+                    Motivo de la eliminación
+                    <textarea
+                        value={deleteReason}
+                        onChange={event => setDeleteReason(event.target.value)}
+                        required
+                        rows={4}
+                        autoFocus
+                        disabled={deleting}
+                        placeholder="Escribí por qué se elimina"
+                        className="mt-1 block w-full px-3 py-2 border border-slate-300 rounded-md text-sm font-normal focus:ring-2 focus:ring-red-500"
+                    />
+                </label>
+                {deleteError && <p className="text-sm text-red-600 mb-4">{deleteError}</p>}
                 <div className="flex justify-end gap-3">
-                    <button type="button" onClick={() => setPurchaseToConfirm(null)} className="px-4 py-2 rounded-lg bg-slate-200 text-slate-700 font-semibold">Cancelar</button>
-                    <button type="button" onClick={() => saveEdit(purchaseToConfirm)} className="px-4 py-2 rounded-lg bg-blue-600 text-white font-semibold">Confirmar</button>
+                    <button
+                        type="button"
+                        disabled={deleting}
+                        onClick={() => { setPurchaseToDelete(null); setDeleteReason(''); setDeleteError(''); }}
+                        className="px-4 py-2 rounded-lg bg-slate-200 text-slate-700 font-semibold"
+                    >
+                        Cancelar
+                    </button>
+                    <button
+                        type="submit"
+                        disabled={deleting || !deleteReason.trim()}
+                        className="px-4 py-2 rounded-lg bg-red-600 text-white font-semibold disabled:opacity-60"
+                    >
+                        {deleting ? 'Eliminando...' : 'Eliminar'}
+                    </button>
                 </div>
-            </div>
+            </form>
         </div>
     );
 
@@ -820,7 +715,8 @@ const PurchaseHistory = ({ purchases = [], onEditPurchase, userRole, inventory =
     if (isWindowMode) {
         return (
             <div ref={dialogRef} className="h-screen w-screen flex flex-col bg-white overflow-hidden">
-                {confirmSaveModal}
+                {historyError && <p className="px-4 py-2 text-sm text-red-600 bg-red-50">{historyError}</p>}
+                {deleteModal}
                 {isLargeScreen ? splitView : (
                     <div className="relative flex-1 min-h-0 overflow-hidden bg-slate-50">
                         <div className={`flex flex-col h-full ${selectedPurchase ? '-translate-x-full absolute inset-0' : ''}`}>
@@ -841,7 +737,7 @@ const PurchaseHistory = ({ purchases = [], onEditPurchase, userRole, inventory =
                             {selectedPurchase && (
                                 <>
                                     <div className="bg-white px-3 py-3 border-b border-slate-200 flex items-center gap-2">
-                                        <button type="button" onClick={() => { setSelectedId(null); setEditing(false); }} className="px-2 py-1 text-slate-600 font-semibold">←</button>
+                                        <button type="button" onClick={() => setSelectedId(null)} className="px-2 py-1 text-slate-600 font-semibold">←</button>
                                         <span className="font-bold text-slate-800">Detalle de compra</span>
                                     </div>
                                     <div className="flex-1 overflow-y-auto">{renderFicha(selectedPurchase)}</div>
@@ -856,7 +752,8 @@ const PurchaseHistory = ({ purchases = [], onEditPurchase, userRole, inventory =
 
     return (
         <div className="purchase-history-container">
-            {confirmSaveModal}
+            {historyError && <p className="px-4 py-2 text-sm text-red-600">{historyError}</p>}
+            {deleteModal}
             {isLargeScreen ? (
                 <>
                     {!dialogOpen && (
@@ -947,7 +844,7 @@ const PurchaseHistory = ({ purchases = [], onEditPurchase, userRole, inventory =
                         {selectedPurchase && (
                             <>
                                 <div className="bg-white px-3 py-3 border-b border-slate-200 flex items-center gap-2">
-                                    <button type="button" onClick={() => { setSelectedId(null); setEditing(false); }} className="px-2 py-1 text-slate-600 font-semibold">←</button>
+                                    <button type="button" onClick={() => setSelectedId(null)} className="px-2 py-1 text-slate-600 font-semibold">←</button>
                                     <span className="font-bold text-slate-800">Detalle de compra</span>
                                 </div>
                                 <div className="flex-1 overflow-y-auto">{renderFicha(selectedPurchase)}</div>

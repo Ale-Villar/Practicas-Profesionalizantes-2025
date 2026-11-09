@@ -714,8 +714,10 @@ export default function DataConsultation(props) {
                 supplier: supplierName, 
                 items: itemsArray, 
                 total: totalAmount, 
-                status: purchase.status || 'Completada', 
-                type: purchaseType 
+                status: purchase.is_active === false ? 'Eliminada' : (purchase.status || 'Completada'),
+                type: purchaseType,
+                isActive: purchase.is_active !== false,
+                deletionReason: purchase.deletion_reason || '',
             };
         });
 
@@ -818,7 +820,7 @@ export default function DataConsultation(props) {
             title: 'Reporte de Compras', 
             summary: { 
                 totalPurchases: filteredPurchases.length, 
-                totalAmount: filteredPurchases.reduce((sum, p) => sum + (Number(p.total) || 0), 0),
+                totalAmount: filteredPurchases.reduce((sum, p) => p.isActive === false ? sum : sum + (Number(p.total) || 0), 0),
                 byType: {
                     Producto: filteredPurchases.filter(p => p.type === 'Producto').length,
                     Insumo: filteredPurchases.filter(p => p.type === 'Insumo').length
@@ -827,9 +829,11 @@ export default function DataConsultation(props) {
                     : startDate ? `Desde ${formatDateForDisplay(startDate)}` 
                     : endDate ? `Hasta ${formatDateForDisplay(endDate)}` : 'Todos los períodos'
             }, 
-            data: filteredPurchases.map(p => ({
-                id: p.id, date: p.date, supplier: p.supplier, total: p.total, type: p.type, items: p.items
-            }))
+            data: filteredPurchases.map(p => (
+                p.isActive === false
+                    ? { id: p.id, 'Motivo de eliminación': p.deletionReason || '' }
+                    : { id: p.id, date: p.date, supplier: p.supplier, total: p.total, type: p.type, items: p.items }
+            ))
         };
         setQueryResults(results);
         return results;
@@ -1935,6 +1939,9 @@ export default function DataConsultation(props) {
                                                 cols = ['id','date','customerName','paymentMethod','status','products','units'];
                                             } else if (selectedQuery === 'compras') {
                                                 cols = ['id', 'date', 'supplier', 'type', 'items', 'total'];
+                                                if (queryResults.data.some(row => row['Motivo de eliminación'])) {
+                                                    cols = ['id', 'Motivo de eliminación', 'date', 'supplier', 'type', 'items', 'total'];
+                                                }
                                             } else if (selectedQuery === 'proveedores') {
                                                 cols = ['id', 'name', 'cuit', 'phone', 'address', 'products'];
                                             }

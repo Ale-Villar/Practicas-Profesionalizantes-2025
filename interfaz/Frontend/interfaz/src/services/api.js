@@ -187,8 +187,8 @@ const getCashRegisterSessions = (date) => {
   return api.get('/cash-register/', { params: { date } });
 };
 
-const openCashRegister = () => {
-  return api.post('/cash-register/open/');
+const openCashRegister = (data = {}) => {
+  return api.post('/cash-register/open/', data);
 };
 
 const closeCashRegister = (data = {}) => {

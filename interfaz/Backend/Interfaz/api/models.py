@@ -106,14 +106,18 @@ class Product(models.Model):
 # Modelo para la apertura y cierre de caja: cada registro es un turno de caja
 class CashRegisterSession(models.Model):
     ALLOWED_ROLES = ('Gerente', 'Encargado', 'Cajero')
-    # Cierran contando el efectivo a ciegas: no ven el efectivo que calcula el sistema
+    # Abren y cierran contando el efectivo a ciegas: no ven el efectivo ni el total actual del sistema
     DECLARING_ROLES = ('Encargado', 'Cajero')
-    MAX_OPENINGS_PER_DAY = 10
+    MAX_OPENINGS_PER_DAY = 4
 
     opened_by = models.ForeignKey('User', on_delete=models.SET_NULL, null=True, blank=True, related_name='opened_cash_sessions')
     opened_at = models.DateTimeField(auto_now_add=True)
     opening_balance = models.DecimalField(max_digits=12, decimal_places=2)
     opening_cash = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    declared_opening_cash = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    validated_opening_cash = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    opening_cash_adjustment = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    opening_cash_resolution = models.CharField(max_length=20, blank=True, null=True)
     closed_by = models.ForeignKey('User', on_delete=models.SET_NULL, null=True, blank=True, related_name='closed_cash_sessions')
     closed_at = models.DateTimeField(null=True, blank=True)
     closing_balance = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
@@ -299,6 +303,8 @@ class Purchase(models.Model):
     approved_at = models.DateTimeField(null=True, blank=True)
     is_active = models.BooleanField(default=True)  # Para eliminación lógica
     deleted_at = models.DateTimeField(null=True, blank=True)  # Fecha de eliminación
+    deletion_reason = models.TextField(blank=True, null=True)
+    deleted_by = models.ForeignKey('User', on_delete=models.SET_NULL, null=True, blank=True, related_name='deleted_purchases')
 
     class Meta:
         ordering = ['-created_at']
