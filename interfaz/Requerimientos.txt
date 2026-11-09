@@ -68,6 +68,9 @@ print(superuser.username, superuser.role)
 
 - Ver logs de Docker: docker-compose logs
 - Parar contenedores: docker-compose down
+- Para Reiniciar: docker-compose restart
+- Para parar el contenedor: docker stop proyecto_practicas2025
+- Para arrancar el contenedor: docker start proyecto_practicas2025
 
 
 #Instalacion Tailwindcss
